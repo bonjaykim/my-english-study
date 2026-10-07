@@ -37,9 +37,7 @@ python scripts/build.py
 python -m http.server 8000
 ```
 
-`http://localhost:8000`에서 확인합니다. Python 3.12 이상과 시간대 데이터가 필요하며,
-Windows에서 시간대 데이터가 없으면 `python -m pip install tzdata`로 설치할 수 있습니다.
-GitHub Ubuntu 실행 환경에는 시간대 데이터가 있습니다.
+`http://localhost:8000`에서 확인합니다. Python 3.12 이상을 사용하며 별도 라이브러리가 필요하지 않습니다.
 
 ## 구조
 

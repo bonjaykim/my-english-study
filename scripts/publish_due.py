@@ -1,6 +1,5 @@
 """Release a prepared lesson on its Seoul calendar date, idempotently."""
-from datetime import datetime, date
-from zoneinfo import ZoneInfo
+from datetime import datetime, date, timezone, timedelta
 from pathlib import Path
 import argparse
 import json
@@ -31,5 +30,7 @@ def publish(day):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--date', default=datetime.now(ZoneInfo('Asia/Seoul')).date().isoformat())
-    publish(parser.parse_args().date)
+    parser.add_argument('--date')
+    # Contemporary Korea is UTC+09:00 year-round; no external tzdata needed.
+    requested = parser.parse_args().date
+    publish(requested or datetime.now(timezone(timedelta(hours=9))).date().isoformat())
