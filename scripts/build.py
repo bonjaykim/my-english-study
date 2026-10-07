@@ -5,7 +5,6 @@ from html import escape
 from urllib.parse import quote
 import argparse
 import json
-import math
 import re
 import shutil
 
@@ -40,7 +39,9 @@ def validate(lesson):
     return words
 
 def document(title, body, prefix='', search=False):
-    return f'''<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>{escape(title)} · My English Study</title><link rel="stylesheet" href="{prefix}assets/style.css">{f'<script defer src="{prefix}assets/search.js"></script>' if search else ''}</head><body><header><a href="{prefix}index.html"><strong>MY ENGLISH STUDY</strong></a><a href="{prefix}business/index.html">Business English</a></header>{body}<footer>영문 대본 → 한국어 번역 → 핵심 표현 · 읽기 시간은 분당 120단어 기준의 추정치입니다.</footer></body></html>'''
+    home_current = ' aria-current="page"' if search and not prefix else ''
+    business_current = ' aria-current="page"' if not home_current else ''
+    return f'''<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#07111f"><title>{escape(title)} · My English Study</title><link rel="stylesheet" href="{prefix}assets/style.css">{f'<script defer src="{prefix}assets/search.js"></script>' if search else ''}</head><body><header><a class="brand" href="{prefix}index.html"><span class="mark" aria-hidden="true">En</span><span><strong>My English Study</strong><small>매일 만나는 비즈니스 영어</small></span></a><nav class="primary-nav" aria-label="주요 메뉴"><a href="{prefix}index.html"{home_current}>학습 보관함</a><a href="{prefix}business/index.html"{business_current}>Business English</a></nav></header>{body}<footer>영문 대본 → 한국어 번역 → 핵심 표현 · 읽기 시간은 분당 120단어 기준의 추정치입니다.</footer></body></html>'''
 
 def filename(lesson):
     return f"{lesson['date']} {lesson['subject']}.html"
@@ -69,8 +70,11 @@ def index_page(lessons, prefix=''):
     for lesson, words in lessons:
         haystack = ' '.join([lesson['subject'], lesson['title_ko'], lesson['summary_ko'], *[p['team'] for p in lesson['participants']], *[x['phrase'] for x in lesson['expressions']]]).lower()
         link = ('' if prefix else 'business/') + quote(filename(lesson))
-        cards.append(f'''<article class="card" data-date="{lesson['date']}" data-search="{escape(haystack, quote=True)}"><small>{lesson['date']} · BUSINESS</small><h2><a lang="en" href="{link}">{escape(lesson['subject'])}</a></h2><p>{escape(lesson['title_ko'])}</p><p class="muted">{escape(lesson['summary_ko'])}</p><div class="tags"><span class="tag">중급~고급</span><span class="tag">약 {round(words/120)}분</span><span class="tag">{len(lesson['expressions'])}개 표현</span></div></article>''')
-    body = f'''<main><p class="eyebrow">DAILY PRACTICE / BUSINESS ENGLISH</p><h1>오늘의 회의를 영어로.</h1><p class="muted">다양한 팀의 대화로 익히는 회의 영어. 영문을 먼저 읽고, 번역과 표현을 복습하세요.</p><div class="toolbar"><label for="search">주제·팀·표현 검색<input id="search" type="search" placeholder="예: launch, 고객, Engineering" autocomplete="off"></label><label for="date">학습 날짜<input id="date" type="date"></label></div><p id="count" role="status" aria-live="polite">{len(lessons)}개의 학습 자료</p><div class="cards">{''.join(cards)}</div><p class="empty" id="empty" {'hidden' if lessons else ''}>해당 조건의 학습 자료가 없습니다. 검색어나 날짜를 지워 주세요.</p></main>'''
+        cards.append(f'''<article class="card" data-date="{lesson['date']}" data-search="{escape(haystack, quote=True)}"><div class="card-meta"><span class="badge">BUSINESS</span><small>{lesson['date']}</small></div><h2><a lang="en" href="{link}">{escape(lesson['subject'])}</a></h2><p>{escape(lesson['title_ko'])}</p><p class="muted">{escape(lesson['summary_ko'])}</p><div class="tags"><span class="tag">중급~고급</span><span class="tag">약 {round(words/120)}분</span><span class="tag">{len(lesson['expressions'])}개 표현</span></div></article>''')
+    latest = lessons[0][0]['date'] if lessons else '게시 대기'
+    expression_count = sum(len(x['expressions']) for x, _ in lessons)
+    overview = f'''<section class="overview" aria-label="학습 자료 요약"><article class="metric"><small>누적 학습 자료</small><strong>{len(lessons):02d}</strong><span>다양한 팀의 회의 시나리오</span></article><article class="metric"><small>대본 읽기</small><strong>약 20분</strong><span>중급~고급 회의 영어</span></article><article class="metric"><small>핵심 표현</small><strong>{expression_count:02d}</strong><span>뜻 · 사용 상황 · 응용 예문</span></article></section>'''
+    body = f'''<main><div class="page-heading"><div><p class="eyebrow">BUSINESS ENGLISH / DAILY PRACTICE</p><h1>오늘의 회의를 영어로.</h1><p class="muted">영문 대본을 먼저 읽고, 한국어 번역과 핵심 표현으로 복습하세요.</p></div><div class="edition">최근 학습 · {latest}</div></div>{overview}<div class="toolbar"><label for="search">주제·팀·표현 검색<input id="search" type="search" placeholder="예: launch, 고객, Engineering" autocomplete="off"></label><label for="date">학습 날짜<input id="date" type="date"></label></div><div class="section-head"><h2>학습 보관함</h2><p class="muted" id="count" role="status" aria-live="polite">{len(lessons)}개의 학습 자료</p></div><div class="cards">{''.join(cards)}</div><p class="empty" id="empty" {'hidden' if lessons else ''}>해당 조건의 학습 자료가 없습니다. 검색어나 날짜를 지워 주세요.</p></main>'''
     return document('Business English', body, prefix, search=True)
 
 def build(output=None):

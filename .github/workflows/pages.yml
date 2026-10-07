@@ -9,6 +9,7 @@ permissions:
   contents: write
   pages: write
   id-token: write
+  issues: write
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -45,6 +46,18 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Send daily lesson link to GitHub Mobile
+        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SITE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: python scripts/notify_github.py
