@@ -31,8 +31,13 @@ def api(path, token, payload=None):
     with urlopen(request, timeout=30) as response:
         return json.load(response)
 
-def send(day, site_url, repository, token):
+def send(day, site_url, repository, token, test_id=None):
     payload, marker = notification(day, site_url)
+    if test_id:
+        test_marker = f'<!-- english-study-test:{test_id} -->'
+        payload['body'] = payload['body'].replace(marker, test_marker)
+        payload['title'] = '[테스트 알림] ' + payload['title']
+        marker = test_marker
     # Match the marker, including closed issues, so reruns never notify twice.
     page = 1
     while True:
@@ -51,9 +56,10 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--date', default=datetime.now(timezone(timedelta(hours=9))).date().isoformat())
     parser.add_argument('--dry-run', action='store_true')
+    parser.add_argument('--test-id')
     args = parser.parse_args()
     site_url = os.environ.get('SITE_URL', 'https://bonjaykim.github.io/my-english-study/')
     if args.dry_run:
         print(json.dumps(notification(args.date, site_url)[0], ensure_ascii=False, indent=2))
     else:
-        send(args.date, site_url, os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_TOKEN'])
+        send(args.date, site_url, os.environ['GITHUB_REPOSITORY'], os.environ['GITHUB_TOKEN'], args.test_id)
