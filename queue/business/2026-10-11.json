@@ -1,0 +1,302 @@
+{
+  "date": "2026-10-11",
+  "category": "business",
+  "topic": "partnerships",
+  "subject": "Defining a Joint Customer Pilot and Partnership Exit Rules",
+  "title_ko": "공동 고객 파일럿의 목표와 관계 및 종료 조건 협의",
+  "summary_ko": "모든 기업·인물·고객·수치가 가상인 기업 실무 학습 시나리오입니다. Aster Flow와 Beacon Advisory가 공동 고객 파일럿을 설계하며 고객 관계의 주도권, 역할, 성과 측정, 종료 이후의 데이터와 고객 인계를 협의합니다.",
+  "participants": [
+    {
+      "name": "Clara",
+      "team": "Aster Partnerships"
+    },
+    {
+      "name": "Dev",
+      "team": "Aster Delivery"
+    },
+    {
+      "name": "Sanjay",
+      "team": "Aster Delivery"
+    },
+    {
+      "name": "Elise",
+      "team": "Beacon Alliances"
+    },
+    {
+      "name": "Joon",
+      "team": "Beacon Customer Advisory"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and shared purpose",
+      "title_ko": "참석 확인과 공동 목적",
+      "turns": [
+        {
+          "speaker": "Clara",
+          "en": "Thanks for joining the partnership workshop this Sunday, October eleventh. We arranged today's session around the customer team's availability, and I appreciate everyone making room for it. I am Clara from Aster Partnerships. Dev and Sanjay represent our delivery team, Elise leads Beacon Alliances, and Joon represents Beacon Customer Advisory. Could you confirm that you have the joint pilot outline? Our immediate decision is whether we can offer one customer a coherent pilot, with clear responsibilities and a sensible end point. I would like us to leave with an offer both companies can explain consistently, including what happens if the pilot does not work.",
+          "ko": "이번 10월 11일 일요일 파트너십 워크숍에 참석해 주셔서 감사합니다. 고객팀의 가능 시간에 맞춰 잡았으며 시간을 내주셔서 감사합니다. 저는 Aster Partnerships의 Clara입니다. Dev와 Sanjay는 저희 수행팀, Elise는 Beacon Alliances, Joon은 Beacon Customer Advisory입니다. 공동 파일럿 개요가 있는지 확인해 주세요. 당장의 결정은 책임과 합리적인 종료 시점이 명확한 일관된 파일럿을 고객 한 곳에 제안할 수 있느냐입니다. 실패할 경우를 포함해 양사가 일관되게 설명할 제안을 가지고 마쳤으면 합니다."
+        },
+        {
+          "speaker": "Elise",
+          "en": "I have the outline. Beacon brought the customer opportunity, and our advisers have worked with their regional directors for two years. We want to combine your workflow platform with our process coaching, but the customer should not have to manage the boundary between us. My main concern is customer ownership. If the pilot succeeds, I do not want Beacon to become an introduction service while Aster takes over the relationship. Equally, I recognize that your team needs direct access to users to support the platform. We should discuss that tension openly before putting a joint logo on the proposal.",
+          "ko": "개요가 있습니다. Beacon이 기회를 가져왔고 자문팀은 고객 지역 이사들과 2년 일했습니다. 플랫폼과 절차 코칭을 결합하되 고객이 양사 경계를 관리하게 해서는 안 됩니다. 핵심 우려는 고객 관계 주도권입니다. 성공하면 Aster가 관계를 가져가고 Beacon은 소개 업체만 되는 것을 원하지 않습니다. 동시에 지원에는 사용자 직접 접근이 필요함을 압니다. 공동 로고 제안 전에 갈등을 공개 논의해야 합니다."
+        },
+        {
+          "speaker": "Dev",
+          "en": "I have the same document. Aster Delivery can configure the pilot workspace, train users on the platform, and investigate technical issues. We need access to the customer's process owners because configuration questions often involve how work actually moves between teams. If every question passes through two account managers, the pilot could spend its first month waiting for clarifications. However, direct access should not mean that our engineers start discussing an unrelated subscription with someone they happen to meet. I can define a contact protocol that distinguishes delivery conversations from commercial conversations. ",
+          "ko": "같은 문서가 있습니다. Aster Delivery는 공간 설정, 사용자 교육, 기술 문제 조사를 맡습니다. 설정 질문은 실제 팀간 흐름에 관련되어 고객 절차 책임자 접근이 필요합니다. 모든 질문이 계정 담당 둘을 거치면 첫 달을 확인 대기로 보낼 수 있습니다. 하지만 직접 접근이 엔지니어가 만난 사람에게 무관한 구독 영업을 한다는 뜻은 아닙니다. 수행과 영업 대화를 구분하는 연락 원칙을 정할 수 있습니다. "
+        },
+        {
+          "speaker": "Joon",
+          "en": "The customer wants to reduce missed handoffs between its installation planners and field coordinators. Their current process relies on email and a weekly status call, so ownership sometimes changes without the next person knowing. They are interested in the combined offer because software alone has not fixed the behavior, and coaching alone has not made the work visible. I will lead the customer workshops and help the teams agree on practical working rules. My concern is that we could describe the pilot as a transformation and then measure only login activity. We should define the operational change before deciding which metrics look convenient.",
+          "ko": "고객은 설치 계획자와 현장 조정자 사이 누락 인계를 줄이고 싶어 합니다. 이메일과 주간 현황 회의에 의존해 다음 사람이 모르게 담당이 바뀌기도 합니다. 소프트웨어만으로 행동을, 코칭만으로 가시성을 해결하지 못해 결합에 관심이 있습니다. 고객 워크숍과 실무 규칙 합의를 맡겠습니다. 전환이라고 설명한 뒤 로그인만 측정할까 걱정입니다. 편리한 지표를 고르기 전에 운영 변화를 정의해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Pilot objective, cohort, and baseline",
+      "title_ko": "파일럿 목표와 참여군 및 기준선",
+      "turns": [
+        {
+          "speaker": "Sanjay",
+          "en": "I would start with a narrow outcome definition. A failed handoff occurs when a task reaches its agreed transfer point but the receiving coordinator has not acknowledged responsibility within one working day. We should confirm that definition with the customer rather than assume that every late update represents a missed handoff. I propose following forty active installation jobs across two regional teams for six weeks. We will compare the failure rate with a two-week baseline collected before the workspace is introduced. The comparison will not prove causation by itself, because job complexity and staffing may change. We can still make it useful by recording those factors and reporting the limitations alongside the results.",
+          "ko": "좁은 결과 정의부터 하겠습니다. 합의 이전 지점에 도달했으나 받는 조정자가 근무일 하루 안에 책임을 확인하지 않으면 실패 인계입니다. 늦은 갱신이 모두 누락이라고 가정하지 말고 고객에게 확인해야 합니다. 두 지역팀의 활성 설치 40건을 6주 추적하고 도입 전 2주 기준선과 실패율을 비교할 것을 제안합니다. 복잡성과 인력이 바뀔 수 있어 비교만으로 인과를 입증하지는 않습니다. 요인을 기록하고 결과와 한계를 함께 보고하면 유용할 수 있습니다."
+        },
+        {
+          "speaker": "Joon",
+          "en": "That definition is a good beginning, but some jobs remain with the same coordinator for the entire period. Counting forty jobs could make the sample sound larger than the number of actual handoffs. I suggest measuring eligible handoff events and reporting how many jobs generated them. We should also distinguish an acknowledgement from a meaningful acceptance. A coordinator may click a button without having the information needed to proceed. Could we add a completeness check covering the installation date, site contact, and outstanding dependency? Making them explicit would help us evaluate whether the receiving person can act, rather than whether someone has learned to keep the dashboard green.",
+          "ko": "좋은 시작이지만 기간 내내 같은 담당인 작업도 있습니다. 40건은 실제 인계보다 표본이 커 보일 수 있습니다. 대상 인계 사건을 측정하고 생성 작업 수를 보고합시다. 확인 클릭과 의미 있는 수락도 구분해야 합니다. 필요한 정보 없이 클릭할 수 있습니다. 설치일, 현장 연락처, 잔여 의존의 완전성 확인을 넣을 수 있나요? 명시하면 화면을 초록으로 유지하는 학습이 아니라 받는 사람이 행동할 수 있는지 평가합니다."
+        },
+        {
+          "speaker": "Sanjay",
+          "en": "Yes, we can define a complete handoff as timely acknowledgement plus those three required items. I will report incomplete and unacknowledged events separately, because their causes may differ. We should also record reopened handoffs where the receiving person sends the work back for missing information. Otherwise, people could appear successful by accepting everything and resolving the confusion later outside the system. For privacy, we only need job identifiers, timestamps, role labels, and the required field status. We do not need personal performance rankings or the contents of customer conversations. The shared report should evaluate the process, not create a league table of individual employees that neither company was asked to produce.",
+          "ko": "네, 제시간 확인과 필수 세 항목을 완전 인계로 정의합니다. 원인이 다를 수 있어 불완전과 미확인을 분리합니다. 정보 부족으로 되돌리는 재개 인계도 기록해야 합니다. 그렇지 않으면 전부 수락하고 시스템 밖 혼란을 해결해 성공처럼 보일 수 있습니다. 개인정보 관점에서 작업 번호, 시각, 역할명, 필드 상태만 필요합니다. 개인 성과 순위나 대화 내용은 불필요합니다. 공동 보고는 요청받지 않은 직원 순위표가 아니라 절차를 평가해야 합니다."
+        },
+        {
+          "speaker": "Elise",
+          "en": "I support the process focus. The proposal should state that the customer decides which employees participate and remains responsible for its staffing decisions. Beacon will facilitate the working rules, while Aster will configure the supporting workflow. We should ask the customer to nominate one sponsor and two process owners who can resolve conflicting regional practices. If each region gives us a different instruction and nobody has authority to choose, the joint team will become an unpaid arbitration service. I also want the baseline collection included in the pilot plan rather than treated as a customer's homework assignment. Joon can guide it, and Sanjay can define the template, so we are responsible for making the evidence collection practical.",
+          "ko": "절차 중심에 찬성합니다. 참여 직원과 인력 결정 책임은 고객이라고 명시합니다. Beacon은 규칙 진행, Aster는 흐름 설정입니다. 지역 관행 충돌을 해결할 책임자 하나와 절차 담당 둘을 고객이 지정해야 합니다. 서로 다른 지시만 있고 선택 권한이 없으면 공동팀은 무보수 중재가 됩니다. 기준선도 고객 숙제가 아니라 계획에 넣고 Joon이 안내, Sanjay가 양식을 정해 실용 수집 책임을 집니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Customer relationship and communication boundaries",
+      "title_ko": "고객 관계와 연락 경계",
+      "turns": [
+        {
+          "speaker": "Clara",
+          "en": "Let us address the phrase customer ownership. Neither company owns the customer, but we do need clear stewardship of the relationship. My proposal is that Beacon remains the lead relationship contact for this pilot, while Aster has direct delivery access within the agreed scope. Commercial proposals about the combined service will be discussed jointly. If the customer independently asks either company about unrelated work, that company should notify the other that a separate conversation exists, without sharing confidential details the customer has not authorized. I would resist an absolute ban on future contact, because the customer should retain freedom to choose its suppliers. ",
+          "ko": "고객 소유권 표현을 다룹시다. 고객을 소유하지는 않지만 관계 관리 책임은 명확해야 합니다. 이 파일럿의 관계 대표는 Beacon, 합의 범위 직접 수행 접근은 Aster를 제안합니다. 결합 서비스 거래 제안은 공동 논의입니다. 고객이 무관한 일을 독립 문의하면 승인 없는 기밀 세부 없이 별도 대화 존재를 상대에게 알립니다. 고객의 공급자 선택 자유가 있어 절대적인 향후 연락 금지에는 반대합니다. "
+        },
+        {
+          "speaker": "Elise",
+          "en": "I agree that customer choice matters, but a notification rule alone may not protect Beacon's investment. We will introduce your team to operational contacts we developed over years. If those introductions become a route to selling around us during the pilot, we will have taken the relationship risk without a durable role. Could we agree that neither company will use pilot contact lists for unrelated outreach during the pilot or the following sixty days? A customer-initiated inquiry would be different and could proceed with the notification you described. I am asking for a limited boundary around information shared for this particular collaboration.",
+          "ko": "선택은 중요하지만 통지만으로 투자 보호가 안 될 수 있습니다. 수년 쌓은 운영 연락처를 소개합니다. 파일럿 중 우회 판매 경로가 되면 지속 역할 없이 관계 위험만 집니다. 파일럿과 이후 60일 동안 연락 목록을 무관한 홍보에 사용하지 않기로 할 수 있나요? 고객발 문의는 다르게 통지하며 진행합니다. 이번 협업의 정보 공유에 대한 제한된 경계를 요청합니다."
+        },
+        {
+          "speaker": "Dev",
+          "en": "That is workable for Delivery. We will use the contact list to configure, support, and evaluate the pilot, not pass it to a general prospecting campaign. I want the rule to distinguish a support follow-up from solicitation, though. If a user reports an issue, our engineer must be able to contact them directly without waiting for approval from both relationship teams. We can record the interaction in a shared issue log and copy Joon on changes affecting the working rules. For purely technical troubleshooting, a summary is enough. Transparency should make the work visible, not turn each routine exchange into a committee meeting.",
+          "ko": "수행팀에는 가능합니다. 연락 목록은 설정·지원·평가에 쓰고 일반 영업에 넘기지 않습니다. 다만 지원 후속과 판매 권유를 구분해야 합니다. 문제 신고 사용자는 양쪽 관계팀 승인 대기 없이 엔지니어가 연락해야 합니다. 공동 이슈 기록과 규칙 변경 때 Joon 공유를 할 수 있습니다. 순수 기술 문제는 요약이면 됩니다. 투명성은 일의 가시성이지 매 교환의 위원회화가 아닙니다."
+        },
+        {
+          "speaker": "Joon",
+          "en": "I support that distinction. We should give the customer one contact map showing who handles technical issues, process questions, and commercial decisions. Beacon will coordinate the overall check-in, but users can reach Aster's support route directly. If a question crosses the boundary, the receiving team will bring in the other company rather than tell the customer to start again elsewhere. I would also like a no-surprises rule for customer messages. Before either company announces a material change to the pilot, both leads should review the message. Routine support can move quickly, while changes to timing, scope, or the proposed next step need a joint explanation that does not make the customer reconcile two different stories.",
+          "ko": "구분에 찬성합니다. 기술, 절차, 거래 담당을 한 연락 지도로 줍니다. Beacon이 전체 점검을 조율하지만 사용자는 Aster 지원에 직접 접근합니다. 경계를 넘으면 고객에게 다시 시작하라 하지 않고 상대를 참여시킵니다. 고객 메시지에 사전 공유 규칙도 원합니다. 중요한 변경 발표 전에 양쪽 책임자가 검토합니다. 일상 지원은 빠르게, 시점·범위·다음 단계는 고객이 다른 이야기 둘을 맞추지 않도록 공동 설명해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Roles, effort, and success criteria",
+      "title_ko": "역할과 투입 및 성공 기준",
+      "turns": [
+        {
+          "speaker": "Elise",
+          "en": "Beacon can commit eighty advisory hours across preparation, workshops, weekly check-ins, and the closing review. I propose that Aster commits a comparable named delivery capacity rather than saying support is available whenever needed. We should state which work each company absorbs and which customer requests would require a separate decision. I also want to challenge the proposed success threshold of a thirty percent reduction in failed handoffs. If the baseline failure rate is already low, that threshold could be meaningless or depend on only one event. We need a minimum evidence volume and a qualitative check that the process is actually easier for the customer, not simply more carefully measured.",
+          "ko": "Beacon은 준비·워크숍·주간 점검·종료 검토에 80시간을 투입합니다. Aster도 필요할 때 지원한다 대신 명명된 여력을 확약합시다. 각사 부담과 별도 결정이 필요한 요청을 명시해야 합니다. 실패 인계 30% 감소 기준에도 이의를 제기합니다. 기준 실패율이 낮으면 의미 없거나 사건 하나에 좌우됩니다. 최소 증거량과 고객 절차가 더 정밀 측정만 되는 것이 아니라 쉬워졌는지 정성 확인이 필요합니다."
+        },
+        {
+          "speaker": "Sanjay",
+          "en": "I agree. We should require at least sixty eligible handoff events during the live period before interpreting the reduction threshold. If the volume is lower, the result will be inconclusive rather than automatically unsuccessful. For a continuation recommendation, I suggest three conditions: a thirty percent relative reduction in the complete-handoff failure rate, no critical operational disruption caused by the pilot, and confirmation from both customer process owners that the working rules are sustainable. We will also show the absolute rates and event counts. A movement from ten failures to seven is different from a movement from one failure to zero, even if both look attractive as percentages. The report should make that difference obvious.",
+          "ko": "동의합니다. 감소 기준 해석 전 실사용 최소 대상 인계 60개가 필요합니다. 적으면 자동 실패 아닌 불명확입니다. 지속 권고 조건은 완전 인계 실패율 상대 30% 감소, 파일럿 유발 중대 운영 장애 없음, 고객 담당 둘의 지속 가능 규칙 확인 세 가지를 제안합니다. 절대율과 사건 수도 표시합니다. 실패 10에서 7과 1에서 0은 비율이 매력적이어도 다릅니다. 차이를 분명히 보여야 합니다."
+        },
+        {
+          "speaker": "Dev",
+          "en": "Aster will commit ninety delivery hours, with me responsible for configuration and Sanjay responsible for the evidence model. I am comfortable with the success conditions, provided we define a critical disruption before the pilot starts. For example, a platform problem that prevents a scheduled installation team from receiving its required work information would qualify. A temporary reporting delay that does not affect the operation would not be the same severity. We should also separate customer process changes from platform defects in the issue log. It is about choosing the right remedy when a problem appears. More software configuration will not fix an unclear handoff rule, and another coaching session will not fix a broken notification.",
+          "ko": "Aster는 90시간, 저는 설정, Sanjay는 증거를 맡습니다. 시작 전 중대 장애를 정의하면 조건에 동의합니다. 예정 설치팀이 필요 업무 정보를 못 받게 하는 플랫폼 문제는 해당합니다. 운영에 영향 없는 보고 지연은 동일 심각도가 아닙니다. 이슈 기록에서 고객 절차 변경과 플랫폼 결함도 구분해야 합니다. 올바른 해결책을 고르려는 것입니다. 불명확 규칙은 설정 추가로, 고장 알림은 코칭 추가로 해결하지 못합니다."
+        },
+        {
+          "speaker": "Clara",
+          "en": "We will price the combined pilot at eighteen thousand dollars, with ten thousand allocated to Aster and eight thousand to Beacon. Beacon will send the customer one consolidated invoice, and the intercompany settlement will follow the recorded allocation. Before confirming the price, each company must verify that its committed hours and expenses fit the amount. We should not quietly subsidize extra work and then use the resulting exhaustion as evidence that the partnership cannot scale. Any request beyond the named deliverables will be assessed jointly, with the customer's outcome and the effect on effort both made visible.",
+          "ko": "결합 파일럿은 1만 8천 달러로 Aster 1만, Beacon 8천 배정입니다. Beacon이 통합 청구하고 회사간 정산은 기록 배정에 따릅니다. 가격 확정 전 각사가 시간·비용 적합성을 확인해야 합니다. 추가를 조용히 보조한 뒤 소진을 확장 불가 증거로 쓰면 안 됩니다. 결과물 밖 요청은 고객 결과와 노력 영향을 보여 공동 평가합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Exit conditions and customer continuity",
+      "title_ko": "종료 조건과 고객 업무 연속성",
+      "turns": [
+        {
+          "speaker": "Joon",
+          "en": "We need to make the end of the pilot as clear as its beginning. The customer should not discover on the final Friday that its task history will disappear on Monday. I propose a read-only transition period of fourteen days after the live pilot ends, with an export of the agreed job records and working rules. Beacon can lead the customer handover, while Aster provides the export and explains its structure. If the customer does not continue, its existing process must remain available throughout the pilot so it has a practical destination. We should not create dependency and then describe the subscription as optional when leaving would require the customer to reconstruct six weeks of work from memory.",
+          "ko": "끝도 시작만큼 명확해야 합니다. 마지막 금요일에 월요일 이력이 사라짐을 알아서는 안 됩니다. 실사용 종료 후 14일 읽기 전용과 합의 작업 기록·규칙 내보내기를 제안합니다. Beacon은 인계, Aster는 내보내기와 구조 설명입니다. 미지속 시 실용적인 복귀처가 있도록 기존 절차를 기간 내 유지합니다. 떠나려면 6주 작업을 기억으로 복원해야 하는 의존을 만든 뒤 구독이 선택이라고 말하면 안 됩니다."
+        },
+        {
+          "speaker": "Dev",
+          "en": "I can provide that transition period. We will test the export before the live pilot, using sample jobs, so the handover is not an unverified promise. The customer will confirm that it can read the fields and use the records in its fallback process. For early termination, I suggest three triggers: a critical disruption that cannot be contained, withdrawal of the customer's sponsor, or a material breach of the agreed data handling rules. Either company can recommend a pause, but the customer sponsor must be informed immediately. While paused, the workspace can remain read only if that is safe. We should not continue processing simply because the planned end date has not arrived.",
+          "ko": "전환 기간을 제공할 수 있습니다. 실사용 전 표본 작업으로 내보내기를 시험해 미검증 약속을 피합니다. 고객이 필드를 읽고 대체 절차에 쓸 수 있는지 확인합니다. 조기 종료는 억제 불가 중대 장애, 고객 책임자 철회, 합의 데이터 처리의 중요한 위반 세 조건을 제안합니다. 어느 회사든 일시 중단을 권고할 수 있고 고객 책임자에게 즉시 알립니다. 안전하면 읽기 전용을 유지합니다. 종료일 전이라는 이유로 처리를 계속해서는 안 됩니다."
+        },
+        {
+          "speaker": "Elise",
+          "en": "I would add a partnership-level condition. If one company repeatedly fails to provide its named capacity and the other must cover the gap, we should have a correction window rather than silently continue. The leads can agree a five-working-day recovery plan with specific actions. If it fails, we jointly propose ending or reducing the pilot, with the customer choosing between the practical options. That protects the customer from our internal disagreement. I would not make an ordinary disagreement about a report an automatic termination trigger. The exit clause should respond to persistent inability to deliver, not give either side a convenient escape whenever collaboration becomes uncomfortable.",
+          "ko": "관계 차원 조건도 추가합니다. 지정 여력을 반복 미제공해 상대가 채우면 몰래 계속하지 말고 수정 기간이 필요합니다. 책임자가 근무일 5일 회복안을 합의하고 실패하면 종료·축소를 공동 제안해 고객이 실용 선택지를 고릅니다. 내부 분쟁으로부터 고객을 보호합니다. 일반 보고 이견이 자동 종료 조건은 아닙니다. 지속 수행 불능에 대응하지 협업이 불편할 때 편리한 탈출이 되어서는 안 됩니다."
+        },
+        {
+          "speaker": "Sanjay",
+          "en": "For data closure, Aster will retain the operational dataset only through the transition period and then remove it from the pilot workspace, with deletion recorded. Beacon will return or remove its copies of customer job records on the same schedule. We can retain an aggregated learning summary only if the customer approves it and it cannot identify their organization or individual staff. Neither company should use the customer name, logo, or a performance claim in publicity without a separate written approval. We should also agree that internal partnership lessons can describe process issues without reproducing confidential customer details in a wider presentation.",
+          "ko": "Aster는 전환 기간까지만 운영 데이터를 유지하고 이후 공간에서 제거·기록합니다. Beacon도 같은 일정으로 사본 반환·제거합니다. 조직·개인이 식별되지 않고 고객이 승인한 경우만 집계 학습 요약을 보존합니다. 별도 서면 승인 없이 이름·로고·성과 주장을 홍보에 쓰면 안 됩니다. 내부 학습도 넓은 발표에 고객 기밀을 재현하지 않고 절차 문제를 설명하기로 해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Owners, calendar, and next agreement review",
+      "title_ko": "담당자와 일정 및 다음 합의 검토",
+      "turns": [
+        {
+          "speaker": "Clara",
+          "en": "Let me put dates against the work. Elise and I will finalize the joint offer by Wednesday, October fourteenth, at three p.m. Asia/Seoul. Joon will confirm the sponsor, the process owners, and the participating teams by Thursday, October fifteenth. Dev and Sanjay will demonstrate the workspace, baseline template, and export by Friday, October sixteenth. We propose collecting the baseline from October nineteenth through October thirtieth, then running the six-week live pilot from November second through December thirteenth. The read-only transition will run through December twenty-seventh. Those are proposed dates until the customer accepts them. No team should invite users or request production records before the customer has confirmed the plan and the contact boundaries.",
+          "ko": "날짜를 정합니다. Elise와 저는 10월 14일 수요일 Asia/Seoul 오후 3시까지 공동 제안, Joon은 15일까지 책임자·담당·참여팀 확인, Dev와 Sanjay는 16일까지 공간·기준선 양식·내보내기 시연입니다. 기준선은 10월 19~30일, 6주 실사용은 11월 2일~12월 13일, 읽기 전용은 12월 27일까지 제안합니다. 고객 수락 전 제안 날짜이며 계획·연락 경계 확인 전 초청이나 운영 기록 요청을 해서는 안 됩니다."
+        },
+        {
+          "speaker": "Joon",
+          "en": "I will confirm those dates with the customer and bring any staffing conflict back to both leads. I will also prepare a one-page responsibility map showing the sponsor, process owners, support routes, and escalation contacts. During the live pilot, Beacon will chair a weekly operational check-in, and Aster will bring the issue status and evidence summary. The customer should leave each check-in knowing what changed, what needs their decision, and what will happen before the next session. I will keep the discussion focused on the handoff problem rather than allow it to become a general consulting session covering every frustration the regional teams have. ",
+          "ko": "고객에게 날짜를 확인하고 인력 충돌을 양쪽에 알립니다. 책임자·담당·지원·상향 연락을 한 페이지로 준비합니다. 실사용 중 Beacon이 주간 운영 점검을 진행하고 Aster가 이슈·증거를 제공합니다. 고객은 변경, 필요한 결정, 다음 전 일을 알아야 합니다. 지역의 모든 불만을 다루는 일반 컨설팅이 아니라 인계 문제에 집중합니다. "
+        },
+        {
+          "speaker": "Elise",
+          "en": "Our next agreement review is Monday, October nineteenth, at two p.m. Asia/Seoul, for forty-five minutes. We will check the customer confirmation, responsibility map, tested export, and baseline readiness before the collection period begins. I am comfortable with Beacon leading the relationship while Aster has direct delivery access under the contact protocol. The limited outreach restriction and customer-initiated exception address my main concern without treating the customer as an asset we can divide between companies. I will brief our advisers on that distinction. They should not obstruct technical conversations to protect the relationship, and your team should not interpret delivery access as permission to begin unrelated prospecting during the agreed restricted period.",
+          "ko": "다음 합의 검토는 10월 19일 월요일 Asia/Seoul 오후 2시부터 45분입니다. 수집 시작 전 고객 확인, 책임 지도, 시험 내보내기, 기준선 준비를 점검합니다. Beacon 관계 대표와 원칙하 Aster 직접 수행에 동의합니다. 제한 홍보 금지와 고객발 예외는 고객을 회사간 나눌 자산으로 보지 않으며 우려를 해결합니다. 자문가에게 구분을 설명합니다. 관계 보호로 기술 대화를 막지 말고 수행 접근을 제한 기간 무관한 영업 허가로 보아서도 안 됩니다."
+        },
+        {
+          "speaker": "Clara",
+          "en": "That captures the balance we needed. We have a shared operational objective, named capacity from both companies, customer-controlled participation, measurable continuation conditions, and an exit that preserves the customer's ability to work. I will send the decision record today and ask each owner to confirm the actions assigned to them. Please flag any wording that promises more than the teams can deliver or makes the customer's choices narrower than we agreed. At the next review, we need evidence that the offer is workable, including the export and contact map, rather than enthusiasm about the partnership alone.",
+          "ko": "필요한 균형입니다. 공동 운영 목표, 양사 여력, 고객 통제 참여, 측정 지속 조건, 고객 업무를 보존하는 종료를 정했습니다. 오늘 결정 기록과 담당 확인을 요청합니다. 수행 능력보다 큰 약속이나 합의보다 좁은 고객 선택 문구를 알려 주세요. 다음에는 관계 열정뿐 아니라 내보내기와 연락 지도를 포함한 제안의 실현 증거가 필요합니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "customer ownership",
+      "meaning_ko": "고객 관계의 주도권",
+      "usage_ko": "파트너 간 고객 관계 관리를 협의할 때",
+      "example": "My main concern is customer ownership.",
+      "practice": "We should clarify customer ownership before sharing contacts."
+    },
+    {
+      "phrase": "contact protocol",
+      "meaning_ko": "연락 원칙",
+      "usage_ko": "수행과 영업의 연락 경계를 정할 때",
+      "example": "I can define a contact protocol that distinguishes delivery conversations from commercial conversations.",
+      "practice": "The contact protocol permits direct support calls."
+    },
+    {
+      "phrase": "eligible handoff events",
+      "meaning_ko": "대상 인계 사건",
+      "usage_ko": "성과 측정의 분모를 정의할 때",
+      "example": "I suggest measuring eligible handoff events and reporting how many jobs generated them.",
+      "practice": "Count eligible handoff events rather than all jobs."
+    },
+    {
+      "phrase": "meaningful acceptance",
+      "meaning_ko": "의미 있는 수락",
+      "usage_ko": "클릭과 실제 업무 인계를 구별할 때",
+      "example": "We should also distinguish an acknowledgement from a meaningful acceptance.",
+      "practice": "Meaningful acceptance requires complete information."
+    },
+    {
+      "phrase": "personal performance rankings",
+      "meaning_ko": "개인 성과 순위",
+      "usage_ko": "절차 측정의 목적을 제한할 때",
+      "example": "We do not need personal performance rankings or the contents of customer conversations.",
+      "practice": "The report excludes personal performance rankings."
+    },
+    {
+      "phrase": "lead relationship contact",
+      "meaning_ko": "고객 관계 대표 연락 담당",
+      "usage_ko": "고객 대면 조율 주체를 정할 때",
+      "example": "My proposal is that Beacon remains the lead relationship contact for this pilot, while Aster has direct delivery access within the agreed scope.",
+      "practice": "Beacon remains the lead relationship contact."
+    },
+    {
+      "phrase": "unrelated outreach",
+      "meaning_ko": "무관한 영업 연락",
+      "usage_ko": "공유 연락처의 사용을 제한할 때",
+      "example": "Could we agree that neither company will use pilot contact lists for unrelated outreach during the pilot or the following sixty days?",
+      "practice": "Pilot contacts must not be used for unrelated outreach."
+    },
+    {
+      "phrase": "customer-initiated inquiry",
+      "meaning_ko": "고객이 먼저 시작한 문의",
+      "usage_ko": "자발적 문의와 판매 권유를 구별할 때",
+      "example": "A customer-initiated inquiry would be different and could proceed with the notification you described.",
+      "practice": "A customer-initiated inquiry can follow a separate process."
+    },
+    {
+      "phrase": "no-surprises rule",
+      "meaning_ko": "사전 공유 원칙",
+      "usage_ko": "중요 메시지를 공동 조율할 때",
+      "example": "I would also like a no-surprises rule for customer messages.",
+      "practice": "Use a no-surprises rule for scope announcements."
+    },
+    {
+      "phrase": "minimum evidence volume",
+      "meaning_ko": "최소 증거량",
+      "usage_ko": "적은 사건으로 성과를 단정하지 않게 할 때",
+      "example": "We need a minimum evidence volume and a qualitative check that the process is actually easier for the customer, not simply more carefully measured.",
+      "practice": "We need a minimum evidence volume for the comparison."
+    },
+    {
+      "phrase": "inconclusive",
+      "meaning_ko": "결론을 내리기 어려운",
+      "usage_ko": "증거 부족을 실패와 구분할 때",
+      "example": "If the volume is lower, the result will be inconclusive rather than automatically unsuccessful.",
+      "practice": "The result is inconclusive because the sample is small."
+    },
+    {
+      "phrase": "relative reduction",
+      "meaning_ko": "상대적인 감소",
+      "usage_ko": "비율 변화의 기준을 설명할 때",
+      "example": "For a continuation recommendation, I suggest three conditions: a thirty percent relative reduction in the complete-handoff failure rate, no critical operational disruption caused by the pilot, and confirmation from both customer process owners that the working rules are sustainable.",
+      "practice": "Report the relative reduction alongside absolute counts."
+    },
+    {
+      "phrase": "consolidated invoice",
+      "meaning_ko": "통합 청구서",
+      "usage_ko": "공동 제안의 고객 청구를 정할 때",
+      "example": "Beacon will send the customer one consolidated invoice, and the intercompany settlement will follow the recorded allocation.",
+      "practice": "The customer will receive a consolidated invoice."
+    },
+    {
+      "phrase": "read-only transition period",
+      "meaning_ko": "읽기 전용 전환 기간",
+      "usage_ko": "종료 후 고객 인계를 보장할 때",
+      "example": "I propose a read-only transition period of fourteen days after the live pilot ends, with an export of the agreed job records and working rules.",
+      "practice": "A read-only transition period supports the handover."
+    },
+    {
+      "phrase": "correction window",
+      "meaning_ko": "수정 기간",
+      "usage_ko": "파트너의 수행 미흡을 해결할 때",
+      "example": "If one company repeatedly fails to provide its named capacity and the other must cover the gap, we should have a correction window rather than silently continue.",
+      "practice": "The correction window includes specific recovery actions."
+    },
+    {
+      "phrase": "aggregated learning summary",
+      "meaning_ko": "집계된 학습 요약",
+      "usage_ko": "종료 후 보존할 정보를 제한할 때",
+      "example": "We can retain an aggregated learning summary only if the customer approves it and it cannot identify their organization or individual staff.",
+      "practice": "Retain an aggregated learning summary only with approval."
+    }
+  ]
+}
