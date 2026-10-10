@@ -1,0 +1,258 @@
+{
+  "date": "2026-10-01",
+  "category": "business",
+  "topic": "strategy",
+  "subject": "Evaluating Entry into a New Regional Market",
+  "title_ko": "신규 지역 시장 진출 검토",
+  "summary_ko": "가상의 업무용 분석 서비스 기업이 신규 시장의 수요 증거와 진출 방식을 검토한다. 조사 응답의 편향, 현지화 부담, 경쟁 대응에 이견을 조율하고 유료 수요 검증을 결정한다. 모든 인물·회사·수치는 가상이다.",
+  "participants": [
+    {
+      "name": "Rachel",
+      "team": "Business Planning"
+    },
+    {
+      "name": "Owen",
+      "team": "Market Research"
+    },
+    {
+      "name": "Hana",
+      "team": "Market Research"
+    },
+    {
+      "name": "Luis",
+      "team": "Service Design"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and decision boundaries",
+      "title_ko": "참석 확인과 결정 범위",
+      "turns": [
+        {
+          "speaker": "Rachel",
+          "en": "Thanks for joining the market entry review on October first. I am Rachel from Business Planning, and I will facilitate the discussion. Owen and Hana are here from Market Research, and Luis represents Service Design. Could everyone confirm that they have the revised research pack? We are considering the North Coast region for our workplace analytics service. Today we need to decide whether there is enough evidence to fund a demand study, not whether to establish an office immediately. Please challenge the assumptions behind the recommendation. We have a habit of interpreting enthusiastic interviews as buying intent, and I would like this discussion to distinguish those things carefully before we commit resources.",
+          "ko": "10월 1일 시장 진출 검토에 참석해 주셔서 감사합니다. 저는 Business Planning의 Rachel이며 논의를 진행합니다. Market Research의 Owen과 Hana, Service Design의 Luis가 참석했습니다. 모두 수정된 조사 자료가 있는지 확인해 주실래요? 업무용 분석 서비스의 진출 대상으로 North Coast 지역을 검토합니다. 오늘은 즉시 사무실을 설립할지 아니라 수요 조사에 자금을 지원할 만큼 증거가 있는지 결정합니다. 권고안의 전제에 이의를 제기해 주세요. 우리는 호의적인 인터뷰를 구매 의향으로 해석하는 습관이 있으므로 자원을 투입하기 전에 둘을 신중히 구분했으면 합니다."
+        },
+        {
+          "speaker": "Owen",
+          "en": "I have the updated pack. I led the customer interviews, so I should explain how we recruited participants before we discuss the findings. Twelve organizations agreed to speak with us, but eight came through an industry association that already knows our brand. They may be more receptive than a typical buyer. I can explain the interviews and the competitor research, although I would not call the sample representative. Hana reviewed the recruitment process independently and found a few weaknesses. I would rather put those weaknesses on the table now than discover later that our market estimate was built around people who were unusually willing to give us an hour of their time.",
+          "ko": "수정된 자료가 있습니다. 고객 인터뷰를 맡았으니 결과 전에 모집 방법을 설명하겠습니다. 12개 조직이 응했지만 8개는 우리 브랜드를 이미 아는 산업협회를 통해 왔습니다. 일반 구매자보다 호의적일 수 있습니다. 인터뷰와 경쟁사 조사를 설명할 수 있지만 표본이 대표적이라고 하지는 않겠습니다. Hana가 모집 과정을 독립적으로 검토하고 몇 가지 약점을 찾았습니다. 유난히 한 시간의 시간을 내줄 의향이 높은 사람들 중심으로 시장을 추정했다는 사실을 뒤늦게 발견하기보다 지금 약점을 공개하고 싶습니다."
+        },
+        {
+          "speaker": "Hana",
+          "en": "Yes, I have it, and my main concern is selection bias. We spoke mostly to department heads who enjoy discussing new tools. We did not speak to the people who authorize spending or to organizations that rejected our invitation. That means we understand interest better than procurement behavior. I have drafted a different recruitment plan that includes nonusers, smaller organizations, and budget holders. It will take more effort, because those people do not necessarily want to talk to us. However, their reluctance could itself tell us something important. We should also check whether the problem we solve is urgent enough to compete with the other projects those organizations are already funding.",
+          "ko": "네, 자료가 있습니다. 핵심 우려는 선택 편향입니다. 새 도구 이야기를 즐기는 부서장들과 주로 대화했고 지출 승인자나 초청을 거절한 조직과는 대화하지 않았습니다. 구매 행동보다 관심을 더 잘 이해하고 있다는 뜻입니다. 비사용자, 소규모 조직, 예산 담당자를 포함한 다른 모집안을 작성했습니다. 이들은 반드시 우리와 대화하고 싶어 하지는 않아 더 힘들 것입니다. 하지만 거부감 자체가 중요한 정보를 줄 수 있습니다. 해결하는 문제가 이미 자금을 투입하는 다른 과제와 경쟁할 만큼 시급한지도 확인해야 합니다."
+        },
+        {
+          "speaker": "Luis",
+          "en": "I am ready as well. Service Design reviewed what it would take to support customers in that region. Translation is only one part of the work. The reporting calendar differs, managers expect different approval paths, and training sessions would need examples that make sense locally. We should not assume that a translated interface creates a usable service. I can help test the experience with prospective customers, but my team cannot redesign every workflow before we know whether anyone will pay. I would like a clear learning objective for any study we approve. Otherwise, research requests tend to expand until we have effectively designed a complete regional product without making an investment decision.",
+          "ko": "저도 준비됐습니다. Service Design은 해당 지역 고객 지원에 필요한 일을 검토했습니다. 번역은 일부일 뿐입니다. 보고 일정이 다르고 관리자가 기대하는 승인 경로도 다르며 교육에는 현지에 맞는 사례가 필요합니다. 번역한 화면만으로 사용 가능한 서비스가 된다고 가정해서는 안 됩니다. 잠재 고객과 경험을 시험하도록 돕겠지만 구매자가 있는지 알기 전에 모든 흐름을 다시 설계할 수는 없습니다. 승인하는 조사에 명확한 학습 목표가 필요합니다. 그렇지 않으면 조사 요구가 커져 투자 결정 없이 사실상 지역용 제품 전체를 설계하게 됩니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Market evidence and competing explanations",
+      "title_ko": "시장 증거와 다른 해석",
+      "turns": [
+        {
+          "speaker": "Rachel",
+          "en": "The business case currently assumes two hundred potential organizations and a ten percent conversion rate within eighteen months. At our proposed annual subscription, that would produce a meaningful new revenue stream, but neither assumption has been tested sufficiently. Owen, please walk us through the evidence behind the addressable market. I am particularly interested in what excludes an organization from the estimate. Counting every employer above a certain size might look rigorous while still ignoring whether they have the right systems, a relevant problem, or authority to purchase externally. We need an estimate that supports a decision, not a large number that gives the presentation a more exciting headline.",
+          "ko": "사업안은 잠재 조직 200개와 18개월 내 10% 전환율을 가정합니다. 제안 연간 구독료라면 의미 있는 신규 매출이지만 두 전제 모두 충분히 검증하지 않았습니다. Owen, 공략 가능 시장의 근거를 설명해 주세요. 특히 어떤 조직을 추정에서 제외하는지 궁금합니다. 일정 규모 이상 고용주를 모두 세면 엄밀해 보여도 적절한 시스템, 관련 문제, 외부 구매 권한을 놓칠 수 있습니다. 발표 제목을 흥미롭게 만드는 큰 숫자가 아니라 결정을 뒷받침하는 추정이 필요합니다."
+        },
+        {
+          "speaker": "Owen",
+          "en": "We started with an employer directory and removed organizations below five hundred staff. Then we excluded those without digital workforce records, which reduced the initial list considerably. We have not yet verified how many already use a comparable service through a global contract. That could reduce the opportunity further. On the other hand, several interviewees said their existing reporting tools are difficult to adapt to local requirements. That suggests dissatisfaction, but it does not establish willingness to switch. My recommendation is to treat the two hundred organizations as a research universe, not a revenue forecast. We can refine the estimate after checking existing contracts and identifying situations where the current approach actually fails.",
+          "ko": "고용주 명부에서 직원 500명 미만을 제거했고 디지털 인력 기록이 없는 조직을 제외해 목록이 상당히 줄었습니다. 글로벌 계약으로 유사 서비스를 사용하는 조직 수는 아직 확인하지 않았습니다. 기회가 더 줄 수 있습니다. 반면 여러 인터뷰 참여자는 기존 보고 도구를 현지 요구에 맞추기 어렵다고 했습니다. 불만을 시사하지만 교체 의향을 입증하지는 않습니다. 200개 조직은 매출 예측이 아니라 조사 대상 모집단으로 취급할 것을 권합니다. 기존 계약과 현재 방식이 실제 실패하는 상황을 확인한 후 추정을 정교화할 수 있습니다."
+        },
+        {
+          "speaker": "Hana",
+          "en": "I would go one step further and remove the conversion assumption from the executive summary for now. It creates an illusion of precision. We have not observed a sales cycle, and the people we interviewed may not control purchasing. Instead, we could present three hypotheses: customers experience a costly reporting problem, our approach solves it better than available alternatives, and a budget holder will pay for that improvement. Each hypothesis needs different evidence. A customer can agree with the first two while refusing the third. If we bundle them together, positive feedback on usability could mistakenly become justification for regional expansion. That is exactly the inference our study should prevent.",
+          "ko": "더 나아가 지금은 경영진 요약에서 전환율 가정을 빼겠습니다. 정확하다는 착각을 만듭니다. 영업 주기를 관찰하지 않았고 인터뷰 참여자가 구매를 통제하지 않을 수도 있습니다. 대신 고객에게 비용이 큰 보고 문제가 있고, 우리 방식이 대안보다 잘 해결하며, 예산 담당자가 개선에 돈을 지불한다는 세 가설을 제시할 수 있습니다. 각각 다른 증거가 필요합니다. 첫 두 가지에 동의해도 세 번째를 거절할 수 있습니다. 묶으면 사용성에 대한 긍정적 반응이 지역 확장의 근거로 잘못 바뀔 수 있습니다. 조사가 막아야 할 추론입니다."
+        },
+        {
+          "speaker": "Luis",
+          "en": "That structure helps me define a practical test. We could demonstrate a reporting task using a clickable prototype, then ask participants to compare it with their current process. However, the prototype should not suggest that every integration already exists. I would label simulated data clearly and explain which steps are manual. We can measure whether participants understand the result and whether it would change a real decision. If they simply say the screens look attractive, we have learned very little. I also want to ask what they would stop doing if they adopted the service. If nothing changes, our tool might become another dashboard that people admire but rarely use.",
+          "ko": "그 구조는 실용적인 시험을 정의하는 데 도움이 됩니다. 클릭 가능한 시제품으로 보고 작업을 보여 주고 현재 절차와 비교하도록 할 수 있습니다. 하지만 모든 연동이 이미 있다는 인상을 줘서는 안 됩니다. 모의 데이터를 명확히 표시하고 수작업 단계를 설명하겠습니다. 결과를 이해하는지 실제 결정을 바꾸는지 측정할 수 있습니다. 화면이 매력적이라는 말만 하면 배운 것이 거의 없습니다. 도입하면 어떤 일을 중단할지도 묻고 싶습니다. 아무것도 바뀌지 않으면 감탄하지만 거의 사용하지 않는 또 다른 대시보드가 될 수 있습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Entry options and constructive challenge",
+      "title_ko": "진출 선택지와 건설적인 반론",
+      "turns": [
+        {
+          "speaker": "Rachel",
+          "en": "We have three possible entry routes: direct selling from our existing office, working with a regional advisory partner, or building a local team. I favor testing direct demand first because it gives us a clearer signal about the product itself. A partner may bring relationships, but it can also hide whether customers value our service or simply trust the adviser. Owen, your paper recommends a partner-led approach. Could you explain what we would learn through that route that we could not learn through direct interviews and a small paid study? I am open to the argument, but we should be explicit about the trade-offs before choosing an operating model.",
+          "ko": "기존 사무실에서 직접 판매, 지역 자문 파트너 협력, 현지 팀 구축의 세 경로가 있습니다. 제품 자체에 대한 더 명확한 신호를 주므로 직접 수요부터 시험하는 것을 선호합니다. 파트너는 관계를 제공하지만 고객이 서비스를 가치 있게 보는지 자문사를 신뢰할 뿐인지 가릴 수도 있습니다. Owen의 문서는 파트너 주도를 권합니다. 직접 인터뷰와 소규모 유료 조사로는 얻지 못하는 어떤 배움을 그 경로에서 얻을 수 있나요? 의견을 받아들일 준비는 있지만 운영 모델을 고르기 전에 장단점을 명확히 해야 합니다."
+        },
+        {
+          "speaker": "Owen",
+          "en": "My concern is access rather than outsourcing the relationship. The region relies heavily on introductions, and unsolicited approaches have received few responses. A partner could help us reach budget holders who would otherwise ignore the invitation. I do not propose granting exclusivity or promising a regional launch. We could use a short research arrangement with a fixed fee and no commission tied to positive findings. That would reduce the incentive to exaggerate demand. We should also recruit independently so the partner does not control the entire sample. In that sense, a partner is one recruitment channel, not the owner of our strategy or the person who decides whether the market is attractive.",
+          "ko": "관계를 외주화하려는 것이 아니라 접근이 걱정입니다. 이 지역은 소개에 크게 의존하고 직접 접근에는 응답이 적었습니다. 파트너는 초청을 무시할 예산 담당자에게 접근하도록 도울 수 있습니다. 독점권이나 지역 출시를 약속하자는 것이 아닙니다. 긍정적인 결과에 연동된 수수료 없이 고정 보수의 단기 조사 계약을 사용할 수 있습니다. 수요 과장 유인이 줄어듭니다. 파트너가 표본 전체를 통제하지 않도록 독립 모집도 해야 합니다. 파트너는 모집 경로 하나이지 전략의 주인이나 시장의 매력을 판단하는 사람이 아닙니다."
+        },
+        {
+          "speaker": "Hana",
+          "en": "I can support that if we protect the sampling plan. Let us recruit eighteen organizations across three segments, with six from each segment. Half should come through independent channels, and none should be selected merely because they already expressed enthusiasm. We should include organizations that use a competitor successfully, not only those looking for a replacement. That will show us where the existing alternatives are strong. I also suggest recording refusals and the reasons given, where people are willing to share them. A refusal because the problem is irrelevant is useful evidence. A refusal because the contact is on holiday tells us something very different and should not be coded the same way.",
+          "ko": "표본 계획을 보호한다면 찬성합니다. 세 부문에서 각각 6개씩 총 18개 조직을 모집하고 절반은 독립 경로를 사용합시다. 이미 호의를 보였다는 이유만으로 선택해서는 안 됩니다. 교체를 찾는 조직뿐 아니라 경쟁사 도구를 성공적으로 사용하는 조직도 포함해야 합니다. 기존 대안의 강점을 알 수 있습니다. 사람들이 공유하기 원한다면 거절과 이유도 기록할 것을 제안합니다. 문제가 무관해서 거절하는 것은 유용한 증거입니다. 담당자가 휴가라 거절하는 것은 전혀 다른 정보이므로 동일하게 분류하면 안 됩니다."
+        },
+        {
+          "speaker": "Luis",
+          "en": "Eighteen interviews are manageable, but eighteen customized demonstrations are not. I suggest one common scenario for each segment, with only the terminology adapted. That gives participants something relevant while preserving comparability. We can ask them to bring an anonymized example of a recurring reporting difficulty, but we should not accept identifiable employee data. The study is about the workflow, not their staff. If a participant requests a feature outside the prototype, we will record the request and ask why it matters rather than promise to build it. I would also like a stop rule: if the service cannot address the central problem without a major redesign, we should say so before discussing regional staffing.",
+          "ko": "인터뷰 18개는 가능하지만 맞춤 시연 18개는 어렵습니다. 부문별 공통 시나리오 하나를 쓰고 용어만 조정합시다. 관련성을 주면서 비교 가능성을 유지합니다. 반복되는 보고 어려움의 익명화된 사례를 요청할 수 있지만 식별 가능한 직원 데이터는 받아서는 안 됩니다. 연구 대상은 직원이 아니라 업무 흐름입니다. 시제품 밖 기능을 요청하면 개발 약속 대신 요청을 기록하고 중요성을 묻겠습니다. 중단 기준도 필요합니다. 큰 재설계 없이 핵심 문제를 해결할 수 없다면 지역 인력을 논하기 전에 밝혀야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Investment criteria and assigned work",
+      "title_ko": "투자 판단 기준과 업무 배정",
+      "turns": [
+        {
+          "speaker": "Rachel",
+          "en": "I propose a research budget of thirty-six thousand dollars, covering recruitment, interpretation, prototype preparation, and analysis. This is our preliminary planning estimate, and we can revise it after recruitment quotes arrive. We will not use the number of compliments as our decision criterion. To recommend the next investment stage, we need at least six organizations to describe a recurring problem that our demonstrated approach addresses, and at least three budget holders to sign a paid assessment order at the stated fee. Those thresholds are screening criteria, not a guaranteed business case. We will still review acquisition costs, implementation burden, and whether the orders depend on conditions that would make the service uneconomic.",
+          "ko": "모집, 통역, 시제품 준비, 분석에 3만 6천 달러 조사 예산을 제안합니다. 모집 견적을 받은 뒤 수정할 수 있는 잠정 계획 금액입니다. 칭찬 수를 판단 기준으로 삼지 않습니다. 다음 투자 단계를 권하려면 최소 6개 조직이 시연 방식으로 해결할 반복 문제를 설명하고 최소 3개 예산 담당자가 명시한 비용의 유료 평가 주문에 서명해야 합니다. 선별 기준이지 확실한 사업성을 뜻하지는 않습니다. 고객 획득 비용, 구현 부담, 서비스를 비경제적으로 만들 조건에 주문이 의존하는지도 검토합니다."
+        },
+        {
+          "speaker": "Owen",
+          "en": "I will prepare the recruitment brief and partner research agreement by Monday, October fifth, at eleven a.m. Asia/Seoul. The agreement will prohibit exclusivity claims and make clear that the partner cannot promise product features or a launch date. I will also correct the market estimate so it distinguishes the research universe from qualified demand. Before any interview takes place, I will share the questions with Hana for a bias review. We should avoid leading with our proposed solution and then asking people whether they like it. I will begin with their current decisions, the consequences of reporting errors, and the alternatives they have already tried without our involvement.",
+          "ko": "10월 5일 월요일 Asia/Seoul 오전 11시까지 모집 안내와 파트너 조사 계약을 준비합니다. 독점권 주장과 제품 기능이나 출시일 약속을 금지합니다. 조사 모집단과 적격 수요를 구분하도록 시장 추정도 수정합니다. 인터뷰 전에 Hana에게 질문을 공유해 편향 검토를 받겠습니다. 제안 솔루션을 먼저 보여 주고 마음에 드는지 묻는 것은 피해야 합니다. 현재 결정, 보고 오류의 결과, 우리 관여 없이 이미 시험한 대안부터 질문하겠습니다."
+        },
+        {
+          "speaker": "Hana",
+          "en": "I will own the evidence framework and the interview sample. By Tuesday, October sixth, at three p.m. Asia/Seoul, I will publish the recruitment quotas, refusal categories, and criteria for a credible buying signal. I will attend the first three interviews to check how the questions work in practice. After that, I will review recordings only where participants have consented, otherwise using notes they have approved. We should distinguish the research fee from the future subscription price, because an inexpensive assessment order does not prove willingness to purchase a full service. My analysis will show that limitation explicitly rather than quietly upgrading one kind of commitment into another.",
+          "ko": "증거 체계와 인터뷰 표본을 맡겠습니다. 10월 6일 화요일 Asia/Seoul 오후 3시까지 모집 할당, 거절 분류, 신뢰할 구매 신호 기준을 공개합니다. 첫 세 인터뷰에 참여해 질문이 실제로 어떻게 작동하는지 보겠습니다. 이후에는 동의한 녹음만 검토하고 그 외에는 참여자가 승인한 기록을 씁니다. 저렴한 평가 주문은 전체 서비스 구매 의향을 입증하지 않으므로 조사 비용과 향후 구독료를 구분해야 합니다. 다른 종류의 확약으로 몰래 격상시키지 않고 분석에 한계를 명시하겠습니다."
+        },
+        {
+          "speaker": "Luis",
+          "en": "I will deliver the three prototype scenarios by Friday, October ninth, at noon Asia/Seoul. Each will demonstrate a specific decision rather than a collection of attractive charts. I will include a facilitator note describing simulated steps, unsupported integrations, and questions that the demonstration should answer. We will not collect employee-level files or connect to a customer's production system. For the paid assessment, I can define a deliverable that has independent value even if the customer never buys a subscription: a documented workflow review and improvement recommendations. That keeps the offer honest. Customers should pay for useful work, not for admission to a sales conversation disguised as a study.",
+          "ko": "10월 9일 금요일 Asia/Seoul 정오까지 시제품 시나리오 세 개를 제공합니다. 매력적인 차트 모음 대신 구체적인 결정을 보여 줍니다. 모의 단계, 미지원 연동, 시연에서 답할 질문을 설명하는 진행자 안내를 넣겠습니다. 직원 단위 파일을 수집하거나 고객 운영 시스템에 연결하지 않습니다. 유료 평가에는 구독하지 않아도 자체 가치가 있는 업무 흐름 검토와 개선 권고를 결과물로 정의할 수 있습니다. 제안의 정직성을 유지합니다. 고객은 조사로 위장한 영업 대화의 입장료가 아니라 유용한 작업에 돈을 내야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Follow-up meeting and closing checks",
+      "title_ko": "후속 회의와 마무리 확인",
+      "turns": [
+        {
+          "speaker": "Owen",
+          "en": "One question before we finish: what do we say if the partner asks for a share of future regional revenue as part of recruitment? They may see the study as the beginning of a commercial relationship. I can explain that we are not choosing a distribution partner, but I would like a consistent boundary. My recommendation is to decline revenue sharing during research and consider any future commercial arrangement through a separate evaluation. Otherwise, we could inherit a long-term obligation from a short-term study. I will document that boundary in the agreement and ask prospective partners to confirm that they understand it before we compare their recruitment proposals.",
+          "ko": "마치기 전 질문입니다. 파트너가 모집 대가로 향후 지역 매출 지분을 요청하면 어떻게 답하나요? 조사를 상업 관계의 시작으로 볼 수 있습니다. 유통 파트너 선정이 아니라고 설명할 수 있지만 일관된 경계가 필요합니다. 조사 중 매출 배분을 거절하고 향후 상업 계약은 별도로 평가할 것을 권합니다. 그렇지 않으면 단기 조사에서 장기 의무를 떠안을 수 있습니다. 계약에 경계를 기록하고 모집 제안을 비교하기 전에 잠재 파트너에게 이해했음을 확인하겠습니다."
+        },
+        {
+          "speaker": "Rachel",
+          "en": "Agreed. We are authorizing evidence collection, not delegating market ownership to a partner. Our next meeting is Monday, October twelfth, at nine thirty a.m. Asia/Seoul, for forty minutes. We will review recruitment progress, the prototype scenarios, and any request that changes the research boundary. The final market recommendation is due November ninth, after the interview and paid assessment evidence has been reviewed. If the study shows weak demand, stopping is a valid outcome, not a failed project. Please state that in the briefing so colleagues do not feel pressure to manufacture a positive answer simply because we have already spent the research budget.",
+          "ko": "동의합니다. 증거 수집을 승인하는 것이지 파트너에게 시장의 주도권을 넘기는 것이 아닙니다. 다음 회의는 10월 12일 월요일 Asia/Seoul 오전 9시 30분부터 40분입니다. 모집 진행, 시제품, 조사 경계를 바꾸는 요청을 검토합니다. 최종 시장 권고는 인터뷰와 유료 평가 증거를 검토한 후 11월 9일 제출합니다. 수요가 약하면 중단은 유효한 결과이지 실패한 과제가 아닙니다. 이미 조사 예산을 썼다는 이유로 긍정적인 답을 만들 압박을 느끼지 않도록 안내에 명시해 주세요."
+        },
+        {
+          "speaker": "Hana",
+          "en": "I will add that statement and include disconfirming evidence in every progress update. For example, if customers can solve the problem cheaply with their current tools, that belongs in the report even when it undermines our favorite hypothesis. I will also show how many budget holders we actually reached, rather than reporting only the total number of conversations. That will help us judge whether a negative result reflects weak demand or poor recruitment. Those are different explanations with different consequences. At the October twelfth meeting, I will bring the sample dashboard and two anonymized interview summaries so we can check whether the method is producing evidence that answers the decision questions.",
+          "ko": "그 문장을 넣고 모든 진행 보고에 가설을 반박하는 증거를 포함하겠습니다. 예를 들어 현재 도구로 저렴하게 해결할 수 있다면 선호 가설을 약화해도 보고해야 합니다. 전체 대화 수뿐 아니라 실제 접근한 예산 담당자 수도 보여 주겠습니다. 부정적 결과가 약한 수요인지 부실한 모집인지 판단하는 데 도움이 됩니다. 설명과 결과가 다릅니다. 10월 12일 회의에는 표본 대시보드와 익명 인터뷰 요약 두 개를 가져와 방법이 결정 질문에 답하는 증거를 만드는지 확인하겠습니다."
+        },
+        {
+          "speaker": "Luis",
+          "en": "That gives Service Design a sensible role. We will investigate whether the problem and the proposed experience fit, without treating every customer suggestion as a feature request that has already been approved. If a scenario needs major changes, I will explain the operational reason and its effect on the investment case. Rachel, please make sure the internal announcement describes this as market research, because a rumor about expansion could prompt other teams to begin hiring or translating material prematurely. With that wording clear, I can start the scenarios tomorrow. I will share the first draft with Owen and Hana early enough for them to challenge the assumptions before the demonstrations are finalized.",
+          "ko": "Service Design에 합리적인 역할입니다. 모든 제안을 승인된 기능 요청으로 취급하지 않고 문제와 경험이 맞는지 조사하겠습니다. 큰 변경이 필요하면 운영 이유와 투자안 영향을 설명합니다. Rachel, 확장 소문에 다른 팀이 성급히 채용하거나 자료 번역을 시작할 수 있으니 내부 공지에 시장 조사라고 명시해 주세요. 문구가 명확하면 내일 시나리오를 시작할 수 있습니다. 시연 확정 전에 전제에 이의를 제기할 시간이 있도록 Owen과 Hana에게 첫 초안을 일찍 공유하겠습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "buying intent",
+      "meaning_ko": "구매 의향",
+      "usage_ko": "관심과 실제 구매를 구분할 때",
+      "example": "We have a habit of interpreting enthusiastic interviews as buying intent, and I would like this discussion to distinguish those things carefully before we commit resources.",
+      "practice": "We need evidence of buying intent before expanding."
+    },
+    {
+      "phrase": "selection bias",
+      "meaning_ko": "선택 편향",
+      "usage_ko": "표본이 한쪽으로 치우쳤을 때",
+      "example": "Yes, I have it, and my main concern is selection bias.",
+      "practice": "Selection bias can distort the survey."
+    },
+    {
+      "phrase": "learning objective",
+      "meaning_ko": "학습 목표",
+      "usage_ko": "검증에서 알아낼 것을 정할 때",
+      "example": "I would like a clear learning objective for any study we approve.",
+      "practice": "Set a learning objective for each experiment."
+    },
+    {
+      "phrase": "addressable market",
+      "meaning_ko": "공략 가능 시장",
+      "usage_ko": "판매 가능한 고객 범위를 논의할 때",
+      "example": "Owen, please walk us through the evidence behind the addressable market.",
+      "practice": "The addressable market excludes internal-only departments."
+    },
+    {
+      "phrase": "illusion of precision",
+      "meaning_ko": "정확하다는 착각",
+      "usage_ko": "근거 없는 정밀한 수치를 경계할 때",
+      "example": "It creates an illusion of precision.",
+      "practice": "A decimal estimate may create an illusion of precision."
+    },
+    {
+      "phrase": "budget holder",
+      "meaning_ko": "예산 담당자",
+      "usage_ko": "지출 권한자를 구분할 때",
+      "example": "I have drafted a different recruitment plan that includes nonusers, smaller organizations, and budget holders.",
+      "practice": "Invite the budget holder to the interview."
+    },
+    {
+      "phrase": "simulated data",
+      "meaning_ko": "모의 데이터",
+      "usage_ko": "시제품의 가상 자료를 설명할 때",
+      "example": "I would label simulated data clearly and explain which steps are manual.",
+      "practice": "Use simulated data for the demonstration."
+    },
+    {
+      "phrase": "granting exclusivity",
+      "meaning_ko": "독점권 부여",
+      "usage_ko": "파트너 권리 범위를 정할 때",
+      "example": "I do not propose granting exclusivity or promising a regional launch.",
+      "practice": "We are not granting exclusivity during evaluation."
+    },
+    {
+      "phrase": "recruitment channel",
+      "meaning_ko": "모집 경로",
+      "usage_ko": "표본 확보 경로를 설명할 때",
+      "example": "In that sense, a partner is one recruitment channel, not the owner of our strategy or the person who decides whether the market is attractive.",
+      "practice": "Email is only one recruitment channel."
+    },
+    {
+      "phrase": "stop rule",
+      "meaning_ko": "중단 기준",
+      "usage_ko": "실험을 멈출 조건을 정할 때",
+      "example": "I would also like a stop rule: if the service cannot address the central problem without a major redesign, we should say so before discussing regional staffing.",
+      "practice": "The stop rule must be agreed before testing."
+    },
+    {
+      "phrase": "screening criteria",
+      "meaning_ko": "선별 기준",
+      "usage_ko": "다음 검토 자격을 정할 때",
+      "example": "Those thresholds are screening criteria, not a guaranteed business case.",
+      "practice": "These screening criteria are preliminary."
+    },
+    {
+      "phrase": "disconfirming evidence",
+      "meaning_ko": "가설을 반박하는 증거",
+      "usage_ko": "반대 결과도 기록할 때",
+      "example": "I will add that statement and include disconfirming evidence in every progress update.",
+      "practice": "Include disconfirming evidence in the review."
+    },
+    {
+      "phrase": "revenue sharing",
+      "meaning_ko": "매출 배분",
+      "usage_ko": "파트너 보상 방식을 협의할 때",
+      "example": "My recommendation is to decline revenue sharing during research and consider any future commercial arrangement through a separate evaluation.",
+      "practice": "Revenue sharing requires a separate agreement."
+    },
+    {
+      "phrase": "investment case",
+      "meaning_ko": "투자 근거",
+      "usage_ko": "투자 타당성을 논의할 때",
+      "example": "If a scenario needs major changes, I will explain the operational reason and its effect on the investment case.",
+      "practice": "Implementation costs changed the investment case."
+    }
+  ]
+}

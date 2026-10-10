@@ -1,0 +1,262 @@
+{
+  "date": "2026-10-02",
+  "category": "business",
+  "topic": "sales",
+  "subject": "Clarifying Customer Outcomes and Contract Boundaries",
+  "title_ko": "고객 요구와 계약 범위 협의",
+  "summary_ko": "가상의 고객사와 분석 서비스 공급사가 결과물의 의미와 완료 판단을 협의한다. 무제한 수정 요구와 데이터 책임의 이견을 조율해 산출물 기반 범위와 변경 절차를 정한다. 모든 인물·회사·수치는 가상이다.",
+  "participants": [
+    {
+      "name": "Grace",
+      "team": "Account Management"
+    },
+    {
+      "name": "Arun",
+      "team": "Solution Consulting"
+    },
+    {
+      "name": "Mei",
+      "team": "Customer Operations"
+    },
+    {
+      "name": "Victor",
+      "team": "Customer Operations"
+    },
+    {
+      "name": "Paula",
+      "team": "Commercial Review"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and the purpose of the workshop",
+      "title_ko": "참석 확인과 워크숍 목적",
+      "turns": [
+        {
+          "speaker": "Grace",
+          "en": "Welcome to the contract clarification workshop on October second. I am Grace, your account manager, and Arun is our solution consultant. Mei and Victor represent the customer's operations team, while Paula joins from Commercial Review. Please confirm that you are looking at version four of the proposed statement of work. We are discussing an engagement to improve regional service reporting. The aim today is to agree on observable outcomes and responsibility boundaries before either company signs. We should not leave important expectations in a sales presentation while the contract says something narrower. Mei, could you begin by explaining the business decision you want this work to improve, rather than listing the reports you expect us to produce?",
+          "ko": "10월 2일 계약 명확화 워크숍에 오신 것을 환영합니다. 저는 계정 담당 Grace이고 Arun은 솔루션 컨설턴트입니다. 고객 운영팀의 Mei와 Victor, Commercial Review의 Paula가 참석합니다. 제안 작업 명세 4판을 보고 있는지 확인해 주세요. 지역 서비스 보고를 개선하는 과제입니다. 양사 서명 전에 관찰 가능한 결과와 책임 경계를 합의하는 것이 목적입니다. 판매 발표에는 중요한 기대를 남겨 두고 계약은 더 좁게 말해서는 안 됩니다. Mei, 보고서 목록 대신 이 작업으로 개선할 업무 결정을 설명해 주실래요?"
+        },
+        {
+          "speaker": "Mei",
+          "en": "I have version four. We want regional managers to recognize recurring service problems before they become customer complaints. At present, each region prepares its own spreadsheet, and the central team spends several days reconciling definitions. A common report would help, but our real outcome is a weekly discussion based on comparable numbers. I am responsible for the operational process and can confirm which measures managers need. Victor manages our source systems and will explain the data limitations. My concern is that we could receive a technically correct dashboard that nobody trusts because the regional definitions remain inconsistent. I want the engagement to address that issue explicitly, not treat it as background information outside the work.",
+          "ko": "4판이 있습니다. 지역 관리자가 고객 불만으로 커지기 전에 반복 서비스 문제를 파악하기 원합니다. 지금은 지역별 스프레드시트를 만들고 중앙팀이 정의를 맞추는 데 며칠을 씁니다. 공통 보고도 도움이 되지만 실제 목표는 비교 가능한 수치에 근거한 주간 논의입니다. 운영 절차를 담당하며 필요한 지표를 확인할 수 있습니다. Victor는 원천 시스템을 관리하고 데이터 한계를 설명합니다. 지역 정의가 불일치해 아무도 신뢰하지 않는 기술적으로 올바른 대시보드를 받을까 걱정입니다. 이를 범위 밖 배경으로 취급하지 않고 과제에서 명시적으로 다뤄야 합니다."
+        },
+        {
+          "speaker": "Victor",
+          "en": "I am using the same version. The source data includes service tickets, technician schedules, and customer location records. Ticket categories differ between regions, and some older records have no reliable completion date. I can arrange data exports and explain the fields, but I cannot promise that all historical gaps will be repaired during this engagement. We need to distinguish a reporting rule from a source-system correction. If a ticket has no completion date, the report should flag it, not invent one. I would also like clarity about who approves any mapping between regional categories. That decision affects management interpretation and should not be made by a consultant working alone with a spreadsheet.",
+          "ko": "같은 판을 보고 있습니다. 원천 데이터에는 서비스 티켓, 기술자 일정, 고객 위치 기록이 있습니다. 지역별 티켓 분류가 다르고 오래된 기록 일부는 신뢰할 완료일이 없습니다. 추출과 필드 설명은 맡을 수 있지만 과제 중 과거 공백을 모두 수정하겠다고 약속할 수는 없습니다. 보고 규칙과 원천 시스템 수정을 구분해야 합니다. 완료일이 없으면 보고서가 표시해야지 만들어서는 안 됩니다. 지역 분류 매핑의 승인자도 명확히 하고 싶습니다. 경영 해석에 영향을 주므로 스프레드시트를 다루는 컨설턴트 혼자 결정해서는 안 됩니다."
+        },
+        {
+          "speaker": "Paula",
+          "en": "I have the document too. My role is to make the commercial terms reflect the working arrangement accurately. I am not here to turn every practical question into complicated legal language. We need a statement that both delivery teams can use when they disagree about whether an item is included. I noticed that the phrase complete reporting solution appears in the overview, while the detailed schedule lists only three dashboards. Those descriptions could support very different expectations. I suggest replacing broad claims with named deliverables, acceptance criteria, and an explicit process for changes. That will protect the customer's intended outcome as well as the supplier's ability to estimate the work responsibly.",
+          "ko": "저도 문서가 있습니다. 제 역할은 실제 업무 방식을 상업 조건에 정확히 반영하는 것입니다. 모든 질문을 복잡한 법률 문구로 바꾸려는 것은 아닙니다. 포함 여부에 이견이 생길 때 양쪽 수행팀이 사용할 명세가 필요합니다. 개요에는 완전한 보고 솔루션이라고 있지만 일정에는 대시보드 세 개만 있습니다. 기대가 크게 달라질 수 있습니다. 포괄적 주장 대신 명명된 결과물, 수락 기준, 명시적인 변경 절차로 바꿀 것을 제안합니다. 고객 목표와 공급사의 책임 있는 작업 추정 능력을 함께 보호합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Requirements and responsibility mapping",
+      "title_ko": "요구사항과 책임 정리",
+      "turns": [
+        {
+          "speaker": "Arun",
+          "en": "Let me describe the proposed deliverables in operational terms. We will provide a data dictionary, an approved category mapping, three reporting views, and a facilitator guide for the weekly management discussion. The data dictionary will specify how each measure is calculated and how missing values are handled. The mapping will translate regional ticket categories into a shared classification, but Mei will approve the business meaning and Victor will approve the technical source references. The dashboards will use exported data rather than a live connection. That limits the initial implementation work and lets us test the definitions first. A future live integration would be a separate decision after we understand the refresh requirements.",
+          "ko": "운영 관점에서 결과물을 설명하겠습니다. 데이터 사전, 승인된 분류 매핑, 보고 화면 세 개, 주간 관리 논의 진행 안내를 제공합니다. 사전에는 각 지표 계산과 누락 값 처리를 명시합니다. 매핑은 지역 티켓을 공통 분류로 바꾸되 업무 의미는 Mei가, 기술 출처는 Victor가 승인합니다. 대시보드는 실시간 연결 대신 추출 데이터를 씁니다. 초기 구현을 제한하고 먼저 정의를 시험할 수 있습니다. 향후 실시간 연동은 갱신 요구를 이해한 후 별도로 결정합니다."
+        },
+        {
+          "speaker": "Mei",
+          "en": "That is clearer, but I am uneasy about separating the live connection completely. Our managers expect a weekly report without somebody manually rebuilding it every Friday. If we accept an export-based solution, are we accepting an operating burden that makes the outcome unrealistic? I am not asking for every possible connector. I am asking how the proposed arrangement will work in an ordinary week when our analysts are busy. Could we include a repeatable import procedure and a check that detects an incomplete export? That would give us a dependable manual bridge while we decide whether automation is justified. Without it, the dashboard could work beautifully only when Arun is available to prepare the files.",
+          "ko": "더 명확하지만 실시간 연결을 완전히 분리하는 것이 불안합니다. 관리자는 매주 금요일 누군가 다시 만들지 않아도 주간 보고를 기대합니다. 추출 방식 수락이 목표를 비현실적으로 만드는 운영 부담의 수락인가요? 모든 연결 기능을 요구하는 것은 아닙니다. 분석가가 바쁜 평범한 주에 어떻게 작동하는지 묻습니다. 반복 가능한 가져오기 절차와 불완전 추출 탐지를 포함할 수 있나요? 자동화 타당성을 결정하는 동안 믿을 만한 수동 연결이 됩니다. 없으면 Arun이 파일을 준비할 때만 완벽히 작동할 수 있습니다."
+        },
+        {
+          "speaker": "Arun",
+          "en": "Yes, a documented import procedure and completeness check belong in the current scope. I can include a template that rejects files with missing required columns and reports the number of records loaded. It will also show the export date so managers do not mistake an older dataset for the current week. However, the check cannot determine whether a source system contains every ticket that should exist. Victor's team will need to confirm the export population. We can make that responsibility visible in the handover checklist. I want to avoid a false assurance in which a successful import is interpreted as proof that the underlying business records are complete and accurate.",
+          "ko": "네, 문서화된 가져오기 절차와 완전성 점검은 현재 범위에 들어갑니다. 필수 열이 없는 파일을 거부하고 적재 기록 수를 보고하는 템플릿을 포함할 수 있습니다. 추출일도 보여 오래된 자료를 이번 주로 오해하지 않도록 합니다. 하지만 원천 시스템에 있어야 할 모든 티켓이 있는지는 판단할 수 없습니다. Victor 팀이 추출 대상 모집단을 확인해야 합니다. 인계 체크리스트에 책임을 표시할 수 있습니다. 성공적인 가져오기를 원래 업무 기록의 완전성과 정확성 입증으로 해석하는 잘못된 확신은 피하고 싶습니다."
+        },
+        {
+          "speaker": "Victor",
+          "en": "I can own that population check. We will compare the export count with the source query and record the filters used, including the treatment of reopened tickets. I also need us to define the historical period. The draft says all available history, which could include five years of inconsistent records. I recommend twelve months for the initial dataset, with older material excluded unless a specific management question requires it. Cleaning every historical record would consume the engagement without improving next week's decision. We can document the limitation and explain where trends are not comparable. Mei, would that still support the recurring problem discussion, or is there a particular older event you need to investigate?",
+          "ko": "대상 모집단 점검을 맡겠습니다. 추출 수와 원천 쿼리를 비교하고 재개 티켓 처리를 포함한 필터를 기록합니다. 과거 기간도 정의해야 합니다. 초안의 모든 가용 이력은 불일치한 5년 기록을 포함할 수 있습니다. 초기 데이터는 12개월을 권하며 구체적인 경영 질문에 필요하지 않으면 이전 자료는 제외합시다. 과거 전체 정리는 다음 주 결정을 개선하지 못한 채 과제 시간을 소모합니다. 한계와 추세 비교 불가능 지점을 설명할 수 있습니다. Mei, 반복 문제 논의를 지원하나요, 아니면 조사할 더 오래된 사건이 있나요?"
+        }
+      ]
+    },
+    {
+      "title_en": "Scope disagreements and acceptance design",
+      "title_ko": "범위 이견과 수락 절차 설계",
+      "turns": [
+        {
+          "speaker": "Mei",
+          "en": "Twelve months is sufficient for the first version. My larger concern is the revision allowance. The draft includes two rounds of changes, but the regional managers may not understand the measures until they see actual reports. If they identify a misleading definition after the second round, I do not want to pay extra simply because the mistake surfaced late. Could we distinguish corrections from changes in preference? A dashboard that calculates an agreed measure incorrectly is different from a manager deciding that they would now like a new measure. We need that distinction before we count revision rounds, otherwise the limit could discourage people from raising problems that affect the credibility of the result.",
+          "ko": "첫 버전에는 12개월이면 충분합니다. 더 큰 우려는 수정 허용입니다. 초안은 두 차례 변경을 포함하지만 지역 관리자는 실제 보고를 봐야 지표를 이해할 수 있습니다. 두 번째 이후 잘못된 정의를 찾았다고 늦게 드러났다는 이유만으로 추가 비용을 내고 싶지는 않습니다. 오류 수정과 선호 변경을 구분할 수 있나요? 합의 지표의 잘못된 계산과 새 지표 요구는 다릅니다. 차수를 세기 전에 구분해야 합니다. 그렇지 않으면 한도가 결과의 신뢰성에 영향을 주는 문제 제기를 막을 수 있습니다."
+        },
+        {
+          "speaker": "Paula",
+          "en": "That is a reasonable distinction. We can define a defect as a failure to meet an approved specification or acceptance criterion. Defect correction will not consume a discretionary revision round. A new requirement, changed definition, or additional view will go through change control. There may be borderline cases, so the document should name a joint review rather than leave either side with unilateral authority. Grace and Mei can assess disputed items with technical input from Arun and Victor. If they cannot agree, the item can be escalated to the named sponsors. We should also record the baseline specification clearly, because a correction cannot be judged fairly if nobody knows what was previously approved.",
+          "ko": "합리적인 구분입니다. 결함은 승인된 명세나 수락 기준 미충족으로 정의할 수 있습니다. 결함 수정은 재량 수정 차수를 소모하지 않습니다. 새 요구, 정의 변경, 추가 화면은 변경 관리를 거칩니다. 경계 사례는 어느 한쪽의 단독 권한 대신 공동 검토를 명시해야 합니다. Grace와 Mei가 Arun과 Victor의 기술 의견으로 분쟁 항목을 평가합니다. 합의하지 못하면 지정 책임자에게 올립니다. 이전 승인 내용을 모르면 수정 여부를 공정히 판단할 수 없으니 기준 명세도 명확히 기록해야 합니다."
+        },
+        {
+          "speaker": "Grace",
+          "en": "I agree, and I want to revisit the sales promise that managers could explore any service question. That wording was too broad for the proposed engagement. The three views will cover recurring issue categories, regional response patterns, and workload distribution. They will not support arbitrary analysis of every field in the source systems. Mei, I would rather correct that expectation now than defend a sentence that our delivery team cannot responsibly meet. We can include a workshop where managers identify additional questions for a future backlog, but that does not make those questions part of the current deliverables. Does that address the business need, or have we misunderstood what your team believes it is buying?",
+          "ko": "동의하며 관리자가 어떤 서비스 질문도 탐색할 수 있다는 영업 약속을 다시 검토하고 싶습니다. 이 과제에는 너무 포괄적이었습니다. 세 화면은 반복 문제 분류, 지역 응답 패턴, 업무량 분포를 다룹니다. 원천 시스템 모든 필드의 임의 분석은 지원하지 않습니다. Mei, 수행팀이 책임 있게 충족할 수 없는 문장을 방어하기보다 지금 기대를 바로잡고 싶습니다. 향후 목록용 추가 질문 워크숍은 포함할 수 있지만 현재 결과물에 들어가지는 않습니다. 업무 필요를 충족하나요, 아니면 구매 의도를 오해했나요?"
+        },
+        {
+          "speaker": "Mei",
+          "en": "Those three views address our immediate need, provided the workshop allows managers to challenge whether the views answer the agreed questions. I appreciate the clarification, although we should update the presentation as well as the contract so my sponsor does not hear two versions. For acceptance, I propose using six representative cases from our records, including a reopened ticket and a ticket with a missing completion date. We can agree on expected results before the dashboards are tested. That would give us an objective basis for sign-off. A general statement that the customer is satisfied could become subjective, while a test based only on whether the screen opens would be far too weak.",
+          "ko": "화면이 합의 질문에 답하는지 관리자가 이의를 제기할 수 있다면 당장의 필요를 충족합니다. 명확화는 좋지만 책임자가 두 설명을 듣지 않도록 발표도 계약과 함께 수정해야 합니다. 수락에는 재개 티켓과 완료일 누락을 포함한 대표 사례 6개를 제안합니다. 시험 전에 예상 결과를 합의해 객관적인 승인 근거를 얻습니다. 고객 만족이라는 일반 문장은 주관적일 수 있고 화면이 열리는지만 시험하면 너무 약합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Commercial decisions and action ownership",
+      "title_ko": "상업적 결정과 업무 담당",
+      "turns": [
+        {
+          "speaker": "Arun",
+          "en": "Six cases are a good starting point. I will add an import failure case and a stale-data warning case so we test the operational bridge too. The acceptance pack will include the expected numbers, the explanation of each measure, and the steps a customer analyst follows without our assistance. We should allow five working days for review after delivery, with written comments identifying any unmet criterion. If no comments arrive, I do not want that to imply automatic acceptance without a reminder. Grace can arrange a review meeting before the period ends. That gives the customer a real opportunity to inspect the work and gives our team a predictable route to completion.",
+          "ko": "사례 6개는 좋은 시작입니다. 운영 연결도 시험하도록 가져오기 실패와 오래된 데이터 경고 사례를 추가하겠습니다. 수락 자료에는 예상 수치, 지표 설명, 도움 없이 고객 분석가가 따를 절차를 넣습니다. 납품 후 근무일 5일 검토와 미충족 기준을 명시한 서면 의견을 허용해야 합니다. 의견이 없다고 안내 없이 자동 수락으로 간주하고 싶지는 않습니다. Grace가 기간 종료 전 검토 회의를 잡을 수 있습니다. 고객에게 실질적인 검사 기회를, 수행팀에 예측 가능한 완료 경로를 줍니다."
+        },
+        {
+          "speaker": "Paula",
+          "en": "I will revise the statement of work by Monday, October fifth, at four p.m. Asia/Seoul. The fixed fee will remain forty-eight thousand dollars because the import procedure is consistent with the original outcome, but the live integration and historical cleanup will be explicitly excluded. Payment will follow the agreed milestones: definition approval, delivery for review, and final acceptance. I will write the dispute process and the distinction between defects and new requirements in plain language. These are proposed terms for discussion, and our legal team will review the final wording. Both companies still need their authorized approvers to sign the final document before delivery work begins under the engagement.",
+          "ko": "10월 5일 월요일 Asia/Seoul 오후 4시까지 작업 명세를 수정합니다. 가져오기 절차는 원래 목표에 부합하므로 고정 비용 4만 8천 달러를 유지하되 실시간 연동과 과거 정리는 명시적으로 제외합니다. 대금은 정의 승인, 검토용 납품, 최종 수락 단계에 따릅니다. 분쟁 절차와 결함·신규 요구 구분을 쉬운 말로 쓰겠습니다. 논의를 위한 제안 조건이며 법무팀이 최종 문구를 검토할 것입니다. 과제 수행을 시작하기 전에 양사의 권한 있는 승인자가 최종 문서에 서명해야 합니다."
+        },
+        {
+          "speaker": "Victor",
+          "en": "I will provide the field inventory and a twelve-month anonymized sample by Tuesday, October sixth, at ten a.m. Asia/Seoul. Before sharing it, I will remove personal contact details and confirm that the sample includes the exceptional cases we discussed. I will also document the export filters and the count reconciliation. For category mapping, Mei and I will review Arun's proposed rules together rather than sending separate approvals that contradict each other. If a regional category has no clear equivalent, we will mark it for discussion. We should not force every item into a common label just to make the dataset look tidy, because that could erase an operational difference managers need to understand.",
+          "ko": "10월 6일 화요일 Asia/Seoul 오전 10시까지 필드 목록과 12개월 익명 표본을 제공합니다. 공유 전 개인 연락처를 제거하고 논의한 예외 사례를 포함했는지 확인합니다. 추출 필터와 수량 대조도 기록합니다. 분류 매핑은 상충하는 별도 승인 대신 Mei와 함께 Arun 규칙을 검토합니다. 명확한 대응 분류가 없으면 논의 대상으로 표시합니다. 자료를 깔끔하게 보이게 하려고 모두 공통 명칭에 넣으면 관리자가 알아야 할 운영 차이를 지울 수 있습니다."
+        },
+        {
+          "speaker": "Grace",
+          "en": "I will update the customer presentation and send one consolidated summary with Paula's draft. It will show the business outcome, the named deliverables, the exclusions, and the acceptance route on the same page. I will also create a change register that records the requested item, its reason, its estimated effort, and the decision. A request will not become approved work merely because it appears in meeting notes. We will discuss its effect on fee and schedule before either team starts it. Mei, please nominate the customer sponsor who can resolve escalated scope questions. I will nominate our delivery director so the escalation route has real decision authority rather than becoming another discussion without an owner.",
+          "ko": "고객 발표를 수정해 Paula 초안과 통합 요약을 보냅니다. 업무 목표, 결과물, 제외, 수락 경로를 한 페이지에 보여 줍니다. 요청 항목, 이유, 예상 노력, 결정을 기록하는 변경 대장도 만듭니다. 회의 기록에 있다는 이유만으로 승인 작업이 되지 않습니다. 시작 전에 비용과 일정 영향을 논의합니다. Mei, 범위 분쟁을 해결할 고객 책임자를 지정해 주세요. 저는 수행 이사를 지정해 또 다른 주인 없는 논의 대신 실제 결정 권한을 가진 상향 경로를 만들겠습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Readback and the next meeting",
+      "title_ko": "합의 확인과 다음 회의",
+      "turns": [
+        {
+          "speaker": "Mei",
+          "en": "I will nominate our service director and brief her on the revised scope before Monday's document arrives. I will explain that we are buying a common reporting process with three defined views, not an unlimited analytics platform. I also want to check the training audience. Six regional managers and two central analysts need to use the result, and the analysts need a deeper session on imports and definitions. Could the handover include one management workshop and one analyst session? Combining everyone into a single demonstration would leave the technical operators underprepared and the managers overloaded with details they do not need. That separation will make the agreed operating model much more likely to survive after the consultants leave.",
+          "ko": "서비스 이사를 지정하고 월요일 문서 전에 수정 범위를 설명하겠습니다. 무제한 분석 플랫폼이 아니라 세 화면의 공통 보고 절차를 구매한다고 말합니다. 교육 대상도 확인하고 싶습니다. 지역 관리자 6명과 중앙 분석가 2명이 쓰며 분석가는 가져오기와 정의의 심화 교육이 필요합니다. 관리 워크숍 하나와 분석가 교육 하나를 인계에 포함할 수 있나요? 단일 시연이면 운영자는 준비 부족, 관리자는 불필요한 세부 정보 과부하가 됩니다. 분리하면 컨설턴트가 떠난 뒤 합의 운영 모델이 유지될 가능성이 높아집니다."
+        },
+        {
+          "speaker": "Arun",
+          "en": "Yes, those two sessions fit the proposed handover. I will specify their duration and preparation requirements in the delivery plan. The analyst session will include a practice import using a file with deliberate errors, so we can see whether the team recognizes the warnings. The management workshop will focus on interpreting measures and asking questions about anomalies. We should avoid implying that a regional difference automatically means poor performance. Some differences may reflect service mix or incomplete records. I will include examples that require managers to investigate before drawing a conclusion. That makes training part of responsible use rather than simply a tour of dashboard controls and menu options.",
+          "ko": "네, 두 교육은 제안 인계에 맞습니다. 계획에 시간과 준비를 명시합니다. 분석가 교육에는 의도적 오류 파일 가져오기 연습을 넣어 경고를 인지하는지 보겠습니다. 관리 워크숍은 지표 해석과 이상 현상 질문에 집중합니다. 지역 차이가 자동으로 낮은 성과라는 인상을 피해야 합니다. 서비스 구성이나 불완전 기록 때문일 수도 있습니다. 결론 전 조사가 필요한 사례를 넣습니다. 단순 화면 조작 소개 대신 책임 있는 사용의 교육이 됩니다."
+        },
+        {
+          "speaker": "Paula",
+          "en": "For our final check, we now have a defined historical period, a repeatable manual import, eight acceptance cases, two handover sessions, and a joint process for disputed scope items. I will ensure those elements appear consistently in the document. I will also remove the phrase complete reporting solution from the overview, because the detailed boundaries should not be undermined by a broad headline. Please send any remaining concern as a specific scenario rather than a general request for more flexibility. Scenarios help us decide whether the proposed terms already address the issue or need adjustment. That should reduce unnecessary redrafting and keep the document readable for the people who will actually deliver and operate the service.",
+          "ko": "최종 확인으로 과거 기간, 반복 수동 가져오기, 수락 사례 8개, 인계 교육 2개, 범위 분쟁 공동 절차를 정했습니다. 문서에 일관되게 반영합니다. 포괄적인 제목이 세부 경계를 약화하지 않도록 완전한 보고 솔루션 표현도 삭제합니다. 남은 우려는 일반적인 유연성 요구 대신 구체적인 상황으로 보내 주세요. 기존 조건이 다루는지 조정이 필요한지 판단하는 데 도움이 됩니다. 불필요한 재작성을 줄이고 실제 수행·운영자가 읽기 쉬운 문서를 유지할 수 있습니다."
+        },
+        {
+          "speaker": "Grace",
+          "en": "Our next review will be Wednesday, October seventh, at two thirty p.m. Asia/Seoul, for forty-five minutes. We will check the revised statement of work, the sample data, and the acceptance cases before asking the authorized approvers to sign. The purpose is to resolve specific mismatches, not reopen every requirement from the beginning. I will send the updated materials at least one day beforehand. Thank you for being direct about the gap between the sales language and the operational need. We have made the intended outcome more concrete and given both teams a way to handle future changes without treating every disagreement as a breach of trust. That is a useful basis for a delivery relationship.",
+          "ko": "다음 검토는 10월 7일 수요일 Asia/Seoul 오후 2시 30분부터 45분입니다. 승인자 서명 요청 전 수정 명세, 표본 데이터, 수락 사례를 확인합니다. 모든 요구를 처음부터 다시 여는 대신 구체적인 불일치를 해결합니다. 최소 하루 전에 수정 자료를 보냅니다. 영업 문구와 운영 필요의 차이를 솔직히 말해 주셔서 감사합니다. 목표를 구체화하고 모든 이견을 신뢰 위반으로 취급하지 않으면서 향후 변경을 다룰 방법을 만들었습니다. 수행 관계의 유용한 기반입니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "statement of work",
+      "meaning_ko": "작업 명세",
+      "usage_ko": "계약의 산출물과 범위를 설명할 때",
+      "example": "Please confirm that you are looking at version four of the proposed statement of work.",
+      "practice": "Please attach the statement of work."
+    },
+    {
+      "phrase": "observable outcomes",
+      "meaning_ko": "관찰 가능한 결과",
+      "usage_ko": "성과를 검증할 수 있게 정의할 때",
+      "example": "The aim today is to agree on observable outcomes and responsibility boundaries before either company signs.",
+      "practice": "The plan needs observable outcomes."
+    },
+    {
+      "phrase": "data dictionary",
+      "meaning_ko": "데이터 사전",
+      "usage_ko": "지표와 필드를 정의할 때",
+      "example": "We will provide a data dictionary, an approved category mapping, three reporting views, and a facilitator guide for the weekly management discussion.",
+      "practice": "Update the data dictionary after approval."
+    },
+    {
+      "phrase": "operating burden",
+      "meaning_ko": "운영 부담",
+      "usage_ko": "도입 후 수작업을 평가할 때",
+      "example": "If we accept an export-based solution, are we accepting an operating burden that makes the outcome unrealistic?",
+      "practice": "Automation may reduce the operating burden."
+    },
+    {
+      "phrase": "false assurance",
+      "meaning_ko": "잘못된 확신",
+      "usage_ko": "검증의 의미를 과대해석하지 않게 할 때",
+      "example": "I want to avoid a false assurance in which a successful import is interpreted as proof that the underlying business records are complete and accurate.",
+      "practice": "A green status can create false assurance."
+    },
+    {
+      "phrase": "revision allowance",
+      "meaning_ko": "수정 허용 범위",
+      "usage_ko": "수정 횟수와 비용을 협의할 때",
+      "example": "My larger concern is the revision allowance.",
+      "practice": "The revision allowance covers two design reviews."
+    },
+    {
+      "phrase": "change control",
+      "meaning_ko": "변경 관리",
+      "usage_ko": "새 요구를 승인 절차에 넣을 때",
+      "example": "A new requirement, changed definition, or additional view will go through change control.",
+      "practice": "The additional report requires change control."
+    },
+    {
+      "phrase": "unilateral authority",
+      "meaning_ko": "단독 결정 권한",
+      "usage_ko": "공동 검토 필요성을 설명할 때",
+      "example": "There may be borderline cases, so the document should name a joint review rather than leave either side with unilateral authority.",
+      "practice": "Neither team has unilateral authority."
+    },
+    {
+      "phrase": "baseline specification",
+      "meaning_ko": "기준 명세",
+      "usage_ko": "변경 전 승인 내용을 확인할 때",
+      "example": "We should also record the baseline specification clearly, because a correction cannot be judged fairly if nobody knows what was previously approved.",
+      "practice": "Use the baseline specification for testing."
+    },
+    {
+      "phrase": "objective basis",
+      "meaning_ko": "객관적 근거",
+      "usage_ko": "수락 판단을 정할 때",
+      "example": "That would give us an objective basis for sign-off.",
+      "practice": "The test provides an objective basis for approval."
+    },
+    {
+      "phrase": "count reconciliation",
+      "meaning_ko": "수량 대조",
+      "usage_ko": "추출과 원천 수를 비교할 때",
+      "example": "I will also document the export filters and the count reconciliation.",
+      "practice": "Complete the count reconciliation before importing."
+    },
+    {
+      "phrase": "change register",
+      "meaning_ko": "변경 대장",
+      "usage_ko": "요청과 결정을 추적할 때",
+      "example": "I will also create a change register that records the requested item, its reason, its estimated effort, and the decision.",
+      "practice": "Add the request to the change register."
+    },
+    {
+      "phrase": "deliberate errors",
+      "meaning_ko": "의도적 오류",
+      "usage_ko": "훈련용 실패 사례를 설명할 때",
+      "example": "The analyst session will include a practice import using a file with deliberate errors, so we can see whether the team recognizes the warnings.",
+      "practice": "The practice file contains deliberate errors."
+    },
+    {
+      "phrase": "service mix",
+      "meaning_ko": "서비스 구성",
+      "usage_ko": "성과 차이의 배경을 설명할 때",
+      "example": "Some differences may reflect service mix or incomplete records.",
+      "practice": "Consider the service mix before ranking regions."
+    }
+  ]
+}

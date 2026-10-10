@@ -9,10 +9,24 @@ import re
 import shutil
 
 ROOT = Path(__file__).resolve().parents[1]
+TOPICS = {
+    'strategy': ('전략·사업기획', 'Strategy', '새로운 시장과 사업의 방향을 정하는 회의'),
+    'sales': ('영업·고객', 'Sales & customers', '고객 요구를 듣고 제안과 계약 범위를 조율'),
+    'finance': ('재무·예산', 'Finance', '예산과 투자, 성과를 근거로 판단하는 회의'),
+    'people': ('인사·조직', 'People & culture', '근무 방식과 팀 운영에 관한 의견 조율'),
+    'operations': ('운영·공급망', 'Operations', '공급, 물류, 서비스 운영 문제의 해결'),
+    'marketing': ('마케팅·브랜드', 'Marketing', '캠페인과 메시지, 성과를 검토하는 회의'),
+    'projects': ('프로젝트·제품', 'Projects & product', '일정, 제품 범위와 위험을 함께 점검'),
+    'partnerships': ('파트너십·협의', 'Partnerships', '여러 이해관계자의 관점과 공동 목표를 조율'),
+}
+
+def topic_key(lesson):
+    return lesson.get('topic', 'projects')
 
 def validate(lesson):
     date.fromisoformat(lesson['date'])
     assert lesson['category'] == 'business', 'Unsupported category'
+    assert topic_key(lesson) in TOPICS, 'Unknown business topic'
     assert re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9 ,()&-]{0,100}', lesson['subject']), 'Unsafe subject filename'
     assert all(isinstance(lesson[k], str) and lesson[k].strip() for k in ('title_ko', 'summary_ko'))
     people = {p['name']: p['team'] for p in lesson['participants']}
@@ -32,10 +46,13 @@ def validate(lesson):
     assert speakers == set(people), 'Silent participant'
     assert 2200 <= words <= 2800, f'Expected 2200-2800 English words; got {words}'
     assert 12 <= len(lesson['expressions']) <= 20, 'Expected 12-20 expressions'
-    dialogue = ' '.join(t['en'] for s in lesson['sections'] for t in s['turns']).lower()
+    turns = [t['en'] for s in lesson['sections'] for t in s['turns']]
+    dialogue = ' '.join(turns).lower()
     for expression in lesson['expressions']:
         assert all(isinstance(expression[k], str) and expression[k].strip() for k in ('phrase', 'meaning_ko', 'usage_ko', 'example', 'practice'))
         assert expression['phrase'].lower() in dialogue, 'Expression absent from script'
+        assert expression['phrase'].lower() in expression['example'].lower(), 'Example missing expression'
+        assert any(expression['example'] in turn for turn in turns), 'Example must quote the dialogue'
     return words
 
 def document(title, body, prefix='', search=False):
@@ -62,19 +79,28 @@ def lesson_page(lesson, words):
         content.append(''.join(sections))
     expressions = ''.join(f'<article class="expression"><h3 lang="en">{e(x["phrase"])}</h3><p><strong>{e(x["meaning_ko"])}</strong> · {e(x["usage_ko"])}</p><p class="example" lang="en">{e(x["example"])}</p><p><span class="muted">응용 연습</span><br><span lang="en">{e(x["practice"])}</span></p></article>' for x in lesson['expressions'])
     tags = ''.join(f'<span class="tag">{e(p["name"])} · {e(p["team"])}</span>' for p in lesson['participants'])
-    body = f'''<main class="lesson"><p class="eyebrow">BUSINESS / {e(lesson['date'])}</p><h1 lang="en">{e(lesson['subject'])}</h1><p>{e(lesson['title_ko'])}</p><div class="intro"><p>{e(lesson['summary_ko'])}</p><p class="muted">중급~고급 · {words:,}단어 · 약 {round(words/120)}분</p><div class="tags">{tags}</div></div><nav aria-label="학습 구간"><a href="#english">영문 대본</a><a href="#korean">한국어 번역</a><a href="#expressions">핵심 표현</a></nav><section id="english"><h2>01 / English script</h2>{content[0]}</section><section id="korean"><details open><summary>02 / 한국어 번역</summary>{content[1]}</details></section><section id="expressions"><h2>03 / Business expressions</h2>{expressions}</section></main>'''
+    topic = topic_key(lesson)
+    body = f'''<main class="lesson"><a class="back-link" href="../index.html?topic={topic}">← {e(TOPICS[topic][0])} 학습 목록</a><p class="eyebrow">BUSINESS / {e(lesson['date'])} / {e(TOPICS[topic][1])}</p><h1 lang="en">{e(lesson['subject'])}</h1><p>{e(lesson['title_ko'])}</p><div class="intro"><p>{e(lesson['summary_ko'])}</p><p class="muted">가상의 비즈니스 회의 · 중급~고급 · {words:,}단어 · 약 {round(words/120)}분</p><div class="tags">{tags}</div></div><nav aria-label="학습 구간"><a href="#english">영문 대본</a><a href="#korean">한국어 번역</a><a href="#expressions">핵심 표현</a></nav><section id="english"><h2>01 / English script</h2>{content[0]}</section><section id="korean"><details open><summary>02 / 한국어 번역</summary>{content[1]}</details></section><section id="expressions"><h2>03 / Business expressions</h2>{expressions}</section></main>'''
     return document(lesson['subject'], body, '../')
 
 def index_page(lessons, prefix=''):
     cards = []
+    counts = {key: sum(topic_key(lesson) == key for lesson, _ in lessons) for key in TOPICS}
     for lesson, words in lessons:
-        haystack = ' '.join([lesson['subject'], lesson['title_ko'], lesson['summary_ko'], *[p['team'] for p in lesson['participants']], *[x['phrase'] for x in lesson['expressions']]]).lower()
+        topic = topic_key(lesson)
+        haystack = ' '.join([*TOPICS[topic][:2], lesson['subject'], lesson['title_ko'], lesson['summary_ko'], *[p['team'] for p in lesson['participants']], *[x['phrase'] for x in lesson['expressions']]]).lower()
         link = ('' if prefix else 'business/') + quote(filename(lesson))
-        cards.append(f'''<article class="card" data-date="{lesson['date']}" data-search="{escape(haystack, quote=True)}"><div class="card-meta"><span class="badge">BUSINESS</span><small>{lesson['date']}</small></div><h2><a lang="en" href="{link}">{escape(lesson['subject'])}</a></h2><p>{escape(lesson['title_ko'])}</p><p class="muted">{escape(lesson['summary_ko'])}</p><div class="tags"><span class="tag">중급~고급</span><span class="tag">약 {round(words/120)}분</span><span class="tag">{len(lesson['expressions'])}개 표현</span></div></article>''')
+        cards.append(f'''<article class="card" data-date="{lesson['date']}" data-topic="{topic}" data-search="{escape(haystack, quote=True)}"><div class="card-meta"><span class="topic-badge">{escape(TOPICS[topic][0])}</span><time datetime="{lesson['date']}">{lesson['date']}</time></div><h3><a href="{link}">{escape(lesson['title_ko'])}</a></h3><p class="english-title" lang="en">{escape(lesson['subject'])}</p><p class="muted">{escape(lesson['summary_ko'])}</p><div class="card-bottom"><span>약 {round(words/120)}분 · 표현 {len(lesson['expressions'])}개</span><a href="{link}" aria-label="{escape(lesson['title_ko'], quote=True)} 학습 시작">학습하기 ↗</a></div></article>''')
     latest = lessons[0][0]['date'] if lessons else '게시 대기'
-    expression_count = sum(len(x['expressions']) for x, _ in lessons)
-    overview = f'''<section class="overview" aria-label="학습 자료 요약"><article class="metric"><small>누적 학습 자료</small><strong>{len(lessons):02d}</strong><span>다양한 팀의 회의 시나리오</span></article><article class="metric"><small>대본 읽기</small><strong>약 20분</strong><span>중급~고급 회의 영어</span></article><article class="metric"><small>핵심 표현</small><strong>{expression_count:02d}</strong><span>뜻 · 사용 상황 · 응용 예문</span></article></section>'''
-    body = f'''<main><div class="page-heading"><div><p class="eyebrow">BUSINESS ENGLISH / DAILY PRACTICE</p><h1>오늘의 회의를 영어로.</h1><p class="muted">영문 대본을 먼저 읽고, 한국어 번역과 핵심 표현으로 복습하세요.</p></div><div class="edition">최근 학습 · {latest}</div></div>{overview}<div class="toolbar"><label for="search">주제·팀·표현 검색<input id="search" type="search" placeholder="예: launch, 고객, Engineering" autocomplete="off"></label><label for="date">학습 날짜<input id="date" type="date"></label></div><div class="section-head"><h2>학습 보관함</h2><p class="muted" id="count" role="status" aria-live="polite">{len(lessons)}개의 학습 자료</p></div><div class="cards">{''.join(cards)}</div><p class="empty" id="empty" {'hidden' if lessons else ''}>해당 조건의 학습 자료가 없습니다. 검색어나 날짜를 지워 주세요.</p></main>'''
+    hero_lesson = ''
+    if lessons:
+        item, words = lessons[0]
+        link = ('' if prefix else 'business/') + quote(filename(item))
+        hero_lesson = f'''<aside class="featured"><div class="featured-top"><span class="live-dot"></span>최근 학습 <time>{latest}</time></div><small>{escape(TOPICS[topic_key(item)][0])}</small><h2>{escape(item['title_ko'])}</h2><p lang="en">{escape(item['subject'])}</p><div class="featured-footer"><span>{words:,}단어 · 약 {round(words/120)}분</span><a class="primary-button" href="{link}">학습 시작 ↗</a></div></aside>'''
+    topic_buttons = ''.join(f'''<button type="button" class="topic-choice" data-filter-topic="{key}" aria-pressed="false"><span>{escape(label)}</span><small>{counts[key]:02d}</small><em lang="en">{escape(english)}</em></button>''' for key, (label, english, _) in TOPICS.items())
+    months = sorted({lesson['date'][:7] for lesson, _ in lessons}, reverse=True)
+    month_options = ''.join(f'<option value="{month}">{month[:4]}년 {int(month[5:])}월</option>' for month in months)
+    body = f'''<main class="library"><section class="library-hero"><div><p class="eyebrow">YOUR DAILY MEETING ROOM</p><h1>매일 다른 회의,<br>더 자연스러운 영어.</h1><p class="muted">실무 주제를 골라 가상의 회의에 참여하세요.<br>영문 대본부터 한국어 번역, 핵심 표현까지 한 번에.</p><div class="library-shortcuts"><a href="#topic-heading">주제로 찾기 ↓</a><a href="#browse-heading">날짜로 찾기 ↓</a></div><div class="hero-stats"><span><strong>{len(lessons):02d}</strong> 학습 자료</span><span><strong>{sum(n > 0 for n in counts.values()):02d}</strong> 주제</span><span><strong>B2–C1</strong> 중급·고급</span></div></div>{hero_lesson}</section><section class="topic-section" aria-labelledby="topic-heading"><div class="section-head"><div><p class="eyebrow">01 / PICK A TOPIC</p><h2 id="topic-heading">어떤 회의를 연습할까요?</h2></div><button type="button" class="text-button" id="all-topics" aria-pressed="true">모든 주제 보기</button></div><div class="topic-grid">{topic_buttons}</div></section><section class="browse-section" aria-labelledby="browse-heading"><div class="section-head"><div><p class="eyebrow">02 / YOUR STUDY ARCHIVE</p><h2 id="browse-heading">날짜별 학습 보관함</h2></div><p class="muted" id="count" role="status" aria-live="polite">{len(lessons)}개의 학습 자료</p></div><div class="archive-layout"><aside class="date-panel"><div class="calendar-heading"><h3>학습 날짜</h3><label class="sr-only" for="month">학습 월</label><select id="month">{month_options}</select></div><div class="calendar-week" aria-hidden="true"><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span>토</span><span>일</span></div><div id="calendar" class="calendar-grid" aria-label="게시된 학습 날짜"></div><p class="calendar-hint"><span class="live-dot"></span>점이 있는 날짜에 학습 자료가 있습니다.</p><label for="date">날짜 직접 선택<input id="date" type="date"></label><button type="button" id="all-dates" class="date-reset">모든 날짜 보기</button><div class="study-flow"><small>20분 학습 루틴</small><p><span>01</span> English script</p><p><span>02</span> 한국어 번역</p><p><span>03</span> Business expressions</p></div></aside><div class="archive-results"><div class="filter-bar"><label class="sr-only" for="search">제목·팀·표현 검색</label><input id="search" type="search" placeholder="제목, 팀, 영어 표현 검색" autocomplete="off"><label class="sr-only" for="sort">정렬</label><select id="sort"><option value="newest">최신순</option><option value="oldest">날짜순</option></select></div><div class="filter-summary"><span id="selection">모든 주제 · 모든 날짜</span><button type="button" class="text-button" id="clear-filters">선택 초기화</button></div><div class="cards">{''.join(cards)}</div><p class="empty" id="empty" {'hidden' if lessons else ''}>선택한 조건에 해당하는 자료가 없습니다. 다른 날짜나 주제를 선택해 주세요.</p></div></div></section></main>'''
     return document('Business English', body, prefix, search=True)
 
 def build(output=None):
