@@ -1,0 +1,536 @@
+{
+  "date": "2026-09-04",
+  "category": "business",
+  "topic": "sw-tech",
+  "subject": "Code Review Standards and the Upstream-First Debate",
+  "title_ko": "코드 리뷰 기준과 업스트림 우선 정책 토론",
+  "summary_ko": "월간 기술 공유 세션에서 커널·BSP, 프레임워크, 제품 보안, 릴리스 관리팀이 코드 리뷰 품질과 커널 변경의 업스트림 우선 정책을 두고 토론합니다. 리베이스 비용, 출시 속도, 제품 정보 노출, 보안 수정 예외, 커밋 메시지 품질을 논의하고 Atlas 커널에서 3개월 파일럿을 진행하기로 합니다.",
+  "participants": [
+    {
+      "name": "Daniel Cho",
+      "team": "Kernel & BSP"
+    },
+    {
+      "name": "Jiwoo Lee",
+      "team": "Kernel & BSP"
+    },
+    {
+      "name": "Brian Shin",
+      "team": "Framework"
+    },
+    {
+      "name": "Elena Park",
+      "team": "Framework"
+    },
+    {
+      "name": "Jiho Nam",
+      "team": "Product Security"
+    },
+    {
+      "name": "Grace Jung",
+      "team": "Release Management"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Opening",
+      "title_ko": "오프닝",
+      "turns": [
+        {
+          "speaker": "Daniel Cho",
+          "en": "Good afternoon, everyone. This is our monthly tech-sharing session, and today's topic is one that people have strong feelings about: how we review code, and whether we should adopt an upstream-first policy for kernel changes. I'll share some data first, and then I'd like a real debate. Nobody needs to agree with me.",
+          "ko": "안녕하세요, 여러분. 월간 기술 공유 세션입니다. 오늘 주제는 다들 강한 의견을 갖고 있는 주제입니다. 코드 리뷰를 어떻게 하는지, 그리고 커널 변경에 업스트림 우선 정책을 도입할지입니다. 먼저 데이터를 공유하고, 그다음 제대로 된 토론을 하고 싶습니다. 저한테 동의하실 필요는 전혀 없습니다."
+        },
+        {
+          "speaker": "Grace Jung",
+          "en": "I'm here mostly because every out-of-tree patch becomes my problem at rebase time. So I'm biased, but I'll try to listen.",
+          "ko": "저는 주로 트리 밖 패치가 리베이스 때마다 제 문제가 되기 때문에 왔습니다. 그래서 편향돼 있긴 하지만, 경청해 보겠습니다."
+        },
+        {
+          "speaker": "Jiho Nam",
+          "en": "And I'm here because review is the last line of defense before a vulnerability ships. I want to make sure security doesn't get lost in a conversation about process.",
+          "ko": "저는 리뷰가 취약점이 배포되기 전 마지막 방어선이기 때문에 왔습니다. 프로세스 이야기 속에서 보안이 묻히지 않도록 하고 싶습니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "Perfect. Those are exactly the perspectives I was hoping for.",
+          "ko": "좋습니다. 제가 바랐던 바로 그 관점들입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Where We Are Today",
+      "title_ko": "현재 상황",
+      "turns": [
+        {
+          "speaker": "Daniel Cho",
+          "en": "Let's start with the numbers. Our Orion kernel carries about eleven hundred patches on top of the Android common kernel. Of those, roughly two hundred are vendor drivers that will never go upstream. The rest are ours: fixes, tuning, and features. Only about forty of them have ever been sent upstream.",
+          "ko": "숫자부터 보겠습니다. Orion 커널은 안드로이드 공통 커널 위에 약 1,100개의 패치를 얹고 있습니다. 그중 약 200개는 업스트림에 절대 올라가지 않을 벤더 드라이버입니다. 나머지는 저희 것으로, 수정, 튜닝, 기능입니다. 그중 업스트림에 보낸 적이 있는 건 약 40개뿐입니다."
+        },
+        {
+          "speaker": "Jiwoo Lee",
+          "en": "And each rebase costs us. When we moved from six-one to six-six for the internal test branch, three engineers spent five weeks resolving conflicts. About a third of those conflicts were in patches that fixed bugs upstream had already fixed in a different way.",
+          "ko": "그리고 리베이스할 때마다 비용이 듭니다. 내부 테스트 브랜치를 6.1에서 6.6으로 옮길 때 엔지니어 세 명이 5주 동안 충돌을 해결했습니다. 그 충돌의 약 3분의 1은 업스트림이 이미 다른 방식으로 고친 버그를 고치는 패치에서 발생했습니다."
+        },
+        {
+          "speaker": "Brian Shin",
+          "en": "So we were fixing the same bug twice, and then paying again to throw our version away.",
+          "ko": "그러니까 같은 버그를 두 번 고치고, 그다음 저희 버전을 버리느라 또 비용을 낸 거네요."
+        },
+        {
+          "speaker": "Jiwoo Lee",
+          "en": "Exactly. And nobody noticed, because our patch never went outside the building.",
+          "ko": "맞습니다. 그리고 저희 패치가 회사 밖으로 나간 적이 없어서 아무도 몰랐습니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "On the review side, our median kernel review takes about six hours from upload to approval. That sounds fast, but in a sample of fifty reviews, thirty-one had only one comment or none. Upstream, the same kind of patch typically gets several rounds of feedback.",
+          "ko": "리뷰 쪽을 보면, 커널 리뷰의 중간값은 업로드부터 승인까지 약 6시간입니다. 빨라 보이지만, 50개 리뷰를 샘플링해 보니 31개는 코멘트가 하나뿐이거나 없었습니다. 업스트림에서는 같은 종류의 패치가 보통 여러 차례 피드백을 받습니다."
+        },
+        {
+          "speaker": "Elena Park",
+          "en": "To be fair, a review with no comments isn't automatically a bad review. Sometimes the patch is just good.",
+          "ko": "공정하게 말하면, 코멘트 없는 리뷰가 자동으로 나쁜 리뷰는 아닙니다. 가끔은 그냥 패치가 좋은 거죠."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "That's fair. But when I traced the eight regressions from the last quarter back to their commits, six of them had been approved with no comments at all.",
+          "ko": "맞는 말입니다. 하지만 지난 분기 회귀 8건을 커밋까지 추적해 보니 그중 6건이 코멘트 없이 승인됐습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "The Case for Upstream First",
+      "title_ko": "업스트림 우선을 지지하는 논거",
+      "turns": [
+        {
+          "speaker": "Jiwoo Lee",
+          "en": "Let me make the case. Upstream first means that before a generic kernel fix lands in our tree, it's posted to the upstream mailing list. We don't have to wait for it to be merged, but it has to be posted, and the link goes into our commit message.",
+          "ko": "제가 논거를 말씀드리겠습니다. 업스트림 우선이란, 일반적인 커널 수정이 저희 트리에 들어가기 전에 업스트림 메일링 리스트에 게시된다는 뜻입니다. 병합될 때까지 기다릴 필요는 없지만 게시는 돼야 하고, 그 링크가 커밋 메시지에 들어갑니다."
+        },
+        {
+          "speaker": "Jiwoo Lee",
+          "en": "Three things happen when you do that. First, you get reviewed by the people who wrote the code you're changing. Second, if upstream already has a better fix, someone tells you within days instead of us discovering it during a rebase two years later. And third, once it's merged, the patch disappears from our pile forever.",
+          "ko": "그렇게 하면 세 가지 일이 일어납니다. 첫째, 여러분이 바꾸는 코드를 작성한 사람들에게 리뷰를 받습니다. 둘째, 업스트림에 이미 더 나은 수정이 있으면 2년 뒤 리베이스 중에 저희가 발견하는 대신 며칠 안에 누군가 알려 줍니다. 셋째, 병합되면 그 패치는 저희 더미에서 영원히 사라집니다."
+        },
+        {
+          "speaker": "Grace Jung",
+          "en": "That third point is the one I care about. Every patch we carry is a patch somebody has to carry again on the next kernel.",
+          "ko": "저는 세 번째가 중요합니다. 저희가 들고 있는 모든 패치는 다음 커널에서 누군가 또 들고 가야 하는 패치입니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "Google is also moving in this direction. For GKI, they already reject vendor hooks that don't have a clear upstream story. So in some sense the decision is being made for us anyway.",
+          "ko": "구글도 이 방향으로 가고 있습니다. GKI에서는 명확한 업스트림 계획이 없는 벤더 훅을 이미 거부하고 있습니다. 그러니 어떤 의미에서는 어차피 결정이 내려지고 있는 셈입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "The Case Against",
+      "title_ko": "반대 논거",
+      "turns": [
+        {
+          "speaker": "Brian Shin",
+          "en": "I'll take the other side, because someone should. My worry is speed. When we have a launch-blocking bug, I need the fix in the build tonight, not after a public discussion that can take weeks. Upstream reviewers don't care about our launch date.",
+          "ko": "누군가는 해야 하니 제가 반대편을 맡겠습니다. 제 걱정은 속도입니다. 출시를 막는 버그가 있으면 수정이 몇 주 걸릴 수 있는 공개 논의 이후가 아니라 오늘 밤 빌드에 들어가야 합니다. 업스트림 리뷰어들은 저희 출시일에 관심이 없습니다."
+        },
+        {
+          "speaker": "Jiwoo Lee",
+          "en": "But that's not what the policy says. You post it and land it the same day. The upstream review runs in parallel. If they ask for changes, we pick up the improved version later.",
+          "ko": "하지만 정책 내용은 그게 아닙니다. 게시하고 같은 날 반영하는 겁니다. 업스트림 리뷰는 병행해서 진행됩니다. 변경을 요청하면 나중에 개선된 버전을 가져오면 됩니다."
+        },
+        {
+          "speaker": "Brian Shin",
+          "en": "Then what do we gain if we land it anyway? We still carry the patch until upstream accepts it.",
+          "ko": "그럼 어차피 반영할 거라면 얻는 게 뭔가요? 업스트림이 받아줄 때까지 여전히 그 패치를 들고 있잖아요."
+        },
+        {
+          "speaker": "Jiwoo Lee",
+          "en": "We gain the feedback, and we gain a deadline for the patch to stop being ours. Right now there's no such deadline, so patches live forever.",
+          "ko": "피드백을 얻고, 그 패치가 저희 것이 아니게 되는 시한을 얻습니다. 지금은 그런 시한이 없어서 패치가 영원히 남습니다."
+        },
+        {
+          "speaker": "Elena Park",
+          "en": "My concern is different. Some of our changes reveal product plans. If we post a patch that adds support for a new display mode three months before launch, people can read it and guess what we're building.",
+          "ko": "제 걱정은 다릅니다. 저희 변경 중 일부는 제품 계획을 드러냅니다. 출시 3개월 전에 새로운 디스플레이 모드를 지원하는 패치를 게시하면 사람들이 그걸 읽고 저희가 뭘 만드는지 추측할 수 있습니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "That's a legitimate concern, and it's why I'd scope the policy to generic fixes, not new hardware features. A locking bug in the scheduler doesn't reveal anything about our roadmap.",
+          "ko": "정당한 우려이고, 그래서 저는 정책 범위를 새 하드웨어 기능이 아닌 일반적인 수정으로 한정하려 합니다. 스케줄러의 락 버그는 저희 로드맵에 대해 아무것도 드러내지 않습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "The Security Angle",
+      "title_ko": "보안 관점",
+      "turns": [
+        {
+          "speaker": "Jiho Nam",
+          "en": "Here's where I need to push back on everyone. Security fixes are a special case. If we find a vulnerability in the kernel, posting the fix publicly before devices are patched tells attackers exactly where to look. That has to go through the embargoed security process, not the public list.",
+          "ko": "여기서 모두에게 반론을 제기해야겠습니다. 보안 수정은 특별한 경우입니다. 커널에서 취약점을 찾았는데 단말이 패치되기 전에 수정을 공개 게시하면 공격자에게 어디를 봐야 할지 정확히 알려 주는 셈입니다. 그건 공개 리스트가 아니라 비공개 보안 절차를 거쳐야 합니다."
+        },
+        {
+          "speaker": "Jiwoo Lee",
+          "en": "Completely agree. The policy would explicitly exclude anything that goes through the security team. Those follow the coordinated disclosure timeline.",
+          "ko": "전적으로 동의합니다. 정책에서 보안팀을 거치는 건 명시적으로 제외하겠습니다. 그런 건 조율된 공개 일정을 따릅니다."
+        },
+        {
+          "speaker": "Jiho Nam",
+          "en": "Good. My second point is about our internal reviews. I'd like any change that touches parsing of untrusted input, memory permissions, or the boundary between user space and the kernel to require a second reviewer from a different team. One comment-free approval isn't enough for those areas.",
+          "ko": "좋습니다. 두 번째는 내부 리뷰에 관한 겁니다. 신뢰할 수 없는 입력의 파싱, 메모리 권한, 사용자 공간과 커널의 경계를 건드리는 변경은 다른 팀의 두 번째 리뷰어를 필수로 했으면 합니다. 그런 영역에서는 코멘트 없는 승인 하나로는 부족합니다."
+        },
+        {
+          "speaker": "Brian Shin",
+          "en": "How would people know when a change falls into that category? Engineers don't always realize their patch touches a security boundary.",
+          "ko": "변경이 그 범주에 해당하는지 사람들이 어떻게 알죠? 엔지니어들이 자기 패치가 보안 경계를 건드린다는 걸 항상 아는 건 아니잖아요."
+        },
+        {
+          "speaker": "Jiho Nam",
+          "en": "We can do it by path. We already have a list of sensitive directories and files. The review tool can add a security reviewer automatically when a patch touches one of them.",
+          "ko": "경로로 할 수 있습니다. 민감한 디렉터리와 파일 목록이 이미 있습니다. 패치가 그중 하나를 건드리면 리뷰 도구가 자동으로 보안 리뷰어를 추가하게 할 수 있습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "What a Good Review Looks Like",
+      "title_ko": "좋은 리뷰란 무엇인가",
+      "turns": [
+        {
+          "speaker": "Daniel Cho",
+          "en": "Let's talk about review quality itself, because upstream first only covers part of the tree. What do we actually expect from a reviewer?",
+          "ko": "리뷰 품질 자체에 대해 이야기해 보죠. 업스트림 우선은 트리의 일부만 다루니까요. 리뷰어에게 실제로 무엇을 기대하나요?"
+        },
+        {
+          "speaker": "Elena Park",
+          "en": "For me, the reviewer should be able to explain the change to someone else. If you can't explain why the patch is correct, you shouldn't approve it. And the commit message should make that easy: what was broken, why, and how this fixes it.",
+          "ko": "저는 리뷰어가 그 변경을 다른 사람에게 설명할 수 있어야 한다고 봅니다. 패치가 왜 맞는지 설명할 수 없다면 승인하면 안 됩니다. 그리고 커밋 메시지가 그걸 쉽게 해 줘야 합니다. 무엇이 고장 났고, 왜 그랬고, 이게 어떻게 고치는지요."
+        },
+        {
+          "speaker": "Jiwoo Lee",
+          "en": "Upstream maintainers are brutal about commit messages, and honestly, they're right. Half of our internal commit messages just say 'fix crash' with a ticket number. Two years later, the ticket system has been migrated and nobody knows what the crash was.",
+          "ko": "업스트림 메인테이너들은 커밋 메시지에 대해 아주 엄격하고, 솔직히 그들이 옳습니다. 저희 내부 커밋 메시지의 절반은 티켓 번호와 함께 '크래시 수정'이라고만 쓰여 있습니다. 2년 뒤엔 티켓 시스템이 이전돼 있고 그 크래시가 뭐였는지 아무도 모릅니다."
+        },
+        {
+          "speaker": "Grace Jung",
+          "en": "I've lived that. During the last rebase, I spent a whole day trying to figure out whether a patch was still needed, and the only clue was a ticket link that returned an error.",
+          "ko": "저도 겪어 봤습니다. 지난 리베이스 때 어떤 패치가 아직 필요한지 알아내려고 하루를 통째로 썼는데, 단서라고는 오류를 반환하는 티켓 링크뿐이었습니다."
+        },
+        {
+          "speaker": "Brian Shin",
+          "en": "Fine, I can get behind better commit messages. That's cheap and it helps everyone. But I don't want reviews to become a ritual where people leave comments just to prove they read the code.",
+          "ko": "좋아요, 더 나은 커밋 메시지는 찬성합니다. 비용도 적고 모두에게 도움이 되니까요. 하지만 코드를 읽었다는 걸 증명하려고 코멘트를 남기는 의식이 되는 건 원치 않습니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "Agreed. The goal isn't more comments. The goal is that the reviewer actually understood the change. A short note saying what you checked is often enough, for example, 'verified the lock is held on all callers.'",
+          "ko": "동의합니다. 목표는 코멘트를 늘리는 게 아닙니다. 리뷰어가 실제로 변경을 이해하는 것이 목표입니다. 무엇을 확인했는지 짧게 적는 것으로 충분한 경우가 많습니다. 예를 들어 '모든 호출자에서 락이 잡혀 있는지 확인함' 같은 식으로요."
+        }
+      ]
+    },
+    {
+      "title_en": "Cost and Capacity",
+      "title_ko": "비용과 역량",
+      "turns": [
+        {
+          "speaker": "Grace Jung",
+          "en": "Let me ask the practical question. Who's going to do this? Posting upstream means responding to feedback, sending new versions, sometimes arguing for weeks. Our engineers are already fully loaded.",
+          "ko": "현실적인 질문을 하겠습니다. 이걸 누가 할 건가요? 업스트림에 게시한다는 건 피드백에 응답하고, 새 버전을 보내고, 때로는 몇 주 동안 논쟁하는 걸 의미합니다. 저희 엔지니어들은 이미 일이 꽉 차 있습니다."
+        },
+        {
+          "speaker": "Jiwoo Lee",
+          "en": "I won't pretend it's free. My estimate is about ten percent of a kernel engineer's time. But compare that with five weeks for three people at every rebase. Over two years, it's cheaper to do it upstream.",
+          "ko": "공짜라고 하진 않겠습니다. 제 추정으로는 커널 엔지니어 시간의 약 10%입니다. 하지만 리베이스마다 세 명이 5주씩 쓰는 것과 비교해 보세요. 2년으로 보면 업스트림에서 하는 게 더 쌉니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "There's also a hiring and growth benefit. Engineers who have patches in the mainline kernel get better at writing code that others can review. That skill comes back into our internal reviews.",
+          "ko": "채용과 성장 측면의 이점도 있습니다. 메인라인 커널에 패치가 들어간 엔지니어는 다른 사람이 리뷰할 수 있는 코드를 더 잘 작성하게 됩니다. 그 역량이 내부 리뷰로 돌아옵니다."
+        },
+        {
+          "speaker": "Brian Shin",
+          "en": "I'll concede that point. Some of the best reviewers on my team learned by getting torn apart on a public list.",
+          "ko": "그 점은 인정하겠습니다. 저희 팀 최고의 리뷰어 몇몇은 공개 리스트에서 호되게 지적받으면서 배웠거든요."
+        },
+        {
+          "speaker": "Elena Park",
+          "en": "Can I add one practical suggestion? If we make upstream work visible, people will treat it as real work. Right now, nobody gets credit for a patch that's merged upstream, because it doesn't show up in our project tracking at all. If it appeared in performance reviews the same way a feature does, I think engineers would volunteer for it.",
+          "ko": "실용적인 제안을 하나 덧붙여도 될까요? 업스트림 작업을 가시화하면 사람들이 그것을 진짜 업무로 여길 겁니다. 지금은 업스트림에 병합된 패치가 프로젝트 추적에 전혀 나타나지 않아서 아무도 인정받지 못합니다. 기능 개발처럼 성과 평가에 반영된다면 엔지니어들이 자원할 거라고 생각합니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "That's a great point, and it costs almost nothing. I'll talk to the engineering managers about adding upstream contributions to the quarterly goals, starting with the people in the pilot.",
+          "ko": "좋은 지적이고 비용도 거의 들지 않습니다. 파일럿 참여자부터 시작해서 업스트림 기여를 분기 목표에 추가하는 것에 대해 엔지니어링 매니저들과 이야기하겠습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "A Recent Example",
+      "title_ko": "최근 사례",
+      "turns": [
+        {
+          "speaker": "Daniel Cho",
+          "en": "Let me make this concrete with a case from July. Some of you will remember the Orion Lite camera hang. The root cause was a patch in the workqueue code that changed how a flush was handled. It was approved in under two hours with no comments.",
+          "ko": "7월 사례로 구체적으로 말씀드리겠습니다. Orion Lite 카메라 행을 기억하시는 분들이 있을 겁니다. 근본 원인은 워크큐 코드에서 플러시 처리 방식을 바꾼 패치였습니다. 그 패치는 코멘트 없이 2시간 안에 승인됐습니다."
+        },
+        {
+          "speaker": "Jiwoo Lee",
+          "en": "And here's the painful part. The same race had been discussed on the upstream list eight months earlier. A maintainer explained exactly why the obvious fix was wrong, and the correct fix was already in a newer kernel. If our engineer had posted the patch, someone would have pointed to that thread within a day.",
+          "ko": "그리고 여기가 아픈 부분입니다. 같은 레이스가 8개월 전에 업스트림 리스트에서 논의됐습니다. 메인테이너가 뻔한 수정이 왜 틀렸는지 정확히 설명했고, 올바른 수정은 이미 최신 커널에 들어가 있었습니다. 저희 엔지니어가 패치를 게시했다면 하루 안에 누군가 그 스레드를 알려 줬을 겁니다."
+        },
+        {
+          "speaker": "Brian Shin",
+          "en": "How long did the hang take to fix in the end?",
+          "ko": "결국 그 행을 고치는 데 얼마나 걸렸나요?"
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "Three weeks from the first field report to the fix, plus a maintenance release, plus the SQE time to reproduce it. Compare that with the five minutes it would have taken to send an email to the mailing list. I'm not saying every case is like this, but this one cost us a lot.",
+          "ko": "첫 필드 보고부터 수정까지 3주, 거기에 유지보수 릴리스와 SQE의 재현 시간까지 들었습니다. 메일링 리스트에 메일 한 통 보내는 데 걸렸을 5분과 비교해 보세요. 모든 경우가 이렇다는 건 아니지만, 이번 건은 비용이 컸습니다."
+        },
+        {
+          "speaker": "Elena Park",
+          "en": "That's a strong example, but I want to be careful about one thing. The engineer who wrote that patch was new, and the reviewer was overloaded that week. I don't want this discussion to turn into blaming individuals. The process let them down.",
+          "ko": "강력한 사례지만 한 가지는 조심하고 싶습니다. 그 패치를 쓴 엔지니어는 신입이었고, 리뷰어는 그 주에 업무가 과중했습니다. 이 논의가 개인을 탓하는 쪽으로 흐르지 않았으면 합니다. 프로세스가 그들을 도와주지 못한 겁니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "Completely agree, and that's why I didn't put any names on the slide. The question is what process would have caught it, not who should have caught it.",
+          "ko": "전적으로 동의하고, 그래서 슬라이드에 이름을 넣지 않았습니다. 질문은 누가 잡았어야 했느냐가 아니라 어떤 프로세스가 잡았을 것이냐입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Tooling That Helps",
+      "title_ko": "도움이 되는 도구",
+      "turns": [
+        {
+          "speaker": "Jiho Nam",
+          "en": "Before we talk about policy, I think tools can take a lot of the load off reviewers. Right now, our review system runs the build and a basic boot test, and that's it. Upstream, every patch is checked for style, and many subsystems run static analysis automatically.",
+          "ko": "정책 이야기 전에, 도구가 리뷰어의 부담을 많이 덜어 줄 수 있다고 봅니다. 지금 저희 리뷰 시스템은 빌드와 기본 부팅 테스트만 돌립니다. 업스트림에서는 모든 패치의 스타일을 검사하고, 많은 서브시스템이 자동으로 정적 분석을 돌립니다."
+        },
+        {
+          "speaker": "Jiwoo Lee",
+          "en": "We could add the upstream style checker and a sparse run to every kernel review in about a week. Neither of them finds deep bugs, but they remove the boring comments, so the human reviewer can focus on the logic.",
+          "ko": "업스트림 스타일 검사기와 sparse 실행을 모든 커널 리뷰에 추가하는 건 약 일주일이면 됩니다. 둘 다 깊은 버그를 찾진 못하지만 지루한 코멘트를 없애 줘서 사람 리뷰어가 로직에 집중할 수 있습니다."
+        },
+        {
+          "speaker": "Brian Shin",
+          "en": "On the framework side, we already have lint checks, and honestly they changed the culture. People stopped arguing about formatting and started arguing about design, which is what we actually want.",
+          "ko": "프레임워크 쪽은 이미 린트 검사가 있는데, 솔직히 문화가 바뀌었습니다. 사람들이 포맷 논쟁을 멈추고 설계 논쟁을 시작했는데, 그게 저희가 실제로 원하는 겁니다."
+        },
+        {
+          "speaker": "Jiho Nam",
+          "en": "I'd also like lockdep and the kernel address sanitizer enabled on the nightly debug builds for Atlas. They catch exactly the kind of locking and memory bugs that slip through a quick review.",
+          "ko": "Atlas 나이틀리 디버그 빌드에 lockdep과 커널 주소 새니타이저도 켰으면 합니다. 빠른 리뷰에서 놓치는 바로 그런 락과 메모리 버그를 잡아 줍니다."
+        },
+        {
+          "speaker": "Grace Jung",
+          "en": "As long as they stay on debug builds, I have no objection. The performance cost would be unacceptable on user builds, but nightly builds are exactly the right place.",
+          "ko": "디버그 빌드에만 있다면 반대하지 않습니다. 사용자 빌드에서는 성능 비용을 감당할 수 없겠지만, 나이틀리 빌드는 딱 맞는 자리입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Working with Vendors",
+      "title_ko": "벤더와의 협업",
+      "turns": [
+        {
+          "speaker": "Grace Jung",
+          "en": "One more angle we haven't covered is vendor code. Qorvix and Arvenna send us large drops of kernel patches. Do we hold them to the same standard?",
+          "ko": "아직 다루지 않은 관점이 하나 더 있는데, 벤더 코드입니다. Qorvix와 Arvenna는 커널 패치를 대량으로 보내옵니다. 그들에게도 같은 기준을 적용하나요?"
+        },
+        {
+          "speaker": "Jiwoo Lee",
+          "en": "We should, at least for generic fixes. When I looked at the last Qorvix drop, about sixty patches had nothing to do with their hardware. They were fixes to the memory manager and the scheduler that Qorvix found on their own reference boards. Some of them were good, but none were upstream.",
+          "ko": "적어도 일반적인 수정에는 그래야 합니다. 지난 Qorvix 드롭을 보니 약 60개의 패치가 그들 하드웨어와 전혀 관련이 없었습니다. Qorvix가 자기 레퍼런스 보드에서 발견한 메모리 관리자와 스케줄러 수정이었습니다. 일부는 좋았지만, 업스트림에 올라간 건 하나도 없었습니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "So we end up carrying their debt as well as ours. I'd like to add a line to the Atlas BSP agreement with Arvenna: generic core-kernel changes must come with an upstream link, or a written reason why they can't go upstream.",
+          "ko": "결국 저희는 저희 부채뿐만 아니라 그들의 부채까지 떠안는 셈입니다. Arvenna와의 Atlas BSP 계약에 한 줄을 추가하고 싶습니다. 일반적인 코어 커널 변경은 업스트림 링크나, 업스트림에 올릴 수 없는 이유를 서면으로 함께 제출해야 한다는 겁니다."
+        },
+        {
+          "speaker": "Elena Park",
+          "en": "Is that realistic this late in the Atlas contract? The BSP 1.0 date is next week.",
+          "ko": "Atlas 계약이 이렇게 진행된 시점에 그게 현실적인가요? BSP 1.0 날짜가 다음 주입니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "Not for 1.0, no. But the contract has quarterly updates for three years. If we ask now, it can apply from the first quarterly update. Arvenna's own engineers have told me privately that they'd prefer to upstream more, but they need a customer to ask for it.",
+          "ko": "1.0에는 안 되죠. 하지만 계약에는 3년간 분기별 업데이트가 있습니다. 지금 요청하면 첫 분기 업데이트부터 적용할 수 있습니다. Arvenna 엔지니어들도 사석에서 업스트림을 더 하고 싶지만 고객이 요청해 줘야 한다고 말했습니다."
+        },
+        {
+          "speaker": "Grace Jung",
+          "en": "Then let's be that customer. I'll raise it with the partner management team so it goes through the right channel.",
+          "ko": "그럼 저희가 그 고객이 되죠. 적절한 경로로 가도록 파트너 관리팀에 제기하겠습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Proposal and Next Steps",
+      "title_ko": "제안과 다음 단계",
+      "turns": [
+        {
+          "speaker": "Daniel Cho",
+          "en": "Let me try to pull this together. I'm hearing agreement on a few things, and real doubts on others, so let me propose a pilot rather than a policy.",
+          "ko": "정리해 보겠습니다. 몇 가지는 합의가 들리고 다른 것에는 진지한 의구심이 들리니, 정책 대신 파일럿을 제안하겠습니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "For the next three months, on the Atlas kernel only, generic fixes must be posted upstream before or on the same day they land, with the link in the commit message. Security fixes and new hardware features are excluded. Every commit message must explain the problem and the fix, not just a ticket number. And changes in sensitive paths automatically get a security reviewer from another team.",
+          "ko": "앞으로 3개월 동안 Atlas 커널에 한해, 일반적인 수정은 반영 전이나 같은 날 업스트림에 게시하고 커밋 메시지에 링크를 넣어야 합니다. 보안 수정과 새 하드웨어 기능은 제외합니다. 모든 커밋 메시지는 티켓 번호만이 아니라 문제와 수정 내용을 설명해야 합니다. 그리고 민감한 경로의 변경은 자동으로 다른 팀의 보안 리뷰어가 배정됩니다."
+        },
+        {
+          "speaker": "Jiho Nam",
+          "en": "I'm happy with that. I'll send the list of sensitive paths to the tools team this week.",
+          "ko": "만족합니다. 이번 주에 민감한 경로 목록을 도구팀에 보내겠습니다."
+        },
+        {
+          "speaker": "Elena Park",
+          "en": "Atlas is a good place to try it, because it's still early and nothing there is launch-critical yet. I'd like to see the numbers at the end before we talk about Orion.",
+          "ko": "Atlas는 아직 초기이고 출시에 치명적인 게 없으니 시도하기 좋은 곳입니다. Orion 이야기를 하기 전에 끝날 때 숫자를 보고 싶습니다."
+        },
+        {
+          "speaker": "Brian Shin",
+          "en": "I'm still skeptical about speed, but a pilot is a fair way to find out. If it slows down a single urgent fix, I'll be the first to say so.",
+          "ko": "속도에 대해선 여전히 회의적이지만, 파일럿은 알아보기에 공정한 방법입니다. 긴급 수정이 하나라도 늦어지면 제가 가장 먼저 말하겠습니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "That's exactly the kind of feedback I want. I'll measure three things: how many patches we post, how many get merged, and how long it takes to land urgent fixes compared with today. Jiwoo, can you run an upstreaming office hour every Thursday for anyone who needs help with their first submission?",
+          "ko": "제가 원하는 바로 그런 피드백입니다. 세 가지를 측정하겠습니다. 게시한 패치 수, 병합된 패치 수, 그리고 긴급 수정 반영 시간을 지금과 비교한 것입니다. 지우 님, 첫 제출에 도움이 필요한 사람들을 위해 매주 목요일 업스트림 오피스 아워를 운영해 주실 수 있나요?"
+        },
+        {
+          "speaker": "Jiwoo Lee",
+          "en": "Happy to. I'll also write a one-page guide on how to format a patch for the mailing list, because that's where most people get stuck the first time.",
+          "ko": "기꺼이요. 메일링 리스트용 패치 포맷 방법에 대한 한 페이지짜리 가이드도 쓰겠습니다. 처음엔 대부분 거기서 막히거든요."
+        },
+        {
+          "speaker": "Grace Jung",
+          "en": "And I'll add a field to the rebase tracker so we can see how many patches the pilot removes from our carry list. If the number goes down, that's the strongest argument for expanding it.",
+          "ko": "저는 리베이스 트래커에 필드를 추가해서 파일럿이 저희 보유 목록에서 패치를 몇 개 없애는지 볼 수 있게 하겠습니다. 숫자가 줄면 확대할 가장 강력한 근거가 될 겁니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "Great. Thank you all for a genuinely useful debate. We'll review the pilot results at the December session.",
+          "ko": "좋습니다. 정말 유익한 토론 감사합니다. 12월 세션에서 파일럿 결과를 검토하겠습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "people have strong feelings about",
+      "meaning_ko": "사람들이 강한 의견을 갖고 있는 것",
+      "usage_ko": "논쟁적인 주제를 소개할 때",
+      "example": "This is our monthly tech-sharing session, and today's topic is one that people have strong feelings about: how we review code, and whether we should adopt an upstream-first policy for kernel changes.",
+      "practice": "Remote work is a topic people have strong feelings about."
+    },
+    {
+      "phrase": "Nobody needs to agree with me",
+      "meaning_ko": "저에게 동의할 필요는 없습니다",
+      "usage_ko": "자유로운 반대 의견을 장려할 때",
+      "example": "Nobody needs to agree with me.",
+      "practice": "Here's my view, but nobody needs to agree with me."
+    },
+    {
+      "phrase": "becomes my problem",
+      "meaning_ko": "결국 제 문제가 됩니다",
+      "usage_ko": "어떤 일이 결국 자신에게 영향을 줄 때",
+      "example": "I'm here mostly because every out-of-tree patch becomes my problem at rebase time.",
+      "practice": "Every late spec change becomes my problem at integration time."
+    },
+    {
+      "phrase": "the last line of defense",
+      "meaning_ko": "마지막 방어선",
+      "usage_ko": "최종 안전장치의 역할을 강조할 때",
+      "example": "And I'm here because review is the last line of defense before a vulnerability ships.",
+      "practice": "Testing is the last line of defense before customers see the bug."
+    },
+    {
+      "phrase": "To be fair",
+      "meaning_ko": "공정하게 말하면",
+      "usage_ko": "상대 입장을 일부 인정할 때",
+      "example": "To be fair, a review with no comments isn't automatically a bad review.",
+      "practice": "To be fair, the vendor delivered the driver on time."
+    },
+    {
+      "phrase": "I'll take the other side, because someone should",
+      "meaning_ko": "누군가는 해야 하니 제가 반대편을 맡겠습니다",
+      "usage_ko": "일부러 반론을 제시할 때",
+      "example": "I'll take the other side, because someone should.",
+      "practice": "I'll take the other side, because someone should question this plan."
+    },
+    {
+      "phrase": "in parallel",
+      "meaning_ko": "병행해서",
+      "usage_ko": "두 작업을 동시에 진행할 때",
+      "example": "The upstream review runs in parallel.",
+      "practice": "The vendor can debug the firmware in parallel with our kernel investigation."
+    },
+    {
+      "phrase": "That's a legitimate concern",
+      "meaning_ko": "정당한 우려입니다",
+      "usage_ko": "상대 우려를 인정하며 답할 때",
+      "example": "That's a legitimate concern, and it's why I'd scope the policy to generic fixes, not new hardware features.",
+      "practice": "That's a legitimate concern, and we'll address it in the test plan."
+    },
+    {
+      "phrase": "push back on",
+      "meaning_ko": "~에 반론을 제기하다",
+      "usage_ko": "정중하게 반대할 때",
+      "example": "Here's where I need to push back on everyone.",
+      "practice": "I need to push back on the idea that this is a hardware problem."
+    },
+    {
+      "phrase": "falls into that category",
+      "meaning_ko": "그 범주에 해당하다",
+      "usage_ko": "분류 기준을 확인할 때",
+      "example": "How would people know when a change falls into that category?",
+      "practice": "Does a display driver change fall into that category?"
+    },
+    {
+      "phrase": "I've lived that",
+      "meaning_ko": "저도 겪어 봤습니다",
+      "usage_ko": "경험에서 나온 공감을 표현할 때",
+      "example": "I've lived that.",
+      "practice": "Rebasing without commit history? I've lived that."
+    },
+    {
+      "phrase": "I can get behind",
+      "meaning_ko": "찬성할 수 있습니다",
+      "usage_ko": "제안에 동의를 표현할 때",
+      "example": "Fine, I can get behind better commit messages.",
+      "practice": "I can get behind a weekly sync if it stays under thirty minutes."
+    },
+    {
+      "phrase": "I won't pretend it's free",
+      "meaning_ko": "공짜라고는 하지 않겠습니다",
+      "usage_ko": "비용을 솔직히 인정할 때",
+      "example": "I won't pretend it's free.",
+      "practice": "I won't pretend it's free, but the savings are larger."
+    },
+    {
+      "phrase": "I'll concede that point",
+      "meaning_ko": "그 점은 인정하겠습니다",
+      "usage_ko": "논쟁 중 상대 논점을 받아들일 때",
+      "example": "I'll concede that point.",
+      "practice": "I'll concede that point; the old tool was slower."
+    },
+    {
+      "phrase": "pull this together",
+      "meaning_ko": "이걸 정리하다",
+      "usage_ko": "논의를 종합할 때",
+      "example": "Let me try to pull this together.",
+      "practice": "Let me pull this together before we run out of time."
+    },
+    {
+      "phrase": "a fair way to find out",
+      "meaning_ko": "알아보기에 공정한 방법",
+      "usage_ko": "실험이나 시범을 수용할 때",
+      "example": "I'm still skeptical about speed, but a pilot is a fair way to find out.",
+      "practice": "A two-week trial is a fair way to find out."
+    }
+  ]
+}
