@@ -4,6 +4,24 @@
 영문 약 2,400단어(분당 120단어 기준 약 20분), 전체 한국어 번역,
 12~20개 핵심 표현을 제공합니다. 루트와 business 페이지에서 날짜·주제·팀·표현을 검색합니다.
 
+## System SW 트랙
+
+시스템 소프트웨어 개발자 업무에 맞춘 회의 대본을 별도 트랙으로 제공합니다.
+첫 화면의 **시스템 SW 회의 바로가기** 버튼이나 상단 메뉴의 **System SW**에서 `systemsw/index.html`로 바로 이동합니다.
+`topic`에 아래 값을 쓰면 System SW 트랙으로 분류됩니다.
+
+| topic | 주제 |
+| --- | --- |
+| `sw-kickoff` | 제품 개발 일정·킥오프 (개발 시작/마일스톤/완료 시점) |
+| `sw-release` | 벤더사·Google 관계사와 BSP 및 OS 릴리스 일정 |
+| `sw-debug` | system hang, lockup, kernel panic 등 시스템 이슈 원인 분석 (SQE·내부 개발·벤더·OS 업체) |
+| `sw-status` | 버전 발행 후 문제점 현황 보고와 팀별 진행 상황 공유 |
+| `sw-launch` | 출시 임박 긴급 이슈의 일정·원인 분석 점검 |
+| `sw-field` | 출시 후 시장 이슈 보고와 대응 방안 |
+| `sw-tech` | 개발자 기술 공유, 설계 토론, 프로세스 개선 |
+
+`prompts/daily-system-sw.md`를 기준으로 작성하고, `python scripts/check_lessons.py <파일...>`로 개별 파일을 검증합니다.
+
 ## 현재 구독으로 운영
 
 ChatGPT에서 여러 날의 대본을 미리 작성해 `queue/business/YYYY-MM-DD.json`에 저장합니다.
@@ -58,7 +76,8 @@ python -m http.server 8000
 
 - `data/business/`: 게시된 원본 JSON
 - `queue/business/`: 날짜별 게시 대기 원본 JSON
-- `business/`: 요청한 파일명 형식의 게시된 HTML
+- `business/`: 요청한 파일명 형식의 게시된 HTML (두 트랙 공통)
+- `systemsw/`: System SW 트랙 목록 페이지
 - `scripts/build.py`: 검증 및 정적 페이지 생성
 - `scripts/publish_due.py`: 한국 날짜 기준 중복 없는 게시
 - `.github/workflows/pages.yml`: 예약 게시와 배포를 같은 실행에서 처리
