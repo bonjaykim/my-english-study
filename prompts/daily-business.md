@@ -7,15 +7,17 @@ Include five or more stages: attendance and introductions, agenda/background,
 substantive discussion with clarification and disagreement, decisions/actions with owners
 and deadlines, and closing with a concrete next meeting date/time/timezone.
 Keep figures, decisions, deadlines and Korean translations internally consistent.
-Vary sector, teams, stakes, negotiation style and meeting type daily.
-Use fictional corporate meetings. Pick a topic from strategy, sales, finance, people,
-operations, marketing, projects, partnerships; rotate topics and check recent lessons.
+For daily generation, follow prompts/daily-system-sw.md: the learner is a System SW/Android engineer.
+Inspect all published dates, subjects and summaries, plus the latest 30 complete scripts.
+Choose a new technical problem, evidence, disagreement and decision, rather than changing names or dates.
+Rotate sw-kickoff, sw-release, sw-debug, sw-status, sw-launch, sw-field, sw-tech.
+Put educational-fiction notices in summary_ko only, outside the spoken dialogue.
 Do not reuse earlier dialogue or pad the length with repetitive statements.
 Give a full faithful Korean translation of EACH turn, not a summary.
 Give 12-20 expressions occurring verbatim in the English dialogue, with Korean meaning,
 usage explanation, a verbatim example, and a different practice sentence.
 Schema:
-{"date":"YYYY-MM-DD","category":"business","topic":"strategy","subject":"Safe English Title",
+{"date":"YYYY-MM-DD","category":"business","topic":"sw-debug","subject":"Safe English Title",
 "title_ko":"한국어 제목","summary_ko":"회의 배경 한두 문장",
 "participants":[{"name":"Name","team":"Team"}],
 "sections":[{"title_en":"Attendance","title_ko":"참석자 확인",

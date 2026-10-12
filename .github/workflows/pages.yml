@@ -1,7 +1,5 @@
 name: Build and publish lessons
 on:
-  schedule:
-    - cron: '30 21 * * *' # 06:30 Asia/Seoul on the following UTC day
   push:
     branches: [main]
   workflow_dispatch:
@@ -22,10 +20,10 @@ jobs:
         with:
           python-version: '3.12'
       - name: Publish today's prepared lesson
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch'
         run: python scripts/publish_due.py
       - name: Save published HTML and source
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -56,7 +54,7 @@ jobs:
         id: deployment
         uses: actions/deploy-pages@v4
       - name: Send daily lesson link to GitHub Mobile
-        if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+        if: github.event_name == 'workflow_dispatch'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           SITE_URL: ${{ steps.deployment.outputs.page_url }}

@@ -24,21 +24,21 @@
 
 ## 현재 구독으로 운영
 
-ChatGPT에서 여러 날의 대본을 미리 작성해 `queue/business/YYYY-MM-DD.json`에 저장합니다.
-GitHub Actions는 매일 한국 시간 06:30에 해당 날짜의 원본을 `data/business/`로 이동하고,
-`business/YYYY-MM-DD {subject}.html` 및 목록을 생성·커밋한 뒤 GitHub Pages에 게시합니다.
-API 키나 ChatGPT 로그인 정보는 저장소와 Actions에 넣지 않습니다.
+2026-10-13부터 ChatGPT 클라우드 예약을 매일(주말 포함) 한국 시간 06:40으로 설정했습니다.
+실행할 때 전체 대본의 주제·요약과 최근 30편 본문을 확인해 새로운 System SW 회의를 작성합니다.
+영문 2200~2800단어, 전체 한국어 번역, 실제 대본에서 인용한 표현을 검증한 후
+`data/business/YYYY-MM-DD.json`을 main에 커밋합니다. push로 GitHub Actions가 HTML과
+목록을 생성·배포하고, ChatGPT가 배포 성공 및 오늘 HTML을 확인한 후 링크 알림을 보냅니다.
 
-미리 준비된 JSON은 공개 저장소에서 열람할 수 있습니다. 웹사이트 목록에는 게시일에만 나타납니다.
-예약 실행은 GitHub 사정에 따라 늦어질 수 있습니다. 06:30 정각 게시 보장은 없습니다.
-준비된 자료가 없으면 워크플로가 실패하고 기존 사이트는 유지됩니다.
-게시 성공 후 해당 날짜의 링크를 포함한 GitHub Issue를 만들고 `bonjaykim`에게 할당합니다.
-같은 날짜의 알림은 재실행해도 중복 생성하지 않습니다. 일반 코드 수정 배포에는 알림을 보내지 않습니다.
-휴대폰의 GitHub 앱에서 같은 계정으로 로그인하고 **Profile → Settings → Notifications**에서
-**Assignments** 알림을 켜 주세요. 휴대폰 OS에서도 GitHub 앱 알림을 허용해야 합니다.
-Working Hours 또는 방해금지 모드가 06:30 알림을 차단하지 않는지 확인하세요.
-푸시 수신은 GitHub와 휴대폰 설정에 따라 지연될 수 있습니다.
-공개 저장소의 예약 워크플로는 60일간 활동이 없으면 비활성화될 수 있습니다.
+06:40은 예약 기준 시각입니다. 현재 실행 모드가 유동적이므로 정각 시작은 보장되지 않으며,
+대본 생성·배포·확인을 마친 뒤 알림이 도착합니다. PC를 켜 둘 필요는 없습니다.
+2026-10-12 연결된 GitHub 기능의 실제 파일 쓰기 성공을 확인했습니다.
+권한 오류가 재발하면 게시 완료로 알리지 않고 JSON 파일과 실패 원인을 알립니다.
+API 키나 ChatGPT 로그인 정보를 저장소와 Actions에 넣지 않습니다.
+
+대기열이 비어 실패하던 기존 06:30 GitHub 예약은 제거했습니다.
+`queue/business` 게시 기능은 수동 workflow_dispatch로만 유지합니다.
+수동 게시에서만 기존 GitHub Issue 알림을 사용하며, 일상 알림은 ChatGPT 예약이 담당합니다.
 
 ## 최초 설정
 
@@ -54,10 +54,7 @@ JSON의 `topic`은 `strategy`, `sales`, `finance`, `people`, `operations`,
 `marketing`, `projects`, `partnerships` 중 하나입니다. 기존 자료에서 생략하면
 `projects`로 분류하며, 새 자료에는 명시합니다.
 
-ChatGPT의 오전 06:40(Asia/Seoul) 예약은 현재 게시 여부 확인과 알림용입니다.
-클라우드 GitHub 연결의 쓰기 요청이 403으로 거부되어 신규 대본 생성·게시 자동화는
-아직 동작하지 않습니다. GitHub Actions는 미리 준비된 대기 자료만 게시합니다.
-06:40 예약과 실제 휴대폰 수신 시간은 서비스 실행·배포 지연에 따라 다를 수 있습니다.
+매일 신규 System SW 학습 자료는 `prompts/daily-system-sw.md`를 우선 적용합니다.
 
 `prompts/daily-business.md`를 기준으로 기존 주제를 확인하고 날짜별 JSON을 작성합니다.
 각 대본의 등장인물·수치·마감일·다음 회의 날짜와 번역을 검토합니다.

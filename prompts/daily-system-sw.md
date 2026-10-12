@@ -1,5 +1,8 @@
 Create exactly one original System Software English lesson as JSON, without markdown fences.
-Use the requested date in Asia/Seoul. Read recent lesson subjects to avoid repetition.
+Use the requested date in Asia/Seoul. Inspect all published dates, subjects and summaries,
+and read the latest 30 complete scripts to avoid repeating problems, conflicts, decisions or dialogue.
+Create the lesson at execution time; never reuse a fixed script with different names or dates.
+If today's source exists, verify its deployment instead of creating a second lesson.
 Audience: Korean system software engineer at a large Android device maker (kernel, BSP,
 platform framework). Mix B2 and C1 English, natural spoken meeting language with real
 engineering vocabulary (kernel panic, watchdog, ramdump, lockdep, BSP drop, GKI, CTS/VTS,
