@@ -1,0 +1,294 @@
+{
+  "date": "2026-10-14",
+  "category": "business",
+  "topic": "sw-tech",
+  "subject": "Defining Artifact Identity and Safe Cache Reuse in Android CI",
+  "title_ko": "Android CI 아티팩트 식별과 안전한 캐시 재사용 설계",
+  "summary_ko": "가상의 Android 개발팀이 공유 캐시 때문에 다른 vendor 이미지의 테스트 보고서가 후보 빌드에 연결된 문제를 검토합니다. 컴파일 캐시와 기기 검증 결과의 재사용을 구분하고 입력 manifest, digest 고정 프로비저닝, 승격 정책을 결정합니다. 모든 인물·제품·후보 빌드·로그·결함·수치·일정은 영어 학습을 위한 가상 교육용 설정입니다.",
+  "participants": [
+    {
+      "name": "Hana Lim",
+      "team": "Platform Integration"
+    },
+    {
+      "name": "Leo Grant",
+      "team": "Build Infrastructure"
+    },
+    {
+      "name": "Amira Chen",
+      "team": "Build Infrastructure"
+    },
+    {
+      "name": "Daeho Kim",
+      "team": "System Quality"
+    },
+    {
+      "name": "Iris Novak",
+      "team": "Platform Integration"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and the green build problem",
+      "title_ko": "참석 확인과 정상 표시 빌드의 문제",
+      "turns": [
+        {
+          "speaker": "Hana Lim",
+          "en": "Morning, everyone. Leo and Amira have joined from Build Infrastructure, Daeho is representing System Quality, and Iris is here with me from Platform Integration. We need to discuss a contradiction in yesterday's Android integration run. CI marked candidate C61 as qualified, but a manual check found that its vendor service manifest did not match the tested image. Nobody has reported a device failure from this candidate, and it has not left the lab. Nevertheless, we cannot explain why the dashboard says the exact candidate passed. Today we must establish what was actually built and tested before we design a faster pipeline.",
+          "ko": "모두 좋은 아침입니다. Build Infrastructure의 Leo와 Amira, System Quality의 Daeho가 참석했고 Platform Integration의 Iris도 저와 함께합니다. 어제 Android 통합 실행에서 나타난 모순을 논의해야 합니다. CI는 후보 C61을 적격으로 표시했지만 수동 확인에서 vendor service manifest가 테스트한 이미지와 맞지 않았습니다. 이 후보에서 기기 실패가 보고된 것은 없고 실험실 밖으로 나가지도 않았습니다. 그렇지만 대시보드가 왜 정확히 이 후보를 통과했다고 표시하는지 설명할 수 없습니다. 오늘은 더 빠른 파이프라인을 설계하기 전에 실제로 무엇을 빌드하고 테스트했는지 확인해야 합니다."
+        },
+        {
+          "speaker": "Daeho Kim",
+          "en": "I found the mismatch while investigating a missing service declaration, not while chasing a failed test. The report attached to C61 says all forty-eight interface checks passed. Its attachment contains the service list from C58, where that declaration still existed. The timestamps are plausible, and the report names the current branch, so a routine review would probably accept it. Please treat this as an evidence-integrity problem. A passing result belongs to an input set, not to a branch name. Until we identify that input set, I cannot use the forty-eight checks to qualify C61.",
+          "ko": "실패한 테스트를 추적하던 것이 아니라 빠진 서비스 선언을 조사하다 불일치를 발견했습니다. C61에 붙은 보고서는 인터페이스 검사 48개가 모두 통과했다고 말합니다. 하지만 첨부 자료에는 해당 선언이 남아 있던 C58의 서비스 목록이 들어 있습니다. 타임스탬프가 그럴듯하고 보고서에 현재 브랜치가 적혀 있어 일상적인 검토에서는 받아들였을 가능성이 큽니다. 이를 증거의 무결성 문제로 봐 주세요. 통과 결과는 브랜치 이름이 아니라 입력 집합에 속합니다. 그 입력 집합을 확인하기 전에는 48개 검사를 C61 적격 판정에 사용할 수 없습니다."
+        },
+        {
+          "speaker": "Leo Grant",
+          "en": "The shared cache is the obvious suspect, but there are two separate caches in this pipeline. One stores compiled objects; the other stores completed test reports. Object reuse can be correct even when a report must be regenerated. Our recent optimization shortened the report key to the framework revision and test suite version. It omitted the vendor image digest because the interface team described those tests as framework-only. That description was incomplete: the suite reads the vendor manifest at runtime. I need to check whether the wrong report came from this key or from a later attachment step.",
+          "ko": "공유 캐시가 가장 먼저 의심되지만 이 파이프라인에는 서로 다른 캐시 두 개가 있습니다. 하나는 컴파일한 오브젝트를 저장하고 다른 하나는 완료된 테스트 보고서를 저장합니다. 보고서를 새로 만들어야 해도 오브젝트 재사용은 올바를 수 있습니다. 최근 최적화에서는 보고서 키를 프레임워크 리비전과 테스트 스위트 버전으로 줄였습니다. 인터페이스 팀이 이 테스트를 프레임워크 전용이라고 설명해 vendor 이미지 digest를 빠뜨렸습니다. 그 설명은 불완전했습니다. 스위트는 실행 중 vendor manifest를 읽습니다. 잘못된 보고서가 이 키 때문인지 이후 첨부 단계 때문인지 확인해야 합니다."
+        },
+        {
+          "speaker": "Amira Chen",
+          "en": "I pulled the cache access records before joining. C61 requested a report key that already existed, and the cache returned the C58 entry. The job wrapper then rewrote the display label to C61 without changing the embedded manifest. That explains the misleading branch and timestamp, but it does not establish that every cached report is wrong. We have eleven candidates since this optimization went live. I can reconstruct which entries they consumed from the immutable access log. I would like to preserve those entries before anyone flushes the cache, because deletion would remove evidence we still need.",
+          "ko": "참석하기 전에 캐시 접근 기록을 확보했습니다. C61은 이미 있던 보고서 키를 요청했고 캐시는 C58 항목을 반환했습니다. 그다음 작업 래퍼가 내장된 manifest는 바꾸지 않은 채 표시 이름을 C61로 다시 썼습니다. 이것이 오해를 부르는 브랜치와 타임스탬프를 설명하지만 모든 캐시 보고서가 잘못됐다는 뜻은 아닙니다. 최적화 적용 이후 후보가 11개 있습니다. 변경 불가능한 접근 로그로 각 후보가 사용한 항목을 재구성할 수 있습니다. 캐시를 비우기 전에 그 항목들을 보존하고 싶습니다. 삭제하면 아직 필요한 증거가 사라지기 때문입니다."
+        },
+        {
+          "speaker": "Iris Novak",
+          "en": "Platform Integration has a practical concern. If we disable every cache immediately, the candidate queue will grow from roughly three hours to seven, and four teams will lose their daily integration window. I agree the report cannot qualify C61, but I do not support treating all compilation reuse as unsafe. Can we bypass report reuse while keeping object caching, then regenerate qualification for the affected candidates? That would contain the evidence problem without starving developers of builds. I also want a visible label for an unqualified image, so engineers do not mistake availability for permission to promote it.",
+          "ko": "Platform Integration에는 현실적인 우려가 있습니다. 모든 캐시를 즉시 끄면 후보 대기 시간이 약 3시간에서 7시간으로 늘고 네 팀이 매일 통합할 기회를 잃습니다. 보고서가 C61 적격 판정에 쓰일 수 없다는 데는 동의하지만 모든 컴파일 재사용이 위험하다고 보는 데는 찬성하지 않습니다. 오브젝트 캐시는 유지하면서 보고서 재사용만 우회하고 영향받은 후보의 적격 검증을 다시 할 수 있을까요? 그러면 개발자에게 빌드를 공급하지 못하는 상황 없이 증거 문제를 제한할 수 있습니다. 또한 빌드가 있다는 것을 승격 허가로 오해하지 않도록 미검증 이미지에 명확한 표시가 필요합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Tracing artifact identity",
+      "title_ko": "아티팩트 식별 정보 추적",
+      "turns": [
+        {
+          "speaker": "Hana Lim",
+          "en": "That distinction is useful. Let us follow one candidate from source checkout through image assembly, test execution, and report publication. At each boundary, state which identifier is authoritative and whether it can be rewritten. A source commit alone does not identify a device image if vendor blobs, configuration, or the toolchain change independently. We need an input manifest that survives the entire chain. Leo, please show the current key. Daeho, then list what the interface suite actually reads. I want us to discover dependencies from behavior rather than rely on the name of the test.",
+          "ko": "그 구분은 유용합니다. 소스 체크아웃부터 이미지 조립, 테스트 실행, 보고서 게시까지 후보 하나를 따라가 봅시다. 각 경계에서 어떤 식별 정보가 권위 있는 기준이고 다시 쓸 수 있는지 말해 주세요. vendor blob, 설정, 툴체인이 독립적으로 바뀐다면 소스 커밋 하나만으로 기기 이미지를 식별할 수 없습니다. 전체 연쇄에서 유지되는 입력 manifest가 필요합니다. Leo는 현재 키를 보여 주고 Daeho는 인터페이스 스위트가 실제로 읽는 것을 나열해 주세요. 테스트 이름에 의존하지 않고 동작에서 의존성을 찾아내고 싶습니다."
+        },
+        {
+          "speaker": "Leo Grant",
+          "en": "The report key currently concatenates the framework commit, suite revision, and target product string. It does not include the vendor digest, product configuration hash, boot image digest, or execution mode. The target product string is stable across two hardware revisions with different service manifests. That was acceptable for selecting build rules, but it was a poor identity for a test input. I propose separating the human-readable product label from an immutable candidate identifier. The latter would be derived from a canonical input manifest and printed in the image, job metadata, and result envelope.",
+          "ko": "보고서 키는 현재 프레임워크 커밋, 스위트 리비전, 대상 제품 문자열을 이어 붙입니다. vendor digest, 제품 설정 해시, boot 이미지 digest, 실행 모드는 들어 있지 않습니다. 대상 제품 문자열은 서비스 manifest가 다른 하드웨어 리비전 두 개에 걸쳐 같습니다. 빌드 규칙 선택에는 괜찮았지만 테스트 입력 식별 정보로는 부적절했습니다. 사람이 읽는 제품 이름과 변경 불가능한 후보 식별자를 분리하자고 제안합니다. 후자는 정규화한 입력 manifest에서 만들고 이미지, 작업 메타데이터, 결과 봉투에 표시합니다."
+        },
+        {
+          "speaker": "Daeho Kim",
+          "en": "The suite reads more than the vendor manifest. It queries service availability from the running device, compares interface hashes, inspects declared transport, and checks a policy file from the product partition. The execution mode also matters because recovery mode exposes a smaller service set. A digest of only the vendor partition would still miss those inputs. I suggest classifying reports by declared dependencies, with a default of no reuse when a suite has not published that declaration. We should not ask infrastructure to guess the dependencies of tests owned by another team.",
+          "ko": "스위트는 vendor manifest만 읽는 것이 아닙니다. 실행 중인 기기의 서비스 가용성을 조회하고 인터페이스 해시를 비교하며 선언된 transport를 검사하고 product partition의 정책 파일을 확인합니다. recovery mode는 더 적은 서비스 집합을 노출하므로 실행 모드도 중요합니다. vendor partition digest만으로도 이런 입력이 빠집니다. 선언된 의존성에 따라 보고서를 분류하고 스위트가 의존성 선언을 게시하지 않았다면 기본적으로 재사용하지 않자고 제안합니다. 다른 팀이 소유한 테스트 의존성을 인프라 팀이 추측하게 해서는 안 됩니다."
+        },
+        {
+          "speaker": "Amira Chen",
+          "en": "There is another boundary we should inspect: the device provisioning worker. It selects images by a mutable alias called latest-qualified. Yesterday that alias moved while a test job was waiting for a device. The report cache caused the C61 mismatch we saw, but an uncached job could still flash a different candidate if it resolves the alias at execution time. I can change the handoff to carry exact image digests instead. Before a test starts, the worker should read back the flashed identifiers and compare them with the request. A mismatch should prevent execution, not merely add a warning to the report.",
+          "ko": "검사해야 할 경계가 하나 더 있습니다. 기기 프로비저닝 작업자는 latest-qualified라는 변경 가능한 별칭으로 이미지를 선택합니다. 어제는 테스트 작업이 기기를 기다리는 동안 그 별칭이 이동했습니다. 우리가 본 C61 불일치는 보고서 캐시가 일으켰지만 캐시를 쓰지 않는 작업도 실행 시점에 별칭을 해석하면 다른 후보를 플래시할 수 있습니다. 인계 정보에 정확한 이미지 digest를 전달하도록 바꿀 수 있습니다. 테스트 시작 전에 작업자가 플래시된 식별 정보를 읽어 요청과 비교해야 합니다. 불일치는 보고서에 경고만 추가할 것이 아니라 실행을 막아야 합니다."
+        },
+        {
+          "speaker": "Iris Novak",
+          "en": "I agree with exact digests, provided developers can still choose a friendly alias when requesting a build. The system can resolve it once at submission and show both the label and frozen identifier. Otherwise people will copy long hashes incorrectly or invent their own shortcuts. We also need to handle a device whose bootloader cannot expose every partition digest. Could the provisioning worker verify the downloaded package and a signed build manifest reported by the device? I do not want a check that is impossible on half our lab fleet, because it would quickly become a routinely ignored warning.",
+          "ko": "개발자가 빌드를 요청할 때는 읽기 쉬운 별칭을 선택할 수 있다는 조건으로 정확한 digest 사용에 동의합니다. 시스템이 제출 시점에 한 번 해석해 이름과 고정 식별자를 함께 보여 주면 됩니다. 그렇지 않으면 사람들이 긴 해시를 잘못 복사하거나 자신만의 약어를 만들 것입니다. 부트로더가 모든 partition digest를 노출하지 못하는 기기도 처리해야 합니다. 프로비저닝 작업자가 다운로드한 패키지와 기기가 보고하는 서명된 빌드 manifest를 검증할 수 있을까요? 실험실 기기 절반에서 불가능한 검사를 만들고 싶지 않습니다. 그러면 금방 상습적으로 무시되는 경고가 됩니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Debating reuse and verification cost",
+      "title_ko": "재사용과 검증 비용에 대한 논의",
+      "turns": [
+        {
+          "speaker": "Leo Grant",
+          "en": "Yes, but we must distinguish package provenance from device state. A verified package proves what we intended to flash; a device-reported manifest proves what the running image claims to contain. Neither alone catches a provisioning script that skips one partition. For capable devices we can compare partition digests directly. For the older fleet, we should require a clean provisioning path plus package verification and manifest agreement, and record the weaker assurance level. I would keep those results useful for development but prevent them from satisfying a release gate that requires full image identity.",
+          "ko": "가능하지만 패키지 출처와 기기 상태를 구분해야 합니다. 검증된 패키지는 무엇을 플래시하려 했는지 증명하고 기기가 보고하는 manifest는 실행 이미지가 무엇을 포함한다고 주장하는지 증명합니다. 어느 하나만으로는 partition 하나를 건너뛴 프로비저닝 스크립트를 잡지 못합니다. 가능한 기기는 partition digest를 직접 비교합니다. 오래된 기기군에는 클린 프로비저닝 경로, 패키지 검증, manifest 일치를 요구하고 더 낮은 보증 수준을 기록해야 합니다. 그런 결과는 개발에는 유용하게 유지하되 전체 이미지 식별을 요구하는 릴리스 기준을 충족하는 데는 사용하지 않겠습니다."
+        },
+        {
+          "speaker": "Daeho Kim",
+          "en": "My concern is that dependency declarations will become another stale file. A test owner may add a product-policy read and forget to update the list. We need a way to challenge the declaration automatically. For each reusable suite, change one input that it says is irrelevant and check whether observed output changes. That is not a complete proof, but it can expose obvious omissions. More importantly, qualification suites that observe running services should execute against every candidate. The savings from report reuse are small compared with the cost of a false qualification, so I would exclude this interface suite entirely.",
+          "ko": "제 우려는 의존성 선언이 또 하나의 오래된 파일이 될 수 있다는 점입니다. 테스트 담당자가 product policy 읽기를 추가하고 목록을 갱신하지 않을 수 있습니다. 선언에 자동으로 의문을 제기하는 방법이 필요합니다. 재사용 가능한 스위트마다 관련 없다고 선언한 입력 하나를 바꾸고 관찰 결과가 달라지는지 확인합시다. 완전한 증명은 아니지만 명백한 누락을 드러낼 수 있습니다. 더 중요하게는 실행 중인 서비스를 관찰하는 적격 검증 스위트는 모든 후보에서 실행해야 합니다. 보고서 재사용의 절약은 잘못된 적격 판정 비용보다 작으므로 이 인터페이스 스위트는 전부 제외하겠습니다."
+        },
+        {
+          "speaker": "Iris Novak",
+          "en": "I support that for release qualification, but I would preserve a different development signal. Engineers often need to know whether a framework-only edit breaks a host-side parser before waiting for a device. A cached host test with a complete source and toolchain key can still answer that question. The dashboard should show host checks and device qualification in separate columns, not collapse them into one green badge. If device tests are pending, the candidate can remain available for debugging while promotion is disabled. That gives people useful feedback without claiming more evidence than we have.",
+          "ko": "릴리스 적격 검증에서는 찬성하지만 개발용 신호는 다르게 유지하고 싶습니다. 엔지니어는 기기를 기다리기 전에 프레임워크만 수정한 변경이 호스트 측 파서를 깨뜨리는지 알고 싶어 합니다. 완전한 소스와 툴체인 키를 가진 캐시 호스트 테스트는 여전히 그 질문에 답할 수 있습니다. 대시보드에는 호스트 검사와 기기 적격 검증을 하나의 녹색 배지로 합치지 말고 별도 열로 보여야 합니다. 기기 테스트가 대기 중이면 후보는 디버깅용으로 이용 가능하게 두면서 승격은 비활성화할 수 있습니다. 그러면 가진 증거보다 더 많은 것을 주장하지 않고 유용한 피드백을 제공합니다."
+        },
+        {
+          "speaker": "Amira Chen",
+          "en": "Let me put numbers around the trade-off. Report reuse saves twenty-two minutes per candidate. Object caching saves two hours and forty minutes. Turning off report reuse for the qualification suite therefore has a manageable cost, while disabling object reuse would disrupt the queue substantially. We can run one uncached build each night as a comparison against cached compilation. If image digests differ, we compare the manifests and investigate nondeterministic output before blaming the cache. The comparison should use identical inputs and toolchains; otherwise two different images tell us nothing about cache correctness.",
+          "ko": "절충안을 수치로 설명하겠습니다. 보고서 재사용은 후보당 22분을 절약하고 오브젝트 캐시는 2시간 40분을 절약합니다. 따라서 적격 검증 스위트의 보고서 재사용 중단 비용은 감당할 수 있지만 오브젝트 재사용 중단은 대기열에 큰 영향을 줍니다. 매일 밤 캐시를 쓰지 않는 빌드 하나를 실행해 캐시 컴파일과 비교할 수 있습니다. 이미지 digest가 다르면 캐시를 탓하기 전에 manifest를 비교하고 비결정적 출력을 조사합니다. 비교에는 같은 입력과 툴체인이 필요합니다. 그렇지 않으면 이미지 두 개가 다르다는 사실은 캐시 정확성에 대해 아무것도 말해 주지 않습니다."
+        },
+        {
+          "speaker": "Hana Lim",
+          "en": "We have a workable boundary now. Keep object caching, allow explicitly keyed host-result reuse, and prohibit report reuse for device qualification. Before accepting that decision, I want to address what happens when a cache server is unavailable. The build should fall back to compilation rather than fail simply because an optimization is missing. However, an unavailable provenance record is different: without the input identity, promotion must remain blocked. We should write those two behaviors separately in the pipeline contract. A slow build is inconvenient; an unexplained pass undermines every downstream decision.",
+          "ko": "이제 실행 가능한 경계가 생겼습니다. 오브젝트 캐시는 유지하고 명시적인 키가 있는 호스트 결과 재사용은 허용하며 기기 적격 검증 보고서 재사용은 금지합니다. 결정을 받아들이기 전에 캐시 서버가 이용 불가능할 때를 다루고 싶습니다. 최적화 수단이 없다는 이유만으로 빌드가 실패할 것이 아니라 직접 컴파일로 대체해야 합니다. 하지만 출처 기록이 이용 불가능한 것은 다릅니다. 입력 식별 정보가 없으면 승격은 계속 차단해야 합니다. 파이프라인 계약에 두 동작을 따로 적어야 합니다. 느린 빌드는 불편하지만 설명할 수 없는 통과는 이후 모든 판단의 근거를 훼손합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decisions and corrective actions",
+      "title_ko": "결정과 시정 조치",
+      "turns": [
+        {
+          "speaker": "Hana Lim",
+          "en": "Here are the actions for today, October fourteenth. Leo will disable qualification-report reuse and remove label rewriting by noon Seoul time. Amira will preserve the eleven candidates' cache records and publish an input-to-report map by two this afternoon. Daeho will rerun the interface suite on C61 using digest-pinned provisioning and report by five. Iris will update the dashboard so available, host-checked, and device-qualified are separate states by tomorrow noon. Until that work is verified, none of the eleven candidates can be promoted using the cached interface result. Other valid evidence remains attached with its original identity.",
+          "ko": "오늘 10월 14일 조치를 정리하겠습니다. Leo는 서울 시간 정오까지 적격 검증 보고서 재사용과 이름 다시 쓰기를 끕니다. Amira는 후보 11개의 캐시 기록을 보존하고 오늘 오후 2시까지 입력과 보고서 연결 지도를 게시합니다. Daeho는 digest로 고정한 프로비저닝을 사용해 C61 인터페이스 스위트를 다시 실행하고 오후 5시까지 보고합니다. Iris는 내일 정오까지 이용 가능, 호스트 검사 완료, 기기 적격 검증 완료를 별도 상태로 보여 주도록 대시보드를 수정합니다. 작업이 검증되기 전에는 후보 11개 중 어떤 것도 캐시 인터페이스 결과로 승격할 수 없습니다. 다른 유효한 증거는 원래 식별 정보와 함께 유지합니다."
+        },
+        {
+          "speaker": "Leo Grant",
+          "en": "I can meet noon for the immediate containment. For the permanent key design, I need until Friday, October sixteenth, at three in the afternoon. The manifest will include source revisions, vendor and boot image digests, product configuration, toolchain identity, suite revision, and execution mode. Host suites can declare a narrower subset, but the declaration will be versioned with the suite and reviewed by its owner. Report publication will preserve the original candidate identifier and state whether a result was executed or reused. A copied report will never receive a new execution timestamp.",
+          "ko": "즉각적인 제한 조치는 정오까지 할 수 있습니다. 영구적인 키 설계는 10월 16일 금요일 오후 3시까지 필요합니다. manifest에는 소스 리비전, vendor 및 boot 이미지 digest, 제품 설정, 툴체인 식별 정보, 스위트 리비전, 실행 모드를 포함합니다. 호스트 스위트는 더 좁은 입력 집합을 선언할 수 있지만 선언은 스위트와 함께 버전 관리하고 소유자가 검토합니다. 보고서 게시 시 원래 후보 식별자를 보존하고 결과가 실행된 것인지 재사용된 것인지 표시합니다. 복사한 보고서에는 새 실행 타임스탬프를 부여하지 않습니다."
+        },
+        {
+          "speaker": "Amira Chen",
+          "en": "I will preserve both successful and failed cache lookups, including the requested key, returned entry, publishing job, and attachment digest. The map will identify candidates with definitely mismatched reports, candidates with matching inputs, and candidates whose records are incomplete. I will not mark an incomplete candidate as safe simply because no mismatch is visible. For digest-pinned provisioning, I can have a prototype ready tomorrow at four. It will resolve aliases at submission, verify package bytes before flashing, and record device assurance level after boot. Daeho can review the result envelope before we enable it broadly.",
+          "ko": "요청 키, 반환 항목, 게시 작업, 첨부 digest를 포함해 성공한 캐시 조회와 실패한 조회를 모두 보존하겠습니다. 지도에는 보고서 불일치가 확실한 후보, 입력이 맞는 후보, 기록이 불완전한 후보를 구분합니다. 보이는 불일치가 없다는 이유로 불완전한 후보를 안전하다고 표시하지 않겠습니다. digest로 고정한 프로비저닝 시제품은 내일 오후 4시까지 준비할 수 있습니다. 제출 시점에 별칭을 해석하고 플래시 전 패키지 바이트를 검증하며 부팅 후 기기 보증 수준을 기록합니다. 넓게 적용하기 전에 Daeho가 결과 봉투를 검토할 수 있습니다."
+        },
+        {
+          "speaker": "Daeho Kim",
+          "en": "For C61, I will use a device that supports partition-digest verification and preserve its provisioning log. The rerun will produce a fresh report even if every test passes exactly as before. We must also retain the original cached report, clearly marked as invalid for qualification, so reviewers can follow the correction. By tomorrow morning I will provide a prioritized retest list for the remaining ten candidates based on the input map. Matching inputs may justify retaining some host evidence, but device qualification will still require an executed result. I will make that distinction explicit in the review notes.",
+          "ko": "C61에는 partition digest 검증을 지원하는 기기를 사용하고 프로비저닝 로그를 보존하겠습니다. 모든 테스트가 이전과 똑같이 통과해도 재실행은 새 보고서를 만듭니다. 검토자가 수정 과정을 따라갈 수 있도록 원래 캐시 보고서도 적격 판정에 무효라는 표시와 함께 유지해야 합니다. 내일 아침까지 입력 지도에 따라 나머지 후보 10개의 우선순위 재검증 목록을 제공하겠습니다. 입력이 맞으면 일부 호스트 증거를 유지할 근거가 될 수 있지만 기기 적격 검증에는 실제 실행한 결과가 필요합니다. 검토 메모에 이 구분을 명확히 하겠습니다."
+        },
+        {
+          "speaker": "Iris Novak",
+          "en": "I will change the candidate page and the promotion service together. A visual badge alone is insufficient if an API can still promote an unqualified image. The service will require an executed device report whose candidate identifier matches the selected image and whose assurance level meets the release policy. Development downloads remain available with a clear status. I will test the policy using a deliberately mismatched report, a reused host report, and a correctly executed device report. We should see the first two denied for promotion and the third accepted, with understandable reasons in the audit log.",
+          "ko": "후보 페이지와 승격 서비스를 함께 바꾸겠습니다. API가 계속 미검증 이미지를 승격할 수 있다면 시각적인 배지만으로는 부족합니다. 서비스는 후보 식별자가 선택한 이미지와 일치하고 보증 수준이 릴리스 정책에 맞는 실제 실행 기기 보고서를 요구합니다. 개발용 다운로드는 명확한 상태와 함께 계속 제공합니다. 의도적으로 불일치한 보고서, 재사용한 호스트 보고서, 올바르게 실행한 기기 보고서로 정책을 시험하겠습니다. 승격에서 앞의 두 개는 거절되고 세 번째는 받아들여지며 감사 로그에 이해할 수 있는 이유가 남아야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Acceptance checks and follow-up",
+      "title_ko": "완료 확인과 후속 회의",
+      "turns": [
+        {
+          "speaker": "Hana Lim",
+          "en": "Our follow-up is Friday, October sixteenth, at four thirty in the afternoon Seoul time. We will inspect the input map, C61's fresh qualification, provisioning checks, and the promotion policy demonstration. Success means a candidate cannot inherit another image's qualification even when the framework revision is unchanged. We will also confirm that cache failure only slows compilation and that missing provenance blocks promotion. This is a pipeline contract review, not a demand that every cache entry be deleted. If the contract is incomplete, we keep the affected candidates restricted and assign the missing work with a new deadline.",
+          "ko": "후속 회의는 10월 16일 금요일 서울 시간 오후 4시 30분입니다. 입력 지도, C61의 새 적격 검증, 프로비저닝 검사, 승격 정책 시연을 살펴봅니다. 성공은 프레임워크 리비전이 같아도 후보가 다른 이미지의 적격 판정을 물려받을 수 없는 상태입니다. 캐시 실패가 컴파일을 늦출 뿐이며 출처 정보 누락은 승격을 막는지도 확인합니다. 이는 파이프라인 계약 검토이지 모든 캐시 항목을 삭제하라는 요구가 아닙니다. 계약이 불완전하면 영향받은 후보 제한을 유지하고 빠진 작업에 새 기한을 정합니다."
+        },
+        {
+          "speaker": "Leo Grant",
+          "en": "For the demonstration I will submit two builds with the same framework commit but different vendor manifests. They must receive different candidate identifiers and independent device reports. I will then repeat a host parser test with identical declared inputs to show that valid reuse still works. Finally, I will disconnect the object-cache endpoint and demonstrate compilation fallback. Those cases exercise the boundary we agreed rather than simply showing a happy path. I will include one malformed dependency declaration to confirm the pipeline rejects it with an actionable message instead of silently broadening the key.",
+          "ko": "시연에서는 프레임워크 커밋은 같지만 vendor manifest가 다른 빌드 두 개를 제출하겠습니다. 서로 다른 후보 식별자와 독립적인 기기 보고서를 받아야 합니다. 그다음 선언된 입력이 동일한 호스트 파서 테스트를 반복해 유효한 재사용이 여전히 동작함을 보여 줍니다. 마지막으로 오브젝트 캐시 연결 지점을 끊고 직접 컴파일 대체를 시연합니다. 이 사례들은 정상 경로만 보여 주는 대신 합의한 경계를 검증합니다. 잘못된 의존성 선언 하나도 포함해 파이프라인이 키 범위를 조용히 넓히는 대신 조치 가능한 메시지로 거절하는지 확인하겠습니다."
+        },
+        {
+          "speaker": "Daeho Kim",
+          "en": "I will prepare a small reviewer checklist focused on identity and evidence. It will ask which image ran, which suite ran, whether the result was executed or reused, and what device-state verification supports it. Reviewers should not need to search three systems to answer those questions. I will measure the time needed to find each answer on the new page, using two engineers who did not attend this meeting. If they cannot resolve the candidate identity within two minutes, we should improve the presentation before calling the process complete. Clear evidence should reduce review effort, not merely add more fields.",
+          "ko": "식별 정보와 증거에 집중한 작은 검토 체크리스트를 준비하겠습니다. 어떤 이미지가 실행됐는지, 어떤 스위트가 실행됐는지, 결과가 실제 실행인지 재사용인지, 어떤 기기 상태 검증이 이를 뒷받침하는지를 묻습니다. 검토자가 이 질문에 답하려고 시스템 세 개를 검색할 필요는 없어야 합니다. 오늘 회의에 참석하지 않은 엔지니어 두 명으로 새 페이지에서 각 답을 찾는 시간을 측정하겠습니다. 2분 안에 후보 식별 정보를 확인하지 못하면 절차 완료라고 하기 전에 표현 방식을 개선해야 합니다. 명확한 증거는 필드만 더하는 것이 아니라 검토 노력을 줄여야 합니다."
+        },
+        {
+          "speaker": "Amira Chen",
+          "en": "There is one operational detail: preserved cache entries consume space, and our retention job normally removes them after seven days. I will place the eleven candidates' relevant entries under a temporary investigation hold until October thirtieth. After the review confirms that their records are archived in the issue, we can release the hold through the normal retention process. The hold will be limited to the affected keys, so it will not fill the whole cache. I will also record who can release it; otherwise a cleanup script could erase the evidence while another team is still reviewing the correction.",
+          "ko": "운영상 세부 사항이 하나 있습니다. 보존한 캐시 항목은 공간을 차지하고 보관 작업은 보통 7일 뒤 삭제합니다. 후보 11개 관련 항목을 10월 30일까지 임시 조사 보존 상태로 두겠습니다. 검토에서 기록이 이슈에 보관됐음을 확인하면 정상 보관 절차로 보존을 해제할 수 있습니다. 대상 키에만 한정하므로 전체 캐시가 가득 차지는 않습니다. 해제 권한이 누구에게 있는지도 기록하겠습니다. 그렇지 않으면 다른 팀이 수정 내용을 검토하는 중 정리 스크립트가 증거를 지울 수 있습니다."
+        },
+        {
+          "speaker": "Iris Novak",
+          "en": "That covers my scheduling concern. Developers will still receive cached compilation and useful host feedback, while promotion waits for evidence tied to the actual image. I will notify the integration owners today that C61 is downloadable for investigation but not qualified for promotion. The notice will link the input map and fresh rerun when they are available, rather than blame a team or call every past result unreliable. For Friday's review I will bring the API denial cases and a screenshot of each candidate state. With those checks, we can make the fast path understandable and the qualification path defensible.",
+          "ko": "그러면 제 일정 우려는 해결됩니다. 개발자는 캐시 컴파일과 유용한 호스트 피드백을 계속 받고 승격은 실제 이미지에 연결된 증거를 기다립니다. 오늘 통합 담당자에게 C61을 조사용으로 다운로드할 수 있지만 승격 적격 상태는 아니라고 알리겠습니다. 공지는 특정 팀을 탓하거나 과거 결과를 모두 신뢰할 수 없다고 하기보다 입력 지도와 새 재실행 결과가 준비되면 연결하겠습니다. 금요일 검토에는 API 거절 사례와 후보 상태별 화면을 가져오겠습니다. 이런 검사로 빠른 경로는 이해하기 쉽게, 적격 판정 경로는 근거를 갖추게 만들 수 있습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "evidence-integrity problem",
+      "meaning_ko": "증거의 무결성 문제",
+      "usage_ko": "검증 결과의 출처나 정확성을 논의할 때",
+      "example": "Please treat this as an evidence-integrity problem.",
+      "practice": "We need to investigate the evidence-integrity problem before approving this build."
+    },
+    {
+      "phrase": "preserve those entries",
+      "meaning_ko": "그 항목들을 보존하다",
+      "usage_ko": "조사에 필요한 자료를 남길 때",
+      "example": "I would like to preserve those entries before anyone flushes the cache, because deletion would remove evidence we still need.",
+      "practice": "Please preserve those entries until the investigation finishes."
+    },
+    {
+      "phrase": "availability for permission to promote",
+      "meaning_ko": "이용 가능 상태를 승격 허가로",
+      "usage_ko": "상태와 승인 권한을 구분할 때",
+      "example": "I also want a visible label for an unqualified image, so engineers do not mistake availability for permission to promote it.",
+      "practice": "Do not mistake availability for permission to promote a candidate."
+    },
+    {
+      "phrase": "an immutable candidate identifier",
+      "meaning_ko": "변경 불가능한 후보 식별자",
+      "usage_ko": "빌드의 고유 입력을 추적할 때",
+      "example": "I propose separating the human-readable product label from an immutable candidate identifier.",
+      "practice": "Each report must include an immutable candidate identifier."
+    },
+    {
+      "phrase": "at submission",
+      "meaning_ko": "제출 시점에",
+      "usage_ko": "변경 가능한 참조를 고정할 때",
+      "example": "The system can resolve it once at submission and show both the label and frozen identifier.",
+      "practice": "Resolve the release alias at submission."
+    },
+    {
+      "phrase": "record the weaker assurance level",
+      "meaning_ko": "더 낮은 보증 수준을 기록하다",
+      "usage_ko": "검증 범위의 한계를 표시할 때",
+      "example": "For the older fleet, we should require a clean provisioning path plus package verification and manifest agreement, and record the weaker assurance level.",
+      "practice": "If partition checks are unavailable, record the weaker assurance level."
+    },
+    {
+      "phrase": "challenge the declaration automatically",
+      "meaning_ko": "선언을 자동으로 검증하고 의문을 제기하다",
+      "usage_ko": "의존성 누락을 찾을 때",
+      "example": "We need a way to challenge the declaration automatically.",
+      "practice": "Can we challenge the declaration automatically in the nightly job?"
+    },
+    {
+      "phrase": "a complete source and toolchain key",
+      "meaning_ko": "완전한 소스와 툴체인 키",
+      "usage_ko": "재사용 조건을 정의할 때",
+      "example": "A cached host test with a complete source and toolchain key can still answer that question.",
+      "practice": "This host test needs a complete source and toolchain key."
+    },
+    {
+      "phrase": "a manageable cost",
+      "meaning_ko": "감당할 수 있는 비용",
+      "usage_ko": "시간과 신뢰성의 절충을 평가할 때",
+      "example": "Turning off report reuse for the qualification suite therefore has a manageable cost, while disabling object reuse would disrupt the queue substantially.",
+      "practice": "The extra verification has a manageable cost."
+    },
+    {
+      "phrase": "fall back to compilation",
+      "meaning_ko": "직접 컴파일로 대체하다",
+      "usage_ko": "캐시 실패 시 동작을 설명할 때",
+      "example": "The build should fall back to compilation rather than fail simply because an optimization is missing.",
+      "practice": "If the cache is unavailable, fall back to compilation."
+    },
+    {
+      "phrase": "remove label rewriting",
+      "meaning_ko": "이름 다시 쓰기를 제거하다",
+      "usage_ko": "증거 출처가 바뀌는 동작을 고칠 때",
+      "example": "Leo will disable qualification-report reuse and remove label rewriting by noon Seoul time.",
+      "practice": "We should remove label rewriting from the report publisher."
+    },
+    {
+      "phrase": "an input-to-report map",
+      "meaning_ko": "입력과 보고서의 연결 지도",
+      "usage_ko": "영향 범위를 추적할 때",
+      "example": "Amira will preserve the eleven candidates' cache records and publish an input-to-report map by two this afternoon.",
+      "practice": "Attach an input-to-report map to the investigation."
+    },
+    {
+      "phrase": "a deliberately mismatched report",
+      "meaning_ko": "의도적으로 불일치한 보고서",
+      "usage_ko": "승인 정책의 실패 경로를 검사할 때",
+      "example": "I will test the policy using a deliberately mismatched report, a reused host report, and a correctly executed device report.",
+      "practice": "Use a deliberately mismatched report to test the promotion gate."
+    },
+    {
+      "phrase": "an actionable message",
+      "meaning_ko": "조치 가능한 메시지",
+      "usage_ko": "실패 원인과 해결 방법을 전달할 때",
+      "example": "I will include one malformed dependency declaration to confirm the pipeline rejects it with an actionable message instead of silently broadening the key.",
+      "practice": "The validator should return an actionable message."
+    },
+    {
+      "phrase": "a temporary investigation hold",
+      "meaning_ko": "임시 조사 보존 상태",
+      "usage_ko": "증거의 자동 삭제를 막을 때",
+      "example": "I will place the eleven candidates' relevant entries under a temporary investigation hold until October thirtieth.",
+      "practice": "Place the logs under a temporary investigation hold."
+    }
+  ]
+}
