@@ -1,0 +1,294 @@
+{
+  "date": "2026-10-15",
+  "category": "business",
+  "topic": "sw-release",
+  "subject": "Agreeing on Sensor Hub Timestamp Migration and BSP Acceptance",
+  "title_ko": "센서 허브 타임스탬프 전환과 BSP 인수 조건 협의",
+  "summary_ko": "가상의 Android 개발팀과 칩셋 벤더 Velora가 센서 허브 타임스탬프 형식 변경을 앞두고 절전 복귀 시 순서 역전의 근거, 시계 epoch 보존, 구형식 협상과 인수 기준을 협의합니다. 등장하는 모든 인물·기업·제품·펌웨어·로그·결함·수치·일정은 영어 학습을 위한 가상 교육용 설정입니다.",
+  "participants": [
+    {
+      "name": "Eunji Baek",
+      "team": "Release Coordination"
+    },
+    {
+      "name": "Noah Ellis",
+      "team": "Sensor Framework"
+    },
+    {
+      "name": "Maya Raman",
+      "team": "Velora BSP"
+    },
+    {
+      "name": "Tomas Varga",
+      "team": "Velora BSP"
+    },
+    {
+      "name": "Sujin Ko",
+      "team": "System Quality"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and the proposed drop",
+      "title_ko": "참석 확인과 BSP 드롭 제안",
+      "turns": [
+        {
+          "speaker": "Eunji Baek",
+          "en": "Thanks for joining the BSP acceptance call. Noah is here for Sensor Framework, Maya and Tomas represent Velora BSP, and Sujin owns System Quality coverage. We are reviewing drop V32 for the Meridian development board. The vendor proposes a new timestamp format for batched sensor events, but the integration branch still expects the old format. Yesterday's smoke run passed while an overnight suspend test showed events arriving out of order. Our decision today is whether V32 can enter the shared branch, what acceptance evidence is missing, and which interface behavior both sides can commit to before Monday's integration window.",
+          "ko": "BSP 인수 회의에 참석해 주셔서 감사합니다. Sensor Framework의 Noah, Velora BSP의 Maya와 Tomas, System Quality 검증의 Sujin이 참석했습니다. Meridian 개발 보드용 V32 드롭을 검토합니다. 벤더는 배치 센서 이벤트에 새 타임스탬프 형식을 제안하지만 통합 브랜치는 아직 구형식을 기대합니다. 어제 스모크 테스트는 통과했지만 야간 절전 테스트에서는 이벤트 순서가 뒤바뀌었습니다. 오늘은 V32를 공용 브랜치에 넣을 수 있는지, 인수 증거에 무엇이 빠졌는지, 월요일 통합 창 전에 양측이 어떤 인터페이스 동작을 약속할 수 있는지 결정합니다."
+        },
+        {
+          "speaker": "Maya Raman",
+          "en": "I have the V32 release notes and the sensor hub interface document. The firmware now exports a sixty-four-bit tick counter instead of the old thirty-two-bit field. The motivation was to avoid frequent wrap handling in the host driver, not to change event ordering. Unfortunately, our release note called the update binary-compatible because the packet length stayed the same after reserved bytes were reused. That statement was too broad. The meaning of the payload changed, and the host cannot safely infer the format from length. We need an explicit version agreement rather than a note that asks integration to guess.",
+          "ko": "V32 릴리스 노트와 센서 허브 인터페이스 문서를 준비했습니다. 펌웨어는 기존 32비트 필드 대신 64비트 tick counter를 내보냅니다. 목적은 이벤트 순서를 바꾸는 것이 아니라 호스트 드라이버의 잦은 순환 처리를 줄이는 것이었습니다. 그런데 예약 바이트를 재사용해 패킷 길이가 같다는 이유로 릴리스 노트에 바이너리 호환이라고 적었습니다. 그 표현은 지나치게 넓었습니다. 페이로드의 의미가 바뀌었고 호스트는 길이로 형식을 안전하게 추론할 수 없습니다. 통합팀에게 추측을 요구하는 설명 대신 명시적인 버전 합의가 필요합니다."
+        },
+        {
+          "speaker": "Noah Ellis",
+          "en": "Framework is not opposed to the wider counter. My concern is the clock contract around it. The old driver converted hub ticks to the Android elapsed-time domain using an offset captured during initialization. After suspend, the hub keeps counting but the host may refresh that offset. If a batch spans the refresh, two events can receive inconsistent conversions. A wider counter alone does not solve that. I need the interface to say which clock domain an event belongs to, how tick frequency is established, and whether one conversion epoch covers the whole batch. Without those rules, a clean smoke run tells us very little.",
+          "ko": "프레임워크 팀은 더 넓은 카운터에 반대하지 않습니다. 제 우려는 그 주변의 시계 계약입니다. 기존 드라이버는 초기화 시 확보한 오프셋으로 허브 tick을 Android elapsed-time 영역으로 변환했습니다. 절전 후에도 허브는 계속 세지만 호스트는 오프셋을 갱신할 수 있습니다. 배치가 갱신 시점을 가로지르면 이벤트 두 개에 일관되지 않은 변환이 적용될 수 있습니다. 더 넓은 카운터만으로 해결되지 않습니다. 이벤트의 시계 영역, tick 주파수 결정 방법, 전체 배치에 하나의 변환 epoch가 적용되는지를 인터페이스에 명시해야 합니다. 그 규칙이 없으면 스모크 테스트 통과로 알 수 있는 것은 적습니다."
+        },
+        {
+          "speaker": "Tomas Varga",
+          "en": "The hub counter is continuous while the low-power island remains powered. It resets only when that island restarts, and V32 adds a reset-generation field. The frequency is fixed within a firmware session, though it differs between two board configurations. Our driver already reads the frequency during handshake, but it does not attach that information to each saved batch. I suspect the failing run combined samples collected before suspend with an offset measured after resume. I can provide the raw packet capture and hub reset log. We should first establish whether there was a reset, because that determines which conversion rule applies.",
+          "ko": "저전력 영역에 전원이 유지되는 동안 허브 카운터는 연속적입니다. 해당 영역이 다시 시작할 때만 초기화되며 V32는 reset generation 필드를 추가합니다. 주파수는 펌웨어 세션 내에서 고정되지만 두 보드 설정 사이에는 다릅니다. 드라이버가 이미 handshake 중 주파수를 읽지만 저장된 각 배치에 그 정보를 붙이지는 않습니다. 실패한 실행에서 절전 전 수집 샘플과 복귀 후 측정 오프셋이 섞였다고 의심합니다. 원본 패킷 캡처와 허브 reset 로그를 제공하겠습니다. 적용할 변환 규칙이 달라지므로 먼저 reset이 있었는지 확인해야 합니다."
+        },
+        {
+          "speaker": "Sujin Ko",
+          "en": "There was no hub reset in the captured failure. The sequence number increased continuously, and the generation field stayed at twelve. The user-visible symptom was a brief reverse movement in the orientation plot after a long idle interval; the application did not crash. I reproduced it on two boards with batching enabled, but not with direct event delivery. That narrows the path without clearing the rest of V32. Quality needs an acceptance matrix for batch duration, suspend boundaries, hub reset, and counter wrap. I also want the raw timestamps preserved, because converted application values can hide where ordering first changed.",
+          "ko": "수집된 실패에서는 허브 reset이 없었습니다. sequence number는 연속적으로 증가했고 generation 필드는 12를 유지했습니다. 사용자에게 보이는 증상은 긴 유휴 구간 뒤 방향 그래프가 잠깐 반대로 움직이는 것이었고 애플리케이션 크래시는 없었습니다. 배치 기능을 켠 보드 두 대에서 재현했고 이벤트 직접 전달에서는 재현하지 못했습니다. 경로가 좁혀졌지만 V32의 나머지를 승인하는 것은 아닙니다. Quality에는 배치 길이, 절전 경계, 허브 reset, 카운터 순환을 포함한 인수 매트릭스가 필요합니다. 변환된 앱 값이 순서가 처음 바뀐 지점을 가릴 수 있어 원본 타임스탬프도 보존하고 싶습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and clock semantics",
+      "title_ko": "증거와 시계 의미",
+      "turns": [
+        {
+          "speaker": "Eunji Baek",
+          "en": "Let us follow the failing batch rather than debate compatibility in the abstract. Tomas, identify the first sample, last sample, and offset update in one common timeline. Noah, explain exactly where the host applies the conversion. Sujin, distinguish a late delivery from a timestamp reversal; applications can tolerate batching delay while still requiring ordered event time. We also need to separate this correctness defect from the format migration. They may share code, but a fix for one should not be presented as proof that the other is safe. What evidence can resolve that distinction today?",
+          "ko": "추상적으로 호환성을 논쟁하기보다 실패한 배치를 따라가 봅시다. Tomas는 공통 타임라인에서 첫 샘플, 마지막 샘플, 오프셋 갱신을 표시해 주세요. Noah는 호스트가 정확히 어디서 변환하는지 설명해 주세요. Sujin은 전달 지연과 타임스탬프 역전을 구분해 주세요. 앱은 배치 전달 지연을 감수하면서도 이벤트 시간 순서를 요구할 수 있습니다. 이 정확성 결함과 형식 전환도 구분해야 합니다. 코드를 공유할 수는 있지만 하나의 수정이 다른 하나의 안전성 증명이라고 말해서는 안 됩니다. 오늘 어떤 증거로 이를 구분할 수 있을까요?"
+        },
+        {
+          "speaker": "Tomas Varga",
+          "en": "The batch begins before suspend and ends shortly after resume. Its first eighty events were saved under the original offset, but the drain routine converts every event with the latest offset instead of the offset associated with collection. The latest value differs by six milliseconds. That difference is enough to place an early event after a newer event already delivered through the direct path. The packet sequence itself remains ordered. I can reproduce the conversion error on V31 as well by forcing the offset change, so the defect predates the sixty-four-bit format. V32 made it easier to observe because its batching limit is longer.",
+          "ko": "배치는 절전 전에 시작해 복귀 직후 끝납니다. 첫 이벤트 80개는 원래 오프셋 아래 저장됐지만 drain 루틴은 수집과 연결된 오프셋 대신 최신 오프셋으로 모든 이벤트를 변환합니다. 최신 값은 6밀리초 차이가 납니다. 그 차이로 초기 이벤트가 직접 경로로 이미 전달된 더 새로운 이벤트 뒤에 놓일 수 있습니다. 패킷 sequence 자체는 순서대로입니다. 오프셋 변경을 강제하면 V31에서도 변환 오류가 재현되므로 결함은 64비트 형식 이전부터 있었습니다. V32는 배치 한도가 더 길어 관찰하기 쉬워졌습니다."
+        },
+        {
+          "speaker": "Noah Ellis",
+          "en": "That explains the cross-path reversal, but I would not fix it by sorting events after conversion. Sorting can disguise a bad time base and alter ordering between different sensor streams. Nor should we clamp every timestamp to the last delivered value; that would turn several distinct samples into one instant. I propose preserving the collection epoch with each batch and converting with an immutable snapshot of its frequency and offset. If the hub resets during collection, the driver should split the batch at the generation boundary. The framework then receives explicit continuity information instead of fabricated monotonic values.",
+          "ko": "그 설명은 경로 간 역전을 설명하지만 변환 후 이벤트 정렬로 고치고 싶지는 않습니다. 정렬은 잘못된 시간 기준을 숨기고 서로 다른 센서 스트림의 순서를 바꿀 수 있습니다. 모든 타임스탬프를 마지막 전달값으로 제한해서도 안 됩니다. 서로 다른 샘플 여러 개가 하나의 순간으로 바뀝니다. 각 배치에 수집 epoch를 보존하고 주파수와 오프셋의 변경 불가능한 스냅샷으로 변환하자고 제안합니다. 수집 중 허브가 reset되면 드라이버가 generation 경계에서 배치를 나눠야 합니다. 그러면 프레임워크는 만들어 낸 단조 증가값 대신 명시적인 연속성 정보를 받습니다."
+        },
+        {
+          "speaker": "Sujin Ko",
+          "en": "I agree about preserving evidence, but the framework still needs a policy for samples whose epoch is unavailable. Our stress tool can trigger a hub restart while the host queue contains a partial packet. If the driver discards that packet, we lose samples. If it converts with the new epoch, we may deliver a plausible but wrong time. Quality cannot judge correctness until the contract chooses a behavior. My preference is to discard only the incomplete packet, emit a discontinuity record, and resume with the new generation. We should measure the lost sample count, not hide it behind a generic recovery success.",
+          "ko": "증거 보존에 동의하지만 프레임워크에는 epoch를 알 수 없는 샘플 처리 정책도 필요합니다. 스트레스 도구는 호스트 대기열에 부분 패킷이 있는 동안 허브 재시작을 유발할 수 있습니다. 드라이버가 패킷을 버리면 샘플이 사라지고 새 epoch로 변환하면 그럴듯하지만 틀린 시간을 전달할 수 있습니다. 계약에서 동작을 선택하기 전에는 Quality가 정확성을 판정할 수 없습니다. 불완전한 패킷만 버리고 불연속 기록을 내보낸 다음 새 generation으로 재개하는 방안을 선호합니다. 포괄적인 복구 성공 뒤에 숨기지 말고 손실 샘플 수를 측정해야 합니다."
+        },
+        {
+          "speaker": "Maya Raman",
+          "en": "That policy is feasible, although it means the release note must describe a discontinuity rather than promise uninterrupted delivery through every reset. We can guarantee complete packets within one generation, preserve their collection epoch, and report a bounded loss when a reset interrupts a packet. I will ask the firmware team to include a sample-count field in the recovery record. There is also a format question: V31 does not provide that field. The host must choose behavior from negotiated capabilities, not assume all firmware has the new record because the product name matches. That is the compatibility boundary I want documented.",
+          "ko": "그 정책은 가능하지만 릴리스 노트에는 모든 reset 동안 중단 없는 전달을 약속하는 대신 불연속을 설명해야 합니다. 한 generation 안의 완전한 패킷을 보장하고 수집 epoch를 보존하며 reset이 패킷을 끊으면 제한된 손실을 보고할 수 있습니다. 펌웨어 팀에 복구 기록의 샘플 수 필드를 요청하겠습니다. 형식 문제도 있습니다. V31에는 그 필드가 없습니다. 호스트는 제품 이름이 같다는 이유로 모든 펌웨어에 새 기록이 있다고 가정하지 말고 협상된 기능에 따라 동작을 선택해야 합니다. 그 호환성 경계를 문서화하고 싶습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Compatibility and delivery disagreement",
+      "title_ko": "호환성과 전달 방식에 대한 이견",
+      "turns": [
+        {
+          "speaker": "Maya Raman",
+          "en": "Our original schedule assumed that V32 would replace V31 on every development board next Monday. Supporting both formats extends firmware testing, and the team is also preparing the next power-management drop. I would prefer a coordinated cutover: update the driver and firmware together, then stop accepting V31 on the integration branch. A capability fallback sounds flexible, but it may leave us maintaining two paths indefinitely. Can the program define a short transition period and a clear removal date? Otherwise the supposedly temporary decoder becomes part of the long-term support burden without anyone approving that cost.",
+          "ko": "원래 일정은 다음 월요일에 모든 개발 보드에서 V32가 V31을 대체한다는 전제였습니다. 두 형식 지원은 펌웨어 테스트를 늘리고 팀은 다음 전원 관리 드롭도 준비 중입니다. 저는 드라이버와 펌웨어를 함께 업데이트한 뒤 통합 브랜치에서 V31을 받지 않는 일괄 전환을 선호합니다. 기능에 따른 대체 동작은 유연해 보이지만 두 경로를 무기한 유지하게 할 수 있습니다. 프로그램에서 짧은 전환 기간과 분명한 제거 날짜를 정할 수 있을까요? 그렇지 않으면 임시 디코더가 비용 승인 없이 장기 지원 부담에 들어갑니다."
+        },
+        {
+          "speaker": "Noah Ellis",
+          "en": "A coordinated cutover works for boards we can update immediately, but twelve remote lab units cannot receive the firmware package until their maintenance slot next week. Rejecting V31 would remove those units from integration coverage at exactly the wrong time. I propose a two-week transition with explicit format negotiation during handshake. The default must remain the legacy decoder until both sides confirm the new capability. We can remove the legacy path on October twenty-ninth after the inventory proves every active unit has moved. That is a bounded compatibility plan, not a promise to support arbitrary firmware forever.",
+          "ko": "일괄 전환은 즉시 업데이트할 수 있는 보드에는 맞지만 원격 실험실 기기 12대는 다음 주 유지보수 시간 전까지 펌웨어 패키지를 받을 수 없습니다. V31을 거부하면 중요한 시점에 그 기기들이 통합 검증에서 빠집니다. handshake 중 명시적인 형식 협상을 하는 2주 전환을 제안합니다. 양측이 새 기능을 확인하기 전에는 기본값을 기존 디코더로 유지해야 합니다. 목록에서 활성 기기 모두가 옮겨 갔음을 증명한 뒤 10월 29일에 구경로를 제거할 수 있습니다. 이는 임의의 펌웨어를 영구 지원하겠다는 약속이 아니라 제한된 호환성 계획입니다."
+        },
+        {
+          "speaker": "Tomas Varga",
+          "en": "I can implement negotiation without maintaining two firmware branches. V32 will advertise the new counter capability but send the old packet layout until the host explicitly selects version two. The host selection is acknowledged before any sensor stream starts. If that acknowledgment is absent or malformed, the driver must fail initialization rather than guess. This keeps packet format stable for a session. We also need to prevent switching formats while a batch is queued; the only valid switch point is before stream activation or after a full hub restart. I will document that state transition so both implementations enforce it.",
+          "ko": "펌웨어 브랜치 두 개를 유지하지 않고 협상을 구현할 수 있습니다. V32는 새 카운터 기능을 알리되 호스트가 명시적으로 버전 2를 선택할 때까지 구패킷 형식을 보냅니다. 센서 스트림 시작 전에 호스트 선택을 확인합니다. 확인이 없거나 형식이 잘못됐으면 추측하지 말고 드라이버 초기화를 실패시켜야 합니다. 그러면 세션 내 패킷 형식이 안정적으로 유지됩니다. 배치가 대기 중일 때 형식 전환도 막아야 합니다. 유효한 전환 시점은 스트림 활성화 전이나 허브 전체 재시작 후뿐입니다. 두 구현이 이를 강제하도록 상태 전이를 문서화하겠습니다."
+        },
+        {
+          "speaker": "Sujin Ko",
+          "en": "That avoids one class of ambiguity, but I want negative tests, not just a successful handshake. We should test a missing acknowledgment, an unsupported version, a frequency value of zero, and a generation change while the first batch is draining. The driver must reject invalid metadata without delivering invented timestamps. For the legacy path, we need an accelerated wrap test that starts the counter near its maximum; waiting for a natural wrap would consume too much lab time. The test report must distinguish intentional discontinuity after reset from an ordering violation within a continuous generation.",
+          "ko": "그 방안은 모호성 한 종류를 피하지만 성공 handshake만이 아니라 실패 경로 테스트가 필요합니다. 확인 누락, 미지원 버전, 주파수 0, 첫 배치 drain 중 generation 변경을 시험해야 합니다. 드라이버는 만들어 낸 타임스탬프를 전달하지 않고 잘못된 메타데이터를 거부해야 합니다. 구경로에서는 카운터를 최대값 가까이서 시작하는 가속 순환 테스트가 필요합니다. 자연 순환을 기다리면 실험실 시간이 너무 많이 듭니다. 보고서는 reset 후 의도된 불연속과 연속 generation 내 순서 위반을 구분해야 합니다."
+        },
+        {
+          "speaker": "Eunji Baek",
+          "en": "We can accept the two-week transition if it has an owner and a removal gate. Noah will own the host compatibility path, and Maya will own the remote-unit upgrade inventory. October twenty-ninth is the planned removal date, conditional on all active units completing the update and the legacy wrap evidence being archived. If one unit remains blocked, we will decide whether to exclude it from the shared branch rather than silently extend the decoder. Monday's V32 acceptance will require negotiation and epoch handling; the wider counter alone is not sufficient. Does that give each team a concrete commitment it can deliver?",
+          "ko": "담당자와 제거 기준이 있다면 2주 전환을 받아들일 수 있습니다. Noah는 호스트 호환성 경로를, Maya는 원격 기기 업데이트 목록을 맡습니다. 모든 활성 기기가 업데이트를 완료하고 구경로 순환 검증 증거가 보관되는 조건으로 10월 29일 제거를 계획합니다. 한 기기가 계속 막히면 디코더 기간을 조용히 늘리지 말고 공용 브랜치에서 그 기기를 제외할지 결정합니다. 월요일 V32 인수에는 협상과 epoch 처리가 필요하며 넓은 카운터만으로는 충분하지 않습니다. 각 팀이 전달할 수 있는 구체적인 약속이 됐나요?"
+        }
+      ]
+    },
+    {
+      "title_en": "Acceptance gates and assigned work",
+      "title_ko": "인수 기준과 작업 배정",
+      "turns": [
+        {
+          "speaker": "Noah Ellis",
+          "en": "Yes. I will deliver the host prototype by tomorrow, October sixteenth, at noon Seoul time. It will store an epoch snapshot per batch, split batches at generation changes, and expose counters for discarded partial packets. I will keep timestamp conversion separate from packet decoding so we can test both formats against the same clock rules. The prototype will not sort or clamp timestamps to make failures disappear. I will attach unit tests using a synthetic offset shift, an accelerated legacy wrap, and a reset boundary. The review will show the expected output sequence for each case.",
+          "ko": "네. 내일 10월 16일 서울 시간 정오까지 호스트 시제품을 전달하겠습니다. 배치별 epoch 스냅샷을 저장하고 generation 변경 시 배치를 나누며 버린 부분 패킷 카운터를 노출합니다. 같은 시계 규칙으로 두 형식을 시험할 수 있도록 타임스탬프 변환과 패킷 디코딩을 분리하겠습니다. 실패를 없애 보이게 하려고 정렬하거나 타임스탬프를 제한하지 않습니다. 합성 오프셋 변화, 가속 구경로 순환, reset 경계를 사용하는 단위 테스트를 첨부합니다. 검토에서 각 사례의 예상 출력 sequence를 보여 주겠습니다."
+        },
+        {
+          "speaker": "Maya Raman",
+          "en": "Velora will provide a V32 candidate with negotiated format selection by tomorrow at ten in the morning. The package will include the capability document, firmware identifier, counter frequency for both board configurations, and recovery-record definition. Tomas will verify that the selected layout remains fixed until restart. I will send the remote lab inventory by three today, including the maintenance slot for each of the twelve units. If an upgrade date cannot be confirmed, that unit will be marked unresolved rather than counted as complete. We will review the inventory again before the October twenty-ninth removal decision.",
+          "ko": "Velora는 내일 오전 10시까지 협상된 형식 선택 기능이 있는 V32 후보를 제공합니다. 패키지에는 기능 문서, 펌웨어 식별자, 두 보드 설정의 카운터 주파수, 복구 기록 정의가 들어갑니다. Tomas가 선택된 레이아웃이 재시작까지 고정되는지 검증합니다. 저는 기기 12대 각각의 유지보수 시간과 함께 오늘 오후 3시까지 원격 실험실 목록을 보내겠습니다. 업데이트 날짜를 확인할 수 없는 기기는 완료로 세지 않고 미해결로 표시합니다. 10월 29일 제거 결정 전에 목록을 다시 검토합니다."
+        },
+        {
+          "speaker": "Sujin Ko",
+          "en": "Quality will begin the matrix tomorrow afternoon after both identifiers are frozen. We will cover two board configurations, both packet formats, batching on and off, and suspend intervals of one, ten, and thirty minutes. Each continuous-generation run requires zero timestamp reversals and a maximum conversion error of two milliseconds against the reference clock. Reset runs may lose one incomplete packet, but they must report the loss and resume within five hundred milliseconds. I will also compare orientation output against the direct-delivery baseline. Passing low-level timestamps should not excuse a visible motion discontinuity that our reference device does not show.",
+          "ko": "두 식별자가 확정되면 Quality가 내일 오후 매트릭스를 시작합니다. 보드 설정 두 개, 패킷 형식 두 개, 배치 켜짐과 꺼짐, 절전 1분·10분·30분을 다룹니다. 연속 generation 실행은 타임스탬프 역전 0건, 기준 시계 대비 최대 변환 오차 2밀리초를 요구합니다. reset 실행은 불완전 패킷 하나를 잃을 수 있지만 손실을 보고하고 500밀리초 안에 재개해야 합니다. 방향 출력을 직접 전달 기준과도 비교하겠습니다. 하위 타임스탬프가 통과했다고 기준 기기에는 없는 눈에 보이는 움직임 불연속을 허용해서는 안 됩니다."
+        },
+        {
+          "speaker": "Tomas Varga",
+          "en": "I will provide an external pulse reference and a capture script that records raw ticks, generation, epoch identifier, and converted time together. The pulse is sampled by the hub and timestamped by the host test instrument, giving us a common event without assuming that their clocks are already aligned. We will measure reference uncertainty before using the two-millisecond gate. If uncertainty exceeds half a millisecond, that run is inconclusive rather than failed or passed. I will also add a diagnostic control to inject a reset between packet fragments, so the partial-packet policy can be verified deterministically.",
+          "ko": "원본 tick, generation, epoch 식별자, 변환 시간을 함께 기록하는 캡처 스크립트와 외부 펄스 기준을 제공하겠습니다. 펄스는 허브가 샘플링하고 호스트 테스트 장비가 시간을 찍으므로 시계가 이미 정렬됐다고 가정하지 않고 공통 사건을 얻습니다. 2밀리초 기준을 쓰기 전에 기준의 불확실성을 측정합니다. 불확실성이 0.5밀리초를 넘으면 통과나 실패가 아니라 결론 불가입니다. 패킷 조각 사이에 reset을 넣는 진단 제어도 추가해 부분 패킷 정책을 결정적으로 검증할 수 있게 하겠습니다."
+        },
+        {
+          "speaker": "Eunji Baek",
+          "en": "I will reserve Monday's integration slot but make acceptance conditional on the matrix, not on package arrival. We will first merge the epoch correction into an isolated validation branch, then pair it with negotiated V32 on the shared branch only after approval. This lets us compare V31 and V32 without bundling every change into one result. The release record will list packet format, firmware identifier, host commit, and board configuration. A result missing any of those fields cannot support acceptance. I will notify the dependent motion team today that Monday is a target with explicit gates, not an unconditional delivery promise.",
+          "ko": "월요일 통합 시간을 확보하되 패키지 도착이 아니라 매트릭스에 따라 인수를 결정합니다. 먼저 epoch 수정을 격리된 검증 브랜치에 병합하고 승인 후에만 협상된 V32와 함께 공용 브랜치에 넣습니다. 그러면 모든 변경을 하나의 결과에 묶지 않고 V31과 V32를 비교할 수 있습니다. 릴리스 기록에는 패킷 형식, 펌웨어 식별자, 호스트 커밋, 보드 설정을 적습니다. 그 필드 하나라도 없는 결과는 인수를 뒷받침하지 못합니다. 오늘 의존하는 모션 팀에 월요일은 무조건적인 전달 약속이 아니라 명시적인 기준이 있는 목표라고 알리겠습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Follow-up and final clarifications",
+      "title_ko": "후속 회의와 최종 확인",
+      "turns": [
+        {
+          "speaker": "Eunji Baek",
+          "en": "The acceptance review is Monday, October nineteenth, at nine thirty in the morning Seoul time, before the integration slot at eleven. Sujin will post preliminary results on Friday evening and final evidence by nine Monday. We will choose among accepting the negotiated drop, accepting only the epoch correction, or holding both for unresolved correctness failures. There is no requirement to choose the most feature-rich option. The decision should follow the evidence and preserve a usable integration branch. I will keep a separate October twenty-ninth checkpoint for legacy-path removal, with the remote-unit inventory as its primary input.",
+          "ko": "인수 검토는 10월 19일 월요일 서울 시간 오전 9시 30분이며 통합 시간인 11시 전입니다. Sujin은 금요일 저녁 예비 결과, 월요일 오전 9시까지 최종 증거를 게시합니다. 협상된 드롭 인수, epoch 수정만 인수, 미해결 정확성 실패로 둘 다 보류 중에서 선택합니다. 기능이 가장 많은 선택지를 골라야 하는 것은 아닙니다. 결정은 증거를 따르고 사용 가능한 통합 브랜치를 유지해야 합니다. 원격 기기 목록을 주요 입력으로 삼는 구경로 제거 점검은 10월 29일에 별도로 유지하겠습니다."
+        },
+        {
+          "speaker": "Noah Ellis",
+          "en": "One clarification on the framework API: applications will continue receiving timestamps in the existing elapsed-time domain. The new counter is an internal transport detail, not a new public time unit. We will not expose raw hub ticks to applications or ask them to repair ordering. The discontinuity record will be consumed by the driver and quality instrumentation, while normal sensor delivery resumes with the new epoch. I will document that distinction in the host change. It prevents an internal protocol migration from becoming an accidental application compatibility change, and it keeps the test expectations aligned with the user-facing contract.",
+          "ko": "프레임워크 API를 하나 명확히 하겠습니다. 애플리케이션은 기존 elapsed-time 영역의 타임스탬프를 계속 받습니다. 새 카운터는 내부 전송 세부 사항이며 새 공개 시간 단위가 아닙니다. 원본 허브 tick을 앱에 노출하거나 앱에 순서를 복구해 달라고 하지 않습니다. 불연속 기록은 드라이버와 품질 계측이 소비하며 정상 센서 전달은 새 epoch로 재개합니다. 호스트 변경에 그 구분을 문서화하겠습니다. 그러면 내부 프로토콜 전환이 우발적인 앱 호환성 변경이 되는 것을 막고 테스트 기대치를 사용자 계약에 맞출 수 있습니다."
+        },
+        {
+          "speaker": "Sujin Ko",
+          "en": "For Monday, I will show the raw event sequence beside the converted sequence and the reference pulse. Reviewers should be able to locate the suspend boundary, offset refresh, and reset without reading a long narrative. I will include the worst passing conversion error and every inconclusive run, not just an average. If the thirty-minute batch fails while short batches pass, we will not narrow the acceptance claim quietly; we will propose a documented batching limit and ask the motion team whether it still meets their requirement. Any limit must be visible in the release note and enforced by the driver.",
+          "ko": "월요일에는 원본 이벤트 sequence와 변환 sequence, 기준 펄스를 나란히 보여 주겠습니다. 검토자가 긴 설명 없이 절전 경계, 오프셋 갱신, reset을 찾을 수 있어야 합니다. 평균만이 아니라 통과한 변환 오차의 최악값과 결론 불가 실행을 모두 포함합니다. 짧은 배치는 통과하지만 30분 배치가 실패하면 인수 주장 범위를 조용히 줄이지 않겠습니다. 문서화된 배치 한도를 제안하고 모션 팀에 요구사항을 충족하는지 묻겠습니다. 한도는 릴리스 노트에 보이고 드라이버가 강제해야 합니다."
+        },
+        {
+          "speaker": "Maya Raman",
+          "en": "I accept the negotiated transition and the evidence schedule. I will correct the compatibility wording in the V32 notes today, before the candidate package is distributed. The note will say that packet length is unchanged but payload interpretation requires version selection, and that collection epochs are part of the host contract. I will also identify the firmware owner responsible for future capability additions. No reserved field will be repurposed without a versioned definition and a host review. That should make the next drop easier to integrate instead of leaving the same ambiguity for another team to discover.",
+          "ko": "협상된 전환과 증거 일정에 동의합니다. 후보 패키지를 배포하기 전에 오늘 V32 노트의 호환성 표현을 고치겠습니다. 패킷 길이는 같지만 페이로드 해석에 버전 선택이 필요하고 수집 epoch는 호스트 계약의 일부라고 적습니다. 향후 기능 추가를 책임질 펌웨어 담당자도 지정합니다. 버전 정의와 호스트 검토 없이 예약 필드의 용도를 바꾸지 않습니다. 그러면 다른 팀이 같은 모호성을 발견하도록 남겨 두는 대신 다음 드롭을 더 쉽게 통합할 수 있습니다."
+        },
+        {
+          "speaker": "Tomas Varga",
+          "en": "I have the packet and clock actions. Before tomorrow's handoff I will replay the captured failure through both decoders and attach the expected sequence, including the six-millisecond offset change. That replay should show the epoch correction repairing the old behavior independently of the wider counter. I will then run the negotiation failure cases with Noah so our error handling agrees. If either side interprets an unsupported version differently, we will resolve it in the interface document before Quality starts the matrix. I will send the capture tools this afternoon, so Sujin can verify the reference setup while the candidate is being built.",
+          "ko": "패킷과 시계 작업을 확인했습니다. 내일 인계 전에 수집한 실패를 두 디코더로 재생하고 6밀리초 오프셋 변화를 포함한 예상 sequence를 첨부하겠습니다. 재생에서는 넓은 카운터와 독립적으로 epoch 수정이 구동작을 복구함을 보여야 합니다. 그다음 Noah와 협상 실패 사례를 실행해 오류 처리를 맞추겠습니다. 미지원 버전을 양측이 다르게 해석하면 Quality가 매트릭스를 시작하기 전에 인터페이스 문서에서 해결합니다. 오늘 오후 캡처 도구를 보내 후보 빌드 중 Sujin이 기준 장비 설정을 검증할 수 있게 하겠습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "an explicit version agreement",
+      "meaning_ko": "명시적인 버전 합의",
+      "usage_ko": "인터페이스 형식에 합의할 때",
+      "example": "We need an explicit version agreement rather than a note that asks integration to guess.",
+      "practice": "We need an explicit version agreement before enabling the new decoder."
+    },
+    {
+      "phrase": "which clock domain",
+      "meaning_ko": "어떤 시계 영역",
+      "usage_ko": "타임스탬프 기준을 확인할 때",
+      "example": "I need the interface to say which clock domain an event belongs to, how tick frequency is established, and whether one conversion epoch covers the whole batch.",
+      "practice": "Please specify which clock domain the trace uses."
+    },
+    {
+      "phrase": "distinguish a late delivery from a timestamp reversal",
+      "meaning_ko": "전달 지연과 타임스탬프 역전을 구분하다",
+      "usage_ko": "배치 지연과 정확성 오류를 나눌 때",
+      "example": "Sujin, distinguish a late delivery from a timestamp reversal; applications can tolerate batching delay while still requiring ordered event time.",
+      "practice": "Can the test distinguish a late delivery from a timestamp reversal?"
+    },
+    {
+      "phrase": "predates the sixty-four-bit format",
+      "meaning_ko": "64비트 형식 이전부터 존재하다",
+      "usage_ko": "결함과 신규 변경의 관계를 설명할 때",
+      "example": "I can reproduce the conversion error on V31 as well by forcing the offset change, so the defect predates the sixty-four-bit format.",
+      "practice": "This conversion defect predates the sixty-four-bit format."
+    },
+    {
+      "phrase": "an immutable snapshot",
+      "meaning_ko": "변경 불가능한 스냅샷",
+      "usage_ko": "수집 당시 상태를 보존할 때",
+      "example": "I propose preserving the collection epoch with each batch and converting with an immutable snapshot of its frequency and offset.",
+      "practice": "Store an immutable snapshot of the calibration data."
+    },
+    {
+      "phrase": "a bounded loss",
+      "meaning_ko": "제한된 손실",
+      "usage_ko": "reset 중 허용할 손실을 정할 때",
+      "example": "We can guarantee complete packets within one generation, preserve their collection epoch, and report a bounded loss when a reset interrupts a packet.",
+      "practice": "Recovery may cause a bounded loss that must be reported."
+    },
+    {
+      "phrase": "a coordinated cutover",
+      "meaning_ko": "조율된 일괄 전환",
+      "usage_ko": "드라이버와 펌웨어를 함께 바꿀 때",
+      "example": "I would prefer a coordinated cutover: update the driver and firmware together, then stop accepting V31 on the integration branch.",
+      "practice": "A coordinated cutover requires every lab to be ready."
+    },
+    {
+      "phrase": "a two-week transition",
+      "meaning_ko": "2주 전환 기간",
+      "usage_ko": "구버전 지원 기한을 설정할 때",
+      "example": "I propose a two-week transition with explicit format negotiation during handshake.",
+      "practice": "We agreed on a two-week transition for remote devices."
+    },
+    {
+      "phrase": "fail initialization rather than guess",
+      "meaning_ko": "추측하지 않고 초기화를 실패시키다",
+      "usage_ko": "잘못된 프로토콜 협상을 처리할 때",
+      "example": "If that acknowledgment is absent or malformed, the driver must fail initialization rather than guess.",
+      "practice": "The driver must fail initialization rather than guess the packet format."
+    },
+    {
+      "phrase": "accelerated wrap test",
+      "meaning_ko": "가속 순환 테스트",
+      "usage_ko": "카운터 순환을 빠르게 재현할 때",
+      "example": "For the legacy path, we need an accelerated wrap test that starts the counter near its maximum; waiting for a natural wrap would consume too much lab time.",
+      "practice": "Add an accelerated wrap test to the nightly suite."
+    },
+    {
+      "phrase": "conditional on the matrix",
+      "meaning_ko": "매트릭스 결과를 조건으로",
+      "usage_ko": "증거에 따라 인수를 결정할 때",
+      "example": "I will reserve Monday's integration slot but make acceptance conditional on the matrix, not on package arrival.",
+      "practice": "Acceptance is conditional on the matrix passing every required case."
+    },
+    {
+      "phrase": "zero timestamp reversals",
+      "meaning_ko": "타임스탬프 역전 0건",
+      "usage_ko": "순서 정확성 기준을 정할 때",
+      "example": "Each continuous-generation run requires zero timestamp reversals and a maximum conversion error of two milliseconds against the reference clock.",
+      "practice": "The continuous-generation test requires zero timestamp reversals."
+    },
+    {
+      "phrase": "inconclusive rather than failed or passed",
+      "meaning_ko": "통과나 실패가 아니라 결론 불가",
+      "usage_ko": "측정 불확실성이 큰 결과를 분류할 때",
+      "example": "If uncertainty exceeds half a millisecond, that run is inconclusive rather than failed or passed.",
+      "practice": "Label this result inconclusive rather than failed or passed."
+    },
+    {
+      "phrase": "an accidental application compatibility change",
+      "meaning_ko": "우발적인 앱 호환성 변경",
+      "usage_ko": "내부 변경이 외부 계약을 바꾸는 것을 막을 때",
+      "example": "It prevents an internal protocol migration from becoming an accidental application compatibility change, and it keeps the test expectations aligned with the user-facing contract.",
+      "practice": "Do not let a transport update become an accidental application compatibility change."
+    },
+    {
+      "phrase": "without a versioned definition",
+      "meaning_ko": "버전이 지정된 정의 없이",
+      "usage_ko": "예약 필드 변경 규칙을 정할 때",
+      "example": "No reserved field will be repurposed without a versioned definition and a host review.",
+      "practice": "Never reuse a reserved field without a versioned definition."
+    }
+  ]
+}
