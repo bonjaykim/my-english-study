@@ -1,0 +1,294 @@
+{
+  "date": "2026-10-16",
+  "category": "business",
+  "topic": "sw-field",
+  "subject": "Restoring Managed VPN DNS after Android Network Handover",
+  "title_ko": "Android 네트워크 전환 후 관리 VPN의 DNS 복구 협의",
+  "summary_ko": "가상의 Android 기업용 단말 현장 대응 회의에서 Wi-Fi에서 모바일로 전환한 뒤 관리 VPN의 내부 이름 조회만 실패하는 문제를 논의합니다. 터널과 resolver 증거를 구분하고 lockdown을 유지하는 임시 복구, generation 기반 갱신, 고객 시험 조건을 정합니다. 모든 인물·기업·제품·빌드·로그·결함·수치·일정은 영어 학습을 위한 가상 교육용 설정입니다.",
+  "participants": [
+    {
+      "name": "Yuna Shin",
+      "team": "Enterprise Field Quality"
+    },
+    {
+      "name": "Evan Price",
+      "team": "Android Networking"
+    },
+    {
+      "name": "Meera Rao",
+      "team": "Android Networking"
+    },
+    {
+      "name": "Joon Park",
+      "team": "Enterprise Support"
+    },
+    {
+      "name": "Clara Weiss",
+      "team": "System Validation"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and customer impact",
+      "title_ko": "참석 확인과 고객 영향",
+      "turns": [
+        {
+          "speaker": "Yuna Shin",
+          "en": "Thank you for joining on short notice. Evan and Meera are here from Android Networking, Joon represents Enterprise Support, and Clara owns System Validation. We have seventeen reports from managed Kestrel phones running maintenance build E24. Users leave office Wi-Fi, switch to mobile data, and find that internal business applications stop opening new sessions. The VPN icon remains visible, and public websites still work in the personal profile. We need a reliable recovery instruction for administrators today and a technical plan that preserves the managed profile's network policy. Please do not describe the whole internet connection as broken; the reports point to a narrower failure.",
+          "ko": "급히 잡은 회의에 참석해 주셔서 감사합니다. Android Networking의 Evan과 Meera, Enterprise Support의 Joon, System Validation의 Clara가 참석했습니다. 유지보수 빌드 E24를 사용하는 관리형 Kestrel 휴대전화에서 17건의 보고가 있습니다. 사용자가 사무실 Wi-Fi를 떠나 모바일 데이터로 전환하면 사내 업무 앱에서 새 세션을 열 수 없습니다. VPN 아이콘은 계속 보이고 개인 프로필의 공개 웹사이트는 정상 동작합니다. 오늘 관리자에게 제공할 신뢰할 수 있는 복구 안내와 관리 프로필 네트워크 정책을 유지하는 기술 계획이 필요합니다. 전체 인터넷 연결이 끊겼다고 표현하지 말아 주세요. 보고는 더 좁은 실패를 가리킵니다."
+        },
+        {
+          "speaker": "Joon Park",
+          "en": "The affected administrators manage three separate fleets, all using the same enterprise VPN client but different gateways. Existing chat messages sometimes continue arriving, while a newly opened inventory application times out. Several users recovered by restarting the phone, but that interrupts their work and erases the transient state we need. One administrator asked us to disable always-on VPN temporarily. I have not recommended that because their lockdown policy intentionally blocks managed traffic outside the tunnel. Support needs an approved alternative, with a clear warning if it briefly interrupts managed sessions. We also need to know what evidence to collect before recovery.",
+          "ko": "영향받은 관리자는 서로 다른 기기군 세 개를 관리하며 같은 기업용 VPN 클라이언트를 쓰지만 게이트웨이는 다릅니다. 기존 채팅 메시지는 계속 들어오기도 하지만 새로 연 재고 앱은 시간 초과됩니다. 몇 사용자는 휴대전화를 재시작해 복구했지만 업무가 중단되고 필요한 일시 상태가 사라집니다. 관리자 한 명이 always-on VPN을 잠시 끄자고 요청했습니다. 하지만 lockdown 정책은 터널 외부의 관리 트래픽을 의도적으로 막으므로 권하지 않았습니다. 지원팀에는 관리 세션을 잠깐 끊는다면 이를 분명히 알리는 승인된 대안이 필요합니다. 복구 전에 수집할 증거도 알아야 합니다."
+        },
+        {
+          "speaker": "Evan Price",
+          "en": "I reviewed six bug reports. The tunnel is established on the mobile network, and its byte counters continue increasing. A connection to an internal test server by numerical address succeeds, while resolving that server's name fails. That separates tunnel transport from name resolution. It does not prove a resolver defect yet, because the enterprise DNS server might reject queries after an address change. We should compare where the query is sent, which network identifier it carries, and whether the gateway receives it. The VPN icon only tells us that the tunnel interface exists; it cannot certify that every service above it is healthy.",
+          "ko": "버그 리포트 여섯 개를 검토했습니다. 터널은 모바일 네트워크에서 연결되고 바이트 카운터도 계속 증가합니다. 내부 테스트 서버에 숫자 주소로 연결하면 성공하지만 그 서버의 이름 해석은 실패합니다. 이는 터널 전송과 이름 해석을 구분합니다. 다만 기업 DNS 서버가 주소 변경 후 쿼리를 거부할 수 있으므로 아직 resolver 결함을 증명하지는 않습니다. 쿼리 전송 위치, 쿼리가 사용하는 네트워크 식별자, 게이트웨이 수신 여부를 비교해야 합니다. VPN 아이콘은 터널 인터페이스가 있다는 것만 알려 주며 그 위의 모든 서비스가 정상이라고 보증하지는 않습니다."
+        },
+        {
+          "speaker": "Meera Rao",
+          "en": "The suspicious event is a resolver configuration callback arriving after the old Wi-Fi network has been removed. E24 added an optimization that avoids rebuilding an unchanged DNS server list. The server addresses remain identical across the handover, but the resolver context includes more than those addresses. It also carries the VPN's underlying network association. If that association remains tied to the removed Wi-Fi network, queries can fail even though the new tunnel route works. I can see a skipped update in the logs, but I need a trace with network identifiers to distinguish a stale context from a gateway-side rejection.",
+          "ko": "의심되는 사건은 이전 Wi-Fi 네트워크가 제거된 뒤 resolver 설정 콜백이 도착하는 것입니다. E24에는 DNS 서버 목록이 같으면 재구성을 피하는 최적화가 추가됐습니다. 서버 주소는 전환 전후 같지만 resolver context에는 그 주소 외의 정보도 들어 있습니다. VPN의 기반 네트워크 연결 관계도 포함합니다. 그 관계가 제거된 Wi-Fi에 묶여 있으면 새 터널 라우트가 정상이어도 쿼리가 실패할 수 있습니다. 로그에서 갱신 생략이 보이지만 오래된 context와 게이트웨이 거부를 구분하려면 네트워크 식별자가 있는 트레이스가 필요합니다."
+        },
+        {
+          "speaker": "Clara Weiss",
+          "en": "Validation has reproduced the symptom on two devices, but only when Wi-Fi disappears abruptly. A manual switch with both networks available has passed so far. We used a managed profile with lockdown enabled and split DNS, where internal names use the enterprise resolver. I want to keep that configuration fixed for the first experiment. Testing every VPN mode immediately would make the result difficult to interpret. Once we understand the failure, we can expand to full-tunnel and personal-profile controls. The first question is whether a query reaches the VPN gateway after the handover, not whether a browser happens to load a cached page.",
+          "ko": "검증팀은 두 기기에서 증상을 재현했지만 Wi-Fi가 갑자기 사라질 때만 발생했습니다. 두 네트워크가 모두 있는 상태의 수동 전환은 지금까지 통과했습니다. lockdown을 켠 관리 프로필과 내부 이름이 기업 resolver를 사용하는 split DNS 구성을 썼습니다. 첫 실험에는 그 설정을 고정하고 싶습니다. 모든 VPN 모드를 즉시 시험하면 결과 해석이 어려워집니다. 실패를 이해한 뒤 full-tunnel과 개인 프로필 대조군으로 확대할 수 있습니다. 첫 질문은 브라우저가 캐시 페이지를 여는지가 아니라 전환 후 쿼리가 VPN 게이트웨이에 도착하는지입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and failure boundaries",
+      "title_ko": "증거와 실패 범위",
+      "turns": [
+        {
+          "speaker": "Yuna Shin",
+          "en": "Let us define the evidence request before we ask customers for another capture. We should not collect internal hostnames or credentials when a controlled test name will answer the question. Joon, can the administrators provide a dedicated diagnostic hostname and gateway-side query count? Evan and Meera, explain the minimum device metadata needed to correlate the transition. Clara, please separate fresh lookups from existing connections in the test script. The customer impact is serious, but a broad packet dump would create extra handling work without necessarily telling us which context the resolver used.",
+          "ko": "고객에게 다시 수집을 요청하기 전에 증거 요청을 정의합시다. 통제된 테스트 이름으로 답할 수 있다면 내부 호스트 이름이나 자격 증명을 수집하면 안 됩니다. Joon, 관리자가 전용 진단 호스트 이름과 게이트웨이 측 쿼리 수를 제공할 수 있을까요? Evan과 Meera는 전환을 연계 분석하는 데 필요한 최소 기기 메타데이터를 설명해 주세요. Clara는 스크립트에서 새 조회와 기존 연결을 구분해 주세요. 고객 영향은 심각하지만 광범위한 패킷 덤프는 resolver가 어느 context를 썼는지 알려 주지 않으면서 처리 부담만 늘릴 수 있습니다."
+        },
+        {
+          "speaker": "Joon Park",
+          "en": "Two administrators can create a diagnostic name today and return only whether its query reached the gateway. The third fleet cannot change DNS until Monday, so we should not hold the whole investigation for that environment. I can ask for the handover time, build identifier, VPN client version, managed-profile status, and a short system trace around the failure. We will replace actual network names with consistent labels before sharing. The labels must preserve which old network became unavailable and which new network took over; otherwise redaction would remove exactly the relationship we are trying to inspect.",
+          "ko": "관리자 두 명은 오늘 진단 이름을 만들고 쿼리가 게이트웨이에 도착했는지만 알려 줄 수 있습니다. 세 번째 기기군은 월요일까지 DNS를 바꿀 수 없으므로 그 환경 때문에 전체 조사를 멈추면 안 됩니다. 전환 시각, 빌드 식별자, VPN 클라이언트 버전, 관리 프로필 상태, 실패 전후의 짧은 시스템 트레이스를 요청하겠습니다. 공유 전에 실제 네트워크 이름을 일관된 표식으로 바꿉니다. 어떤 이전 네트워크가 사라지고 어떤 새 네트워크가 인계했는지는 표식에 남겨야 합니다. 그렇지 않으면 가림 처리로 조사하려는 관계 자체를 없애게 됩니다."
+        },
+        {
+          "speaker": "Evan Price",
+          "en": "The minimum trace needs network creation and removal, VPN underlying-network changes, resolver configuration generations, and query outcome codes. We do not need query content. In the lab I can add a synthetic lookup identifier to correlate device and gateway counts. If the query fails before transmission with an unavailable-network result, that supports a stale resolver context. If the gateway receives it and rejects it, we must investigate policy or server state instead. A successful numerical-address connection is a useful control, but it must target the same internal endpoint through the same managed profile rather than a public service.",
+          "ko": "최소 트레이스에는 네트워크 생성과 제거, VPN 기반 네트워크 변경, resolver 설정 generation, 쿼리 결과 코드가 필요합니다. 쿼리 내용은 필요하지 않습니다. 실험실에서는 기기와 게이트웨이 수를 맞추기 위해 합성 조회 식별자를 추가할 수 있습니다. 전송 전에 사용 불가능한 네트워크 결과로 실패하면 오래된 resolver context 가설을 뒷받침합니다. 게이트웨이가 받아 거부하면 정책이나 서버 상태를 조사해야 합니다. 숫자 주소 연결 성공은 유용한 대조군이지만 공개 서비스가 아니라 같은 관리 프로필을 통해 같은 내부 endpoint를 대상으로 해야 합니다."
+        },
+        {
+          "speaker": "Meera Rao",
+          "en": "I have a preliminary timeline from Clara's first device. The mobile tunnel becomes ready at second twelve. At second thirteen, the VPN publishes its new underlying network. At second fourteen, the resolver update is skipped because the server address list is unchanged. Fresh lookups then fail locally, and the gateway count stays flat. Restarting the VPN client rebuilds the resolver and restores name resolution. That is a strong chain of evidence, but we should test the inverse: change the DNS list while preserving the same handover. If the optimization is responsible, forcing a configuration difference should prevent the skipped update and the failure.",
+          "ko": "Clara의 첫 기기에서 예비 타임라인을 얻었습니다. 12초에 모바일 터널이 준비되고 13초에 VPN이 새 기반 네트워크를 알립니다. 14초에는 서버 주소 목록이 같다는 이유로 resolver 갱신이 생략됩니다. 그다음 새 조회는 로컬에서 실패하고 게이트웨이 쿼리 수는 늘지 않습니다. VPN 클라이언트를 재시작하면 resolver가 재구성되고 이름 해석이 복구됩니다. 강한 증거의 연쇄지만 반대 조건도 시험해야 합니다. 같은 전환을 유지하며 DNS 목록을 바꿔 봅시다. 최적화가 원인이라면 설정 차이를 강제하면 갱신 생략과 실패가 없어야 합니다."
+        },
+        {
+          "speaker": "Clara Weiss",
+          "en": "I can run that paired comparison, and I will add an identical-server-list control with the optimization disabled. That separates the effect of the code change from an incidental server difference. Each test will issue an uncached internal lookup, attempt a new TLS session, and keep one existing connection active. We will record all three outcomes because users care about application recovery, not only resolver success. I will also repeat the abrupt handover in the opposite direction. A Wi-Fi-to-mobile fix that breaks mobile-to-Wi-Fi would not be acceptable, especially for users moving between a warehouse and an office.",
+          "ko": "짝지은 비교를 실행하고 최적화를 끈 동일 서버 목록 대조군도 추가하겠습니다. 그러면 코드 변경 효과와 우연한 서버 차이를 구분할 수 있습니다. 각 테스트는 캐시되지 않은 내부 조회, 새 TLS 세션 시도, 기존 연결 하나 유지를 수행합니다. 사용자는 resolver 성공만이 아니라 앱 복구를 중요하게 여기므로 세 결과를 모두 기록합니다. 반대 방향의 갑작스러운 전환도 반복하겠습니다. 특히 창고와 사무실을 오가는 사용자에게 Wi-Fi에서 모바일로의 수정이 반대 전환을 깨뜨리는 것은 허용할 수 없습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Recovery options and policy constraints",
+      "title_ko": "복구 선택지와 정책 제약",
+      "turns": [
+        {
+          "speaker": "Joon Park",
+          "en": "For today's support instruction, would restarting only the VPN client be acceptable? Administrators can trigger it through their management console without disabling lockdown. The operating system should continue blocking managed traffic while the tunnel reconnects, but active calls and file transfers may be interrupted. I need a tested duration range and a way to tell whether recovery succeeded. Please do not give us an instruction that says simply reconnect and try again. The administrator should first collect the short trace, perform one controlled restart, and verify a fresh internal lookup before returning the device to work.",
+          "ko": "오늘 지원 안내로 VPN 클라이언트만 재시작하는 것이 괜찮을까요? 관리자는 lockdown을 끄지 않고 관리 콘솔에서 실행할 수 있습니다. 터널 재연결 동안 운영체제는 관리 트래픽을 계속 막아야 하지만 통화나 파일 전송은 중단될 수 있습니다. 검증된 소요 시간 범위와 복구 성공 확인 방법이 필요합니다. 단순히 다시 연결하고 재시도하라는 안내는 주지 말아 주세요. 관리자는 짧은 트레이스를 먼저 수집하고 통제된 재시작 한 번을 수행한 뒤 새 내부 조회를 확인하고 기기를 업무에 돌려보내야 합니다."
+        },
+        {
+          "speaker": "Evan Price",
+          "en": "That is the safest temporary option we have observed, provided lockdown remains enforced throughout the restart. We should explicitly verify that managed traffic does not escape to the physical network during the gap. I oppose automatic periodic VPN restarts as a workaround; they would mask the defect and repeatedly interrupt sessions. For the code fix, I favor extending the resolver configuration identity to include the underlying network association and its generation. That makes a meaningful context change trigger an update even if DNS addresses are identical. We should avoid resetting every resolver on the device, which would disturb unrelated personal traffic.",
+          "ko": "재시작 내내 lockdown이 강제된다는 조건에서 현재 관찰한 가장 안전한 임시 방안입니다. 공백 동안 관리 트래픽이 물리 네트워크로 빠져나가지 않는지 명시적으로 검증해야 합니다. 자동 주기 VPN 재시작에는 반대합니다. 결함을 숨기고 세션을 반복해서 끊을 것입니다. 코드 수정은 기반 네트워크 연결 관계와 그 generation을 resolver 설정 식별 정보에 넣는 쪽을 선호합니다. DNS 주소가 같아도 의미 있는 context 변화가 갱신을 유발합니다. 기기 전체 resolver를 초기화해 무관한 개인 트래픽을 방해하는 것은 피해야 합니다."
+        },
+        {
+          "speaker": "Meera Rao",
+          "en": "I agree on scope, but adding a generation to the comparison is not enough if callbacks arrive out of order. An old callback could overwrite the newly configured context after a rapid double handover. The update path needs to reject a configuration whose generation is older than the current VPN state. It also needs a defined behavior when the underlying network disappears during configuration. I propose retrying only against the latest valid association, with no fallback to the old network. If no association is available, queries should fail with a clear transient error until a valid update arrives.",
+          "ko": "범위에는 동의하지만 콜백 순서가 뒤바뀌면 비교에 generation을 추가하는 것만으로 부족합니다. 빠른 이중 전환 뒤 오래된 콜백이 새 context를 덮어쓸 수 있습니다. 갱신 경로는 현재 VPN 상태보다 generation이 오래된 설정을 거부해야 합니다. 설정 중 기반 네트워크가 사라질 때의 동작도 정의해야 합니다. 이전 네트워크로 되돌리지 않고 최신 유효 연결 관계만 대상으로 재시도하자고 제안합니다. 연결 관계가 없으면 유효한 갱신이 올 때까지 쿼리를 분명한 일시 오류로 실패시켜야 합니다."
+        },
+        {
+          "speaker": "Yuna Shin",
+          "en": "Would that leave customers with a longer outage than a broad reset? Field teams will challenge a narrow fix if they see it waiting while a restart recovers immediately. We need to explain the difference between correctness and recovery speed, and put a bound on both. I support avoiding personal-profile disruption, but we cannot leave managed applications indefinitely waiting for a callback that may never arrive. Could the networking service detect a missing configuration acknowledgment and request a fresh snapshot from the current VPN state, without tearing down the tunnel or changing its policy?",
+          "ko": "그러면 광범위한 초기화보다 고객 장애 시간이 더 길어질까요? 재시작은 즉시 복구하는데 제한된 수정이 기다리는 것처럼 보이면 현장팀이 문제를 제기할 것입니다. 정확성과 복구 속도의 차이를 설명하고 둘 다 한도를 정해야 합니다. 개인 프로필 방해를 피하는 데 찬성하지만 오지 않을 수도 있는 콜백을 기다리며 관리 앱을 무기한 세워 둘 수는 없습니다. 네트워킹 서비스가 설정 확인 응답 누락을 감지하고 터널을 끊거나 정책을 바꾸지 않은 채 현재 VPN 상태의 새 스냅샷을 요청할 수 있을까요?"
+        },
+        {
+          "speaker": "Evan Price",
+          "en": "Yes. We can use a two-second acknowledgment deadline, then request one fresh snapshot from the active VPN record. The retry will carry the current generation and remain scoped to that VPN's resolver. If the snapshot is unavailable, we keep the transient failure visible rather than silently route queries elsewhere. I would expose counters for stale-update rejection, acknowledgment timeout, snapshot refresh, and successful recovery. Those counters let support distinguish a recovered handover from a persistent failure. We should not promise a universal two-second application recovery, because an application may apply its own retry delay after name resolution becomes healthy.",
+          "ko": "가능합니다. 확인 응답 기한을 2초로 두고 그 후 활성 VPN 기록에서 새 스냅샷을 한 번 요청할 수 있습니다. 재시도는 현재 generation을 사용하며 해당 VPN resolver로 범위를 유지합니다. 스냅샷을 얻지 못하면 쿼리를 다른 곳으로 조용히 보내지 않고 일시 실패를 계속 드러냅니다. 오래된 갱신 거부, 확인 시간 초과, 스냅샷 갱신, 복구 성공 카운터를 노출하겠습니다. 지원팀은 이를 통해 복구된 전환과 지속 실패를 구분할 수 있습니다. 이름 해석이 정상화된 후 앱 자체 재시도 지연이 있을 수 있으므로 모든 앱이 2초 안에 복구된다고 약속해서는 안 됩니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decisions, owners, and verification",
+      "title_ko": "결정과 담당자 및 검증",
+      "turns": [
+        {
+          "speaker": "Yuna Shin",
+          "en": "We will issue a targeted administrator advisory today rather than recommend disabling VPN or rolling back every E24 device. The evidence currently points to a specific managed-profile handover path, and unaffected devices should not lose unrelated maintenance fixes. Joon owns the advisory draft by noon Seoul time. Clara must validate the restart procedure and lockdown behavior before it is sent. Evan and Meera own the scoped resolver fix, with a reviewable candidate by four this afternoon. I will keep the three fleet administrators informed and record which environments have supplied evidence, so we do not generalize from one gateway.",
+          "ko": "VPN 비활성화나 모든 E24 기기 롤백을 권하는 대신 오늘 관리자 대상 안내를 내겠습니다. 현재 증거는 특정 관리 프로필 전환 경로를 가리키며 영향 없는 기기가 무관한 유지보수 수정을 잃어서는 안 됩니다. Joon은 서울 시간 정오까지 안내 초안을 맡습니다. 보내기 전에 Clara가 재시작 절차와 lockdown 동작을 검증해야 합니다. Evan과 Meera는 범위가 제한된 resolver 수정을 맡고 오늘 오후 4시까지 검토 가능한 후보를 준비합니다. 저는 세 기기군 관리자에게 알리고 증거를 제공한 환경을 기록해 한 게이트웨이에서 일반화하지 않겠습니다."
+        },
+        {
+          "speaker": "Joon Park",
+          "en": "The advisory will describe the symptom precisely: fresh internal name lookups fail after an abrupt network handover while the managed VPN remains connected. It will tell administrators to collect the short trace, restart the client once under existing lockdown policy, and verify the diagnostic hostname plus a new application session. We will state that active sessions may be interrupted and schedule recovery outside critical work where possible. If one restart fails, the instruction will escalate with the capture rather than repeat indefinitely. I will avoid asking users to edit DNS settings, disable protection, or supply internal credentials.",
+          "ko": "안내에는 증상을 정확히 적겠습니다. 갑작스러운 네트워크 전환 후 관리 VPN은 연결되어 있지만 새 내부 이름 조회가 실패한다는 내용입니다. 관리자는 짧은 트레이스를 수집하고 기존 lockdown 정책 아래 클라이언트를 한 번 재시작하며 진단 호스트 이름과 새 앱 세션을 검증합니다. 활성 세션이 끊길 수 있음을 적고 가능하면 중요 업무 외 시간에 복구하도록 합니다. 한 번의 재시작이 실패하면 무한 반복하지 않고 수집 자료와 함께 상위 지원으로 넘깁니다. 사용자에게 DNS 설정 편집, 보호 해제, 내부 자격 증명 제공을 요청하지 않겠습니다."
+        },
+        {
+          "speaker": "Clara Weiss",
+          "en": "I will validate the recovery procedure by eleven thirty, then start the candidate matrix after the four-o'clock build arrives. Coverage includes abrupt and graceful handovers in both directions, rapid double handovers, tunnel reconnect, profile pause and resume, and delayed callbacks. Each case requires a fresh internal lookup, a new session, and proof that managed queries stay within the permitted path. Personal-profile lookups must remain unaffected. We will run fifty transitions per direction on each of two device configurations. Any policy escape is an immediate failure; recovery latency and application retry behavior will be reported separately.",
+          "ko": "11시 30분까지 복구 절차를 검증하고 오후 4시 빌드가 도착하면 후보 매트릭스를 시작합니다. 양방향의 갑작스럽고 정상적인 전환, 빠른 이중 전환, 터널 재연결, 프로필 일시 중지와 재개, 지연 콜백을 다룹니다. 각 사례는 새 내부 조회, 새 세션, 관리 쿼리가 허용 경로 안에 머문다는 증거를 요구합니다. 개인 프로필 조회는 영향이 없어야 합니다. 기기 구성 두 개 각각에서 방향별 50회 전환을 실행합니다. 정책 이탈은 즉시 실패이며 복구 지연과 앱 재시도 동작은 따로 보고합니다."
+        },
+        {
+          "speaker": "Meera Rao",
+          "en": "I will own the state-transition review and tests that deliver callbacks in a deliberately wrong order. The candidate must ignore an older generation, apply the current snapshot once, and avoid a retry loop when no physical network is available. I will also test the acknowledgment deadline without real-time sleeps by controlling the test clock. That keeps the unit tests repeatable. The patch description will identify exactly which configuration fields participate in equality and why. We should not replace one incomplete comparison with another undocumented shortcut that breaks when a new VPN capability is added.",
+          "ko": "상태 전이 검토와 의도적으로 잘못된 순서로 콜백을 전달하는 테스트를 맡겠습니다. 후보는 오래된 generation을 무시하고 현재 스냅샷을 한 번 적용하며 물리 네트워크가 없을 때 재시도 루프를 피해야 합니다. 테스트 시계를 제어해 실제 시간 대기 없이 확인 응답 기한도 시험합니다. 그러면 단위 테스트를 반복 가능하게 유지할 수 있습니다. 패치 설명에는 동등성 비교에 참여하는 설정 필드와 이유를 정확히 적겠습니다. 새로운 VPN 기능이 추가될 때 깨지는 또 다른 미문서화 단축 처리로 불완전한 비교를 바꾸어서는 안 됩니다."
+        },
+        {
+          "speaker": "Evan Price",
+          "en": "I will own the implementation and diagnostic counters. Before four, I will attach the candidate identifier, the unchanged-server-list comparison, and a trace showing the latest VPN generation reaching the resolver. The review will include a failure case where the network disappears during configuration and a recovery case where the acknowledgment is lost. I will not add an automatic tunnel restart to the patch. If the targeted refresh cannot recover a valid active VPN, the counters should show that limitation and trigger further investigation. That gives us a testable boundary rather than a broad reset that happens to make the symptom disappear.",
+          "ko": "구현과 진단 카운터를 맡겠습니다. 오후 4시 전에 후보 식별자, 동일 서버 목록 비교, 최신 VPN generation이 resolver에 도달하는 트레이스를 첨부합니다. 검토에는 설정 중 네트워크가 사라지는 실패 사례와 확인 응답이 유실되는 복구 사례를 포함합니다. 패치에 자동 터널 재시작을 넣지는 않습니다. 표적 갱신이 유효한 활성 VPN을 복구하지 못하면 카운터가 그 한계를 드러내고 추가 조사를 유도해야 합니다. 그러면 우연히 증상을 없애는 광범위한 초기화 대신 검증 가능한 경계가 생깁니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Customer follow-up and closure criteria",
+      "title_ko": "고객 후속 조치와 종료 기준",
+      "turns": [
+        {
+          "speaker": "Yuna Shin",
+          "en": "The technical review is Monday, October nineteenth, at ten in the morning Seoul time. Clara will publish the lab results by nine, including failures and unfinished cases. If the candidate passes, we will offer an administrator-approved trial to a small group from the two fleets that can provide diagnostic names. We will not declare the field issue resolved from lab success alone. Closure requires successful handovers in those trial environments and no policy regression. The third fleet remains explicitly unverified until its Monday DNS change is available. I will keep that distinction in the status report.",
+          "ko": "기술 검토는 10월 19일 월요일 서울 시간 오전 10시입니다. Clara는 실패와 미완료 사례를 포함한 실험실 결과를 오전 9시까지 게시합니다. 후보가 통과하면 진단 이름을 제공할 수 있는 두 기기군의 소규모 그룹에 관리자 승인 시험을 제공합니다. 실험실 성공만으로 현장 문제 해결을 선언하지 않습니다. 종료에는 그 시험 환경에서의 성공적인 전환과 정책 회귀 없음이 필요합니다. 세 번째 기기군은 월요일 DNS 변경이 가능할 때까지 명시적으로 미검증 상태입니다. 현황 보고에 그 구분을 유지하겠습니다."
+        },
+        {
+          "speaker": "Joon Park",
+          "en": "For the trial, I will ask administrators to record the number of network transitions, not just the number of phones. A device that stays at a desk all day offers little evidence about this defect. We can collect aggregate success counts and recovery counters without internal hostnames. I will also ask whether users had to reopen an application after resolver recovery, because that determines the support wording. If the platform recovers but one application retains a failed session, we should track that separately rather than dismiss the user's continued outage or claim the platform patch failed outright.",
+          "ko": "시험에서는 관리자에게 휴대전화 수만이 아니라 네트워크 전환 횟수를 기록해 달라고 하겠습니다. 하루 종일 책상에 있는 기기는 이 결함에 대한 증거가 적습니다. 내부 호스트 이름 없이 합계 성공 수와 복구 카운터를 수집할 수 있습니다. 지원 문구에 영향을 주므로 resolver 복구 후 앱을 다시 열어야 했는지도 묻겠습니다. 플랫폼은 복구됐지만 앱 하나가 실패한 세션을 유지하면 사용자의 지속 장애를 무시하거나 플랫폼 패치가 완전히 실패했다고 말하지 말고 따로 추적해야 합니다."
+        },
+        {
+          "speaker": "Clara Weiss",
+          "en": "I will present resolver recovery time from the valid network update to the first successful uncached lookup. Application recovery time will start at the same event but end at a newly established session. Reporting both avoids confusing the platform's response with an application's backoff timer. For the negative tests, I will capture packet counts on the physical interface and the VPN path to verify lockdown. Any unexpected destination will be investigated before trial approval. I will also include the baseline E24 behavior so reviewers can see that the test reproduces the original failure under identical conditions.",
+          "ko": "유효한 네트워크 갱신부터 캐시되지 않은 첫 성공 조회까지를 resolver 복구 시간으로 제시합니다. 앱 복구 시간도 같은 사건에서 시작하지만 새 세션 성립에서 끝납니다. 둘 다 보고하면 플랫폼 응답과 앱 backoff timer를 혼동하지 않습니다. 실패 경로 테스트에서는 lockdown 검증을 위해 물리 인터페이스와 VPN 경로의 패킷 수를 수집합니다. 예상 밖 목적지는 시험 승인 전에 조사합니다. 동일한 조건에서 원래 실패가 재현됨을 검토자가 볼 수 있도록 기준 E24 동작도 포함하겠습니다."
+        },
+        {
+          "speaker": "Meera Rao",
+          "en": "One final clarification: identical DNS addresses do not mean identical resolver state. I will add that principle and the generation-ordering rule to the networking design note, using the handover sequence from our trace. The note will explain how stale callbacks are rejected and why a missing acknowledgment requests a snapshot rather than a tunnel teardown. Future optimizations can still avoid redundant work, but they must compare the full state that affects routing. I will review that note with the VPN integration owner before Monday, so the change becomes a maintained contract instead of knowledge held by the people in this call.",
+          "ko": "마지막으로 하나 명확히 하겠습니다. DNS 주소가 같다고 resolver 상태가 같은 것은 아닙니다. 트레이스의 전환 sequence를 사용해 그 원칙과 generation 순서 규칙을 네트워킹 설계 노트에 추가합니다. 오래된 콜백을 거부하는 방법과 확인 누락 시 터널 해체 대신 스냅샷을 요청하는 이유를 설명합니다. 향후 최적화도 중복 작업을 피할 수 있지만 라우팅에 영향을 주는 전체 상태를 비교해야 합니다. 월요일 전에 VPN 통합 담당자와 노트를 검토해 오늘 참석자들만 가진 지식이 아니라 유지되는 계약이 되게 하겠습니다."
+        },
+        {
+          "speaker": "Yuna Shin",
+          "en": "The immediate instruction, patch owners, and review date are agreed. Joon will wait for Clara's recovery validation before sending the advisory, and I will coordinate customer updates through the existing enterprise cases. We will describe what we have observed and what remains unverified, with the next update due this afternoon at five Seoul time. If new evidence shows queries reaching the gateway during failure, we will reopen the server-side hypothesis instead of forcing every report into the stale-context explanation. Thank you; the priority is to restore managed work while keeping the customer's intended network boundary intact.",
+          "ko": "즉시 안내, 패치 담당자, 검토 날짜에 합의했습니다. Joon은 Clara의 복구 검증 후 안내를 보내고 저는 기존 기업 지원 건을 통해 고객 소식을 조율합니다. 관찰한 것과 미검증인 것을 설명하며 다음 소식은 오늘 서울 시간 오후 5시까지 제공합니다. 새 증거에서 실패 중 쿼리가 게이트웨이에 도달한다면 모든 보고를 오래된 context 설명에 억지로 맞추지 않고 서버 측 가설을 다시 열겠습니다. 감사합니다. 우선순위는 고객이 의도한 네트워크 경계를 유지하면서 관리 업무를 복구하는 것입니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "a narrower failure",
+      "meaning_ko": "더 좁은 범위의 실패",
+      "usage_ko": "전체 장애와 특정 기능 실패를 구분할 때",
+      "example": "Please do not describe the whole internet connection as broken; the reports point to a narrower failure.",
+      "practice": "The trace points to a narrower failure in name resolution."
+    },
+    {
+      "phrase": "preserves the managed profile's network policy",
+      "meaning_ko": "관리 프로필의 네트워크 정책을 유지하다",
+      "usage_ko": "복구 조치의 제약을 설명할 때",
+      "example": "We need a reliable recovery instruction for administrators today and a technical plan that preserves the managed profile's network policy.",
+      "practice": "Choose a recovery that preserves the managed profile's network policy."
+    },
+    {
+      "phrase": "separates tunnel transport from name resolution",
+      "meaning_ko": "터널 전송과 이름 해석을 구분하다",
+      "usage_ko": "문제 영역을 좁힐 때",
+      "example": "That separates tunnel transport from name resolution.",
+      "practice": "This comparison separates tunnel transport from name resolution."
+    },
+    {
+      "phrase": "a stale resolver context",
+      "meaning_ko": "오래된 resolver context",
+      "usage_ko": "갱신되지 않은 네트워크 상태를 설명할 때",
+      "example": "If the query fails before transmission with an unavailable-network result, that supports a stale resolver context.",
+      "practice": "An unchanged server list can still hide a stale resolver context."
+    },
+    {
+      "phrase": "a controlled test name",
+      "meaning_ko": "통제된 테스트 이름",
+      "usage_ko": "최소한의 진단 데이터를 수집할 때",
+      "example": "We should not collect internal hostnames or credentials when a controlled test name will answer the question.",
+      "practice": "Use a controlled test name instead of a production hostname."
+    },
+    {
+      "phrase": "a strong chain of evidence",
+      "meaning_ko": "강한 증거의 연쇄",
+      "usage_ko": "여러 관찰이 가설을 지지할 때",
+      "example": "That is a strong chain of evidence, but we should test the inverse: change the DNS list while preserving the same handover.",
+      "practice": "We need a strong chain of evidence before selecting the patch."
+    },
+    {
+      "phrase": "an incidental server difference",
+      "meaning_ko": "우연한 서버 차이",
+      "usage_ko": "실험의 혼입 변수를 구분할 때",
+      "example": "That separates the effect of the code change from an incidental server difference.",
+      "practice": "Keep the server fixed to exclude an incidental server difference."
+    },
+    {
+      "phrase": "one controlled restart",
+      "meaning_ko": "통제된 재시작 한 번",
+      "usage_ko": "지원용 복구 절차를 정할 때",
+      "example": "The administrator should first collect the short trace, perform one controlled restart, and verify a fresh internal lookup before returning the device to work.",
+      "practice": "Perform one controlled restart after collecting the trace."
+    },
+    {
+      "phrase": "scoped to that VPN's resolver",
+      "meaning_ko": "해당 VPN resolver로 범위가 한정된",
+      "usage_ko": "수정의 영향을 제한할 때",
+      "example": "The retry will carry the current generation and remain scoped to that VPN's resolver.",
+      "practice": "Keep the refresh scoped to that VPN's resolver."
+    },
+    {
+      "phrase": "with no fallback to the old network",
+      "meaning_ko": "이전 네트워크로 대체하지 않고",
+      "usage_ko": "전환 실패 동작을 정의할 때",
+      "example": "I propose retrying only against the latest valid association, with no fallback to the old network.",
+      "practice": "Retry on the current association with no fallback to the old network."
+    },
+    {
+      "phrase": "an immediate failure",
+      "meaning_ko": "즉시 실패",
+      "usage_ko": "검증 중단 기준을 설명할 때",
+      "example": "Any policy escape is an immediate failure; recovery latency and application retry behavior will be reported separately.",
+      "practice": "Any policy violation is an immediate failure."
+    },
+    {
+      "phrase": "without real-time sleeps",
+      "meaning_ko": "실제 시간 대기 없이",
+      "usage_ko": "반복 가능한 타이머 테스트를 설명할 때",
+      "example": "I will also test the acknowledgment deadline without real-time sleeps by controlling the test clock.",
+      "practice": "Test the deadline with a fake clock and without real-time sleeps."
+    },
+    {
+      "phrase": "a testable boundary",
+      "meaning_ko": "검증 가능한 경계",
+      "usage_ko": "수정 범위를 정의할 때",
+      "example": "That gives us a testable boundary rather than a broad reset that happens to make the symptom disappear.",
+      "practice": "The proposal gives us a testable boundary for recovery."
+    },
+    {
+      "phrase": "explicitly unverified",
+      "meaning_ko": "명시적으로 미검증인",
+      "usage_ko": "확인하지 않은 환경을 보고할 때",
+      "example": "The third fleet remains explicitly unverified until its Monday DNS change is available.",
+      "practice": "Keep the third configuration explicitly unverified until its results arrive."
+    },
+    {
+      "phrase": "keeping the customer's intended network boundary intact",
+      "meaning_ko": "고객이 의도한 네트워크 경계를 유지하며",
+      "usage_ko": "복구 목표와 정책을 함께 강조할 때",
+      "example": "Thank you; the priority is to restore managed work while keeping the customer's intended network boundary intact.",
+      "practice": "We must restore service while keeping the customer's intended network boundary intact."
+    }
+  ]
+}
