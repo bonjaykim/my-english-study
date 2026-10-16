@@ -1,0 +1,294 @@
+{
+  "date": "2026-10-17",
+  "category": "business",
+  "topic": "sw-kickoff",
+  "subject": "Kicking Off Android 16KB Page Size Readiness",
+  "title_ko": "Android 16KB 페이지 크기 전환 준비 프로그램 킥오프",
+  "summary_ko": "가상의 Android 시스템 SW 팀이 16KB 페이지 구성 도입 전 조사 프로그램을 시작합니다. 네이티브 라이브러리 정렬·매핑 가정·파트너 하위 바이너리·메모리 및 에너지 비용을 검토하고 3주 연구 범위와 도입 판단 기준을 정합니다. 모든 인물·기업·제품·아티팩트·로그·결함·수치·일정은 영어 학습을 위한 가상 교육용 설정입니다.",
+  "participants": [
+    {
+      "name": "Minseo Choi",
+      "team": "Platform Program"
+    },
+    {
+      "name": "Alex Moreno",
+      "team": "Kernel and Runtime"
+    },
+    {
+      "name": "Leila Haddad",
+      "team": "Kernel and Runtime"
+    },
+    {
+      "name": "Victor Han",
+      "team": "Native Components"
+    },
+    {
+      "name": "Grace Allen",
+      "team": "System Qualification"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and program purpose",
+      "title_ko": "참석 확인과 프로그램 목적",
+      "turns": [
+        {
+          "speaker": "Minseo Choi",
+          "en": "Welcome to the page-size readiness kickoff. Alex and Leila represent Kernel and Runtime, Victor owns Native Components, and Grace leads System Qualification. We are considering a sixteen-kilobyte page configuration for the next Lumen reference platform. Today's objective is to approve a discovery program, not select a shipping configuration. A development image boots, but two native services fail during startup and one partner library has no confirmed rebuild date. I want a plan that exposes those dependencies before anyone attaches a product milestone to the change. We will leave with scope, owners, evidence requirements, and a decision date.",
+          "ko": "페이지 크기 준비 프로그램 킥오프에 오신 것을 환영합니다. Kernel and Runtime의 Alex와 Leila, Native Components의 Victor, System Qualification의 Grace가 참석했습니다. 다음 Lumen 기준 플랫폼에 16KB 페이지 구성을 검토합니다. 오늘 목표는 출시 구성을 고르는 것이 아니라 조사 프로그램을 승인하는 것입니다. 개발 이미지는 부팅되지만 네이티브 서비스 두 개가 시작 중 실패하고 파트너 라이브러리 하나는 재빌드 날짜가 확인되지 않았습니다. 제품 마일스톤을 붙이기 전에 의존성을 드러내는 계획이 필요합니다. 범위, 담당자, 증거 요건, 결정 날짜를 정하겠습니다."
+        },
+        {
+          "speaker": "Alex Moreno",
+          "en": "The kernel team has a working image on four engineering devices. It reaches the launcher and runs our basic memory stress test. That is useful progress, but boot success is not compatibility evidence. The page size affects mappings and allocation granularity, while native code may still assume four kilobytes in places the compiler cannot detect. We also changed a kernel configuration option during bring-up, so the current performance comparison is not controlled. I would like to establish a clean four-kilobyte baseline from the same source before we advertise any memory or startup benefit.",
+          "ko": "커널 팀은 엔지니어링 기기 네 대에서 동작하는 이미지를 확보했습니다. 런처에 도달하고 기본 메모리 스트레스 테스트를 실행합니다. 유용한 진전이지만 부팅 성공이 호환성 증거는 아닙니다. 페이지 크기는 매핑과 할당 단위에 영향을 주지만 네이티브 코드에는 컴파일러가 감지하지 못하는 4KB 가정이 남을 수 있습니다. bring-up 중 커널 설정 옵션 하나도 바꿨으므로 현재 성능 비교는 통제되지 않았습니다. 메모리나 시작 성능의 이점을 알리기 전에 같은 소스에서 깨끗한 4KB 기준을 만들고 싶습니다."
+        },
+        {
+          "speaker": "Victor Han",
+          "en": "Native Components has identified eighty-six shared libraries in the platform image, but the list excludes libraries downloaded by optional features. Eleven are delivered as binaries by partners. One startup failure is a loader alignment error in our document service; the other comes from a hard-coded mapping offset in a diagnostic daemon. Those are different failure classes and need different owners. I can fix our daemon, but I cannot promise a partner rebuild based only on a successful link command. We need to know how each artifact is packaged, loaded, and exercised on the target image.",
+          "ko": "Native Components는 플랫폼 이미지에서 공유 라이브러리 86개를 확인했지만 선택 기능이 다운로드하는 라이브러리는 목록에서 빠졌습니다. 11개는 파트너가 바이너리로 제공합니다. 시작 실패 하나는 문서 서비스의 로더 정렬 오류이고 다른 하나는 진단 데몬의 하드코딩된 매핑 오프셋 때문입니다. 다른 종류의 실패이므로 담당자도 달라야 합니다. 우리 데몬은 고칠 수 있지만 링크 명령 성공만으로 파트너 재빌드를 약속할 수는 없습니다. 각 아티팩트가 대상 이미지에서 어떻게 패키징되고 로드되며 실행되는지 알아야 합니다."
+        },
+        {
+          "speaker": "Grace Allen",
+          "en": "Qualification currently has enough devices for a small study, not a full product certification campaign. I can reserve four units for three weeks if we protect the existing maintenance tests. My concern is hidden coverage: a service can start without exercising its native plugin, and an application can open without touching a memory-mapped file. We need representative workflows, including optional downloads and recovery tools. I will not accept a spreadsheet where every library is green because somebody checked its header. Static inspection is a useful filter, but runtime evidence has to close the readiness claim.",
+          "ko": "Qualification에는 소규모 연구용 기기는 있지만 제품 전체 인증 캠페인 자원은 없습니다. 기존 유지보수 테스트를 보호한다면 3주간 네 대를 확보할 수 있습니다. 우려는 숨은 검증 공백입니다. 서비스는 네이티브 플러그인을 실행하지 않고도 시작할 수 있고 앱은 메모리 매핑 파일을 건드리지 않고도 열릴 수 있습니다. 선택 다운로드와 복구 도구를 포함한 대표 작업 흐름이 필요합니다. 헤더를 확인했다는 이유로 모든 라이브러리를 녹색으로 표시한 표는 받아들이지 않겠습니다. 정적 검사는 유용한 필터지만 실제 실행 증거가 준비됐다는 주장을 완성해야 합니다."
+        },
+        {
+          "speaker": "Leila Haddad",
+          "en": "I will connect the runtime inventory to actual load events. We can record library paths and build identifiers during the selected workflows, then compare them with the image manifest. That should reveal components loaded only after a feature is enabled. However, absence from a trace does not prove a library is unused; it may simply mean our workflow missed it. Each feature owner must either supply an execution path or explicitly declare the component out of scope. We should preserve that distinction rather than quietly remove difficult libraries from the denominator to make the readiness percentage look better.",
+          "ko": "실제 로드 이벤트와 런타임 목록을 연결하겠습니다. 선택 작업 흐름 동안 라이브러리 경로와 빌드 식별자를 기록하고 이미지 manifest와 비교할 수 있습니다. 기능을 켠 뒤에만 로드되는 구성 요소가 드러날 것입니다. 하지만 트레이스에 없다는 것이 미사용의 증명은 아닙니다. 작업 흐름에서 놓쳤을 수도 있습니다. 각 기능 담당자는 실행 경로를 제공하거나 명시적으로 범위 밖이라고 선언해야 합니다. 준비 비율을 좋게 보이려고 어려운 라이브러리를 분모에서 조용히 빼지 말고 그 구분을 유지해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Failure evidence and technical scope",
+      "title_ko": "실패 증거와 기술 범위",
+      "turns": [
+        {
+          "speaker": "Minseo Choi",
+          "en": "Let us examine the two known failures before defining the workstreams. Victor, explain what the loader rejects and what the daemon assumes. Alex and Leila, distinguish a build-time repair from a runtime design change. I also want to know which dependencies we control and which require a partner delivery. The program should produce a dependency map, not just a pile of local patches. If one opaque binary blocks a critical feature, we must see that early enough to choose a product strategy instead of discovering it during final qualification.",
+          "ko": "작업 흐름을 정의하기 전에 알려진 실패 두 개를 살펴봅시다. Victor는 로더가 무엇을 거부하고 데몬이 무엇을 가정하는지 설명해 주세요. Alex와 Leila는 빌드 시 수정과 런타임 설계 변경을 구분해 주세요. 우리가 제어하는 의존성과 파트너 전달이 필요한 것도 알고 싶습니다. 프로그램은 로컬 패치 더미가 아니라 의존성 지도를 만들어야 합니다. 불투명한 바이너리 하나가 핵심 기능을 막는다면 최종 검증에서 발견할 것이 아니라 제품 전략을 선택할 수 있을 만큼 일찍 알아야 합니다."
+        },
+        {
+          "speaker": "Victor Han",
+          "en": "The document service loads a native rendering library whose loadable segments were linked with an alignment unsuitable for this image. Rebuilding with the agreed toolchain settings should address that loader rejection, but packaging must preserve the required alignment too. The daemon is different: it rounds file offsets with a literal value of four thousand ninety-six before calling its mapping helper. On the larger-page image, the helper rejects some offsets. Replacing that literal requires reviewing the calculation and buffer ownership, not blindly substituting sixteen thousand three hundred eighty-four. The code should query the page size and test the boundary cases.",
+          "ko": "문서 서비스는 이 이미지에 맞지 않는 정렬로 링크된 로드 세그먼트를 가진 네이티브 렌더링 라이브러리를 로드합니다. 합의한 툴체인 설정으로 재빌드하면 로더 거부를 해결할 수 있지만 패키징도 필요한 정렬을 유지해야 합니다. 데몬은 다릅니다. 매핑 도우미 호출 전에 리터럴 4096으로 파일 오프셋을 반올림합니다. 큰 페이지 이미지에서 도우미는 일부 오프셋을 거부합니다. 리터럴을 바꿀 때 무작정 16384로 치환하지 말고 계산과 버퍼 소유권을 검토해야 합니다. 코드가 페이지 크기를 조회하고 경계 사례를 시험해야 합니다."
+        },
+        {
+          "speaker": "Alex Moreno",
+          "en": "Exactly. Kernel support, executable alignment, package layout, and application assumptions are separate layers. A library can pass the alignment check and still contain an incorrect offset calculation. Conversely, a correct source implementation can be packaged in a way that prevents direct loading. I propose four readiness columns: artifact inspection, source review where available, target execution, and owner confirmation. None can substitute for all the others. For binary-only components, the partner must provide a compatible artifact and supported configuration, while our team still verifies the delivered bytes and runtime behavior on the actual image.",
+          "ko": "맞습니다. 커널 지원, 실행 파일 정렬, 패키지 레이아웃, 앱의 가정은 별개 계층입니다. 라이브러리가 정렬 검사를 통과해도 잘못된 오프셋 계산을 포함할 수 있습니다. 반대로 소스 구현이 올바르더라도 직접 로드를 막는 방식으로 패키징될 수 있습니다. 준비 상태 열 네 개를 제안합니다. 아티팩트 검사, 가능한 경우 소스 검토, 대상 실행, 담당자 확인입니다. 어느 하나도 나머지 전체를 대신할 수 없습니다. 바이너리 전용 구성 요소는 파트너가 호환 아티팩트와 지원 구성을 제공해야 하며 우리 팀은 전달 바이트와 실제 이미지의 실행 동작을 검증합니다."
+        },
+        {
+          "speaker": "Leila Haddad",
+          "en": "There is a fifth issue around shared buffers. Some native components exchange offsets and lengths through an internal protocol that assumes a particular allocation unit. We should not change those wire values merely because the operating system page size changes. I will inspect the producers and consumers together and document which fields are bytes, pages, or blocks. A unit mismatch may produce corrupted output without a loader failure. For every repaired mapping path, I want a test with an unaligned payload inside a valid aligned mapping, plus cleanup after partial failure. That checks the real contract rather than just the happy path.",
+          "ko": "공유 버퍼에 관한 다섯 번째 문제도 있습니다. 일부 네이티브 구성 요소는 특정 할당 단위를 가정한 내부 프로토콜로 오프셋과 길이를 교환합니다. 운영체제 페이지 크기가 바뀐다는 이유만으로 전송 값을 바꾸면 안 됩니다. 생산자와 소비자를 함께 검사하고 각 필드가 바이트, 페이지, 블록 중 무엇인지 문서화하겠습니다. 단위 불일치는 로더 실패 없이 잘못된 출력을 만들 수 있습니다. 수정한 매핑 경로마다 유효한 정렬 매핑 내부의 정렬되지 않은 페이로드와 부분 실패 후 정리를 시험하고 싶습니다. 그래야 정상 경로만이 아니라 실제 계약을 검사합니다."
+        },
+        {
+          "speaker": "Grace Allen",
+          "en": "Those tests are useful, but we need to keep the study finite. I suggest starting with six workflows: document preview, camera capture, offline navigation, secure file sharing, device diagnostics, and recovery export. Each has native code, and together they cover different mapping and packaging paths. Feature owners must identify the libraries each workflow is expected to load. We then compare expected and observed coverage. If an optional feature is unavailable on the engineering image, it stays listed as untested with an owner and reason. We cannot call a platform ready by excluding the features that are hardest to bring up.",
+          "ko": "그 테스트는 유용하지만 연구가 끝나도록 범위를 정해야 합니다. 문서 미리보기, 카메라 촬영, 오프라인 내비게이션, 보안 파일 공유, 기기 진단, 복구 내보내기의 여섯 작업 흐름부터 시작하길 제안합니다. 각각 네이티브 코드가 있고 함께 여러 매핑과 패키징 경로를 다룹니다. 기능 담당자는 각 흐름이 로드할 것으로 예상하는 라이브러리를 확인해야 합니다. 그다음 예상 검증 범위와 관찰 범위를 비교합니다. 엔지니어링 이미지에서 선택 기능을 사용할 수 없다면 담당자와 이유를 붙여 미검증으로 남깁니다. bring-up이 어려운 기능을 제외해 플랫폼이 준비됐다고 할 수는 없습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Schedule, benefits, and disagreement",
+      "title_ko": "일정과 이점 및 이견",
+      "turns": [
+        {
+          "speaker": "Minseo Choi",
+          "en": "The product planning team asked whether we can commit to the new configuration next month. I am reluctant to answer with a date before the binary inventory is complete, but they need a planning assumption. Alex, what evidence would justify continuing beyond the study? Victor, which partner dependency is most likely to determine the schedule? Grace, what would make you stop the program early? I want a decision framework that recognizes potential benefits without turning an engineering experiment into a commitment nobody has approved. We can set a review date now while leaving the shipping decision open.",
+          "ko": "제품 기획팀은 다음 달 새 구성을 확정할 수 있는지 물었습니다. 바이너리 목록이 완성되기 전에 날짜로 답하기는 꺼려지지만 기획 가정은 필요합니다. Alex, 어떤 증거가 연구 이후 진행을 정당화하나요? Victor, 어느 파트너 의존성이 일정에 가장 영향을 주나요? Grace, 어떤 상황이면 프로그램을 일찍 멈추겠습니까? 잠재 이점을 인정하되 승인되지 않은 약속으로 엔지니어링 실험을 바꾸지 않는 결정 기준이 필요합니다. 출시 결정을 열어 둔 채 검토 날짜를 정할 수 있습니다."
+        },
+        {
+          "speaker": "Alex Moreno",
+          "en": "I would continue if critical workflows are correct, partner blockers have credible delivery plans, and measurements show a meaningful benefit within our resource budgets. Larger pages may reduce some translation overhead, but they can also increase unused space in small mappings. We must measure total memory, startup latency, sustained workload performance, and energy under matched conditions. I do not support selecting whichever benchmark improves most. The low-memory device configuration matters as much as the high-memory one, and an average across them could hide a regression in the product that has the least margin.",
+          "ko": "핵심 작업 흐름이 정확하고 파트너 차단 요인에 믿을 만한 전달 계획이 있으며 자원 예산 안에서 의미 있는 이점이 측정되면 계속하겠습니다. 큰 페이지는 일부 주소 변환 오버헤드를 줄일 수 있지만 작은 매핑에서 사용하지 않는 공간을 늘릴 수도 있습니다. 조건을 맞춰 전체 메모리, 시작 지연, 지속 작업 성능, 에너지를 측정해야 합니다. 가장 많이 좋아지는 벤치마크만 고르는 데는 반대합니다. 저메모리 기기 설정은 고메모리 설정만큼 중요하며 둘을 평균 내면 여유가 가장 적은 제품의 회귀가 가려질 수 있습니다."
+        },
+        {
+          "speaker": "Victor Han",
+          "en": "The offline navigation engine is the uncertain dependency. Its supplier can rebuild the main library next week, but it bundles a licensing helper from another vendor. We have no source for that helper and no written compatibility statement. I do not want the schedule to assume a transitive dependency will repair itself. I will request an artifact-level delivery plan that names both owners. If the helper cannot be delivered within the study, we should evaluate a feature exclusion or a later platform adoption, with product approval. Disabling license checks to make a demonstration run is not an acceptable shortcut.",
+          "ko": "오프라인 내비게이션 엔진이 불확실한 의존성입니다. 공급자는 다음 주 주 라이브러리를 재빌드할 수 있지만 다른 벤더의 라이선스 도우미가 함께 들어 있습니다. 도우미의 소스도 없고 서면 호환성 확인도 없습니다. 간접 의존성이 저절로 고쳐질 것으로 일정을 가정하고 싶지 않습니다. 두 담당자를 명시한 아티팩트 수준 전달 계획을 요청하겠습니다. 연구 기간 내 도우미를 못 받으면 제품 승인 아래 기능 제외나 플랫폼 도입 연기를 평가해야 합니다. 시연을 실행하려고 라이선스 검사를 끄는 것은 허용할 수 있는 지름길이 아닙니다."
+        },
+        {
+          "speaker": "Grace Allen",
+          "en": "I would stop expansion if a repaired component silently corrupts data, if we cannot restore engineering devices reliably, or if the baseline cannot be reproduced. A loader rejection is visible and can be tracked; silent corruption is much harder to contain. For resource gates, I propose no more than a two-percent increase in peak memory for the selected workflows and no more than a three-percent energy regression. These are study thresholds, not final product specifications. If a result misses them, we investigate whether the cost is inherent or caused by an implementation defect before deciding whether the program should continue.",
+          "ko": "수정한 구성 요소가 데이터를 조용히 손상시키거나 엔지니어링 기기를 안정적으로 복원할 수 없거나 기준을 재현하지 못하면 확대를 멈추겠습니다. 로더 거부는 눈에 보여 추적할 수 있지만 조용한 손상은 훨씬 제한하기 어렵습니다. 자원 기준으로는 선택 작업 흐름의 최대 메모리 증가 2퍼센트 이하, 에너지 회귀 3퍼센트 이하를 제안합니다. 이는 연구 기준이며 최종 제품 규격이 아닙니다. 결과가 기준을 벗어나면 프로그램 진행 여부를 결정하기 전에 비용이 본질적인지 구현 결함 때문인지 조사합니다."
+        },
+        {
+          "speaker": "Leila Haddad",
+          "en": "I would add an uncertainty rule. A one-percent improvement is not persuasive if repeated runs vary by four percent. We need paired runs with the same application data, thermal starting condition, and background workload. The measurement report should show variation and sample count alongside the result. We should also separate clean-install behavior from an upgrade path, because library replacement and cached native artifacts can change what actually runs. The study can begin with clean images, but readiness must eventually include the supported upgrade path. Otherwise we would prove a configuration that users never encounter on a maintained device.",
+          "ko": "불확실성 규칙도 추가하고 싶습니다. 반복 실행이 4퍼센트 변하는데 1퍼센트 개선은 설득력이 없습니다. 앱 데이터, 시작 발열 상태, 백그라운드 작업을 맞춘 짝지은 실행이 필요합니다. 측정 보고서에는 결과 옆에 변동과 표본 수를 보여야 합니다. 라이브러리 교체와 캐시 네이티브 아티팩트가 실제 실행 대상을 바꿀 수 있으므로 클린 설치와 업데이트 경로도 구분해야 합니다. 연구는 깨끗한 이미지로 시작할 수 있지만 준비 판정은 결국 지원 업데이트 경로를 포함해야 합니다. 그렇지 않으면 유지보수 기기 사용자가 만나지 않는 구성만 증명하게 됩니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Approved scope and assigned work",
+      "title_ko": "승인 범위와 작업 배정",
+      "turns": [
+        {
+          "speaker": "Minseo Choi",
+          "en": "We will run a three-week readiness study from Monday, October nineteenth, through Friday, November sixth. This approves engineering work on isolated images, not a product page-size commitment. Alex owns matched kernel baselines by October twenty-first. Victor owns the full native inventory and partner dependency map by October twenty-second. Leila owns runtime coverage and mapping-contract tests by October twenty-third. Grace owns the six-workflow qualification plan and device reservation by October twentieth. I will obtain feature-owner participation and publish the decision criteria. The existing product branch remains our baseline while the study produces evidence.",
+          "ko": "10월 19일 월요일부터 11월 6일 금요일까지 3주 준비 연구를 진행합니다. 격리 이미지에서의 엔지니어링 작업 승인이지 제품 페이지 크기 확정은 아닙니다. Alex는 10월 21일까지 조건이 맞는 커널 기준을, Victor는 22일까지 전체 네이티브 목록과 파트너 의존성 지도를 맡습니다. Leila는 23일까지 런타임 검증 범위와 매핑 계약 테스트를, Grace는 20일까지 여섯 작업 흐름 검증 계획과 기기 확보를 맡습니다. 저는 기능 담당자의 참여를 확보하고 결정 기준을 공개합니다. 연구가 증거를 만드는 동안 기존 제품 브랜치를 기준으로 유지합니다."
+        },
+        {
+          "speaker": "Alex Moreno",
+          "en": "I accept the baseline work. I will build four-kilobyte and sixteen-kilobyte images from the same source revision and document every unavoidable configuration difference. Both images will use the same userspace payload wherever compatible, and any rebuilt library will be identified explicitly. We will not switch page size at runtime; each test starts from the appropriate flashed image. I will also provide a recovery procedure and verify it on one device before the other three enter testing. That protects the study from losing all devices to an untested restore path when a low-level change fails.",
+          "ko": "기준 작업을 맡겠습니다. 같은 소스 리비전에서 4KB와 16KB 이미지를 만들고 불가피한 설정 차이를 모두 문서화합니다. 호환되는 범위에서 두 이미지는 같은 userspace payload를 쓰고 재빌드 라이브러리는 명시적으로 식별합니다. 런타임에 페이지 크기를 바꾸지 않으며 각 테스트는 알맞은 이미지를 플래시한 상태로 시작합니다. 다른 세 기기가 테스트에 들어가기 전에 복구 절차를 제공하고 한 기기에서 검증하겠습니다. 그러면 저수준 변경 실패 시 검증하지 않은 복원 경로 때문에 모든 기기를 잃는 일을 막습니다."
+        },
+        {
+          "speaker": "Victor Han",
+          "en": "The inventory will list artifact digest, source or binary ownership, build settings, packaging path, expected workflows, and delivery status. I will include optional feature downloads and the licensing helper rather than limit the list to the system image. For the two known failures, the document-service owner will rebuild and repackage the rendering library, while my team repairs the daemon's offset handling. I will request partner dates by Tuesday noon and mark unanswered requests as unknown. An unanswered email will not become a green cell merely because a supplier has supported the previous platform.",
+          "ko": "목록에는 아티팩트 digest, 소스 또는 바이너리 담당, 빌드 설정, 패키징 경로, 예상 작업 흐름, 전달 상태를 적습니다. 시스템 이미지로 제한하지 않고 선택 기능 다운로드와 라이선스 도우미를 포함합니다. 알려진 두 실패는 문서 서비스 담당자가 렌더링 라이브러리를 재빌드·재패키징하고 제 팀이 데몬 오프셋 처리를 고칩니다. 화요일 정오까지 파트너 날짜를 요청하고 답이 없으면 미확인으로 표시합니다. 공급자가 이전 플랫폼을 지원했다는 이유만으로 답 없는 이메일이 녹색 칸이 되지는 않습니다."
+        },
+        {
+          "speaker": "Leila Haddad",
+          "en": "I will prepare mapping tests around file offsets, lengths, shared-buffer units, and cleanup. Each test will run on both baselines so a repair cannot quietly break the existing configuration. The runtime trace will record which artifacts load during each workflow and compare them with the owner's expected set. When a component is not observed, the report will ask for a missing execution path rather than declare it compatible. I will also review error messages: an unsupported library should fail clearly, without repeated service restarts that hide the first loader error and consume the device's resources.",
+          "ko": "파일 오프셋, 길이, 공유 버퍼 단위, 정리 동작의 매핑 테스트를 준비합니다. 수정이 기존 구성을 조용히 깨뜨리지 않도록 각 테스트는 두 기준에서 실행합니다. 런타임 트레이스는 작업 흐름마다 로드되는 아티팩트를 기록하고 담당자가 예상한 집합과 비교합니다. 관찰되지 않은 구성 요소는 호환이라고 선언하지 않고 빠진 실행 경로를 요청합니다. 오류 메시지도 검토합니다. 미지원 라이브러리는 첫 로더 오류를 숨기고 기기 자원을 소비하는 반복 서비스 재시작 없이 명확히 실패해야 합니다."
+        },
+        {
+          "speaker": "Grace Allen",
+          "en": "I will reserve two high-memory and two low-memory devices, keeping the configurations separate in the report. The first week checks correctness and recovery; the second measures resources; the third repeats critical workflows with partner updates and the upgrade path. Performance results are provisional until the required workflows pass. I will define the workload duration and repeated-run count before seeing the measurements. If a binary changes during the study, its relevant results must be rerun rather than inherited from the previous artifact. The schedule will show that retest cost, so a late delivery cannot appear free.",
+          "ko": "고메모리 두 대와 저메모리 두 대를 확보하고 보고서에서 구성을 구분합니다. 첫 주에는 정확성과 복구, 둘째 주에는 자원, 셋째 주에는 파트너 업데이트와 업데이트 경로에서 핵심 작업을 반복합니다. 필요한 작업 흐름 통과 전 성능 결과는 잠정적입니다. 측정값을 보기 전에 작업 길이와 반복 횟수를 정합니다. 연구 중 바이너리가 바뀌면 이전 아티팩트 결과를 물려받지 않고 관련 결과를 재실행해야 합니다. 일정에 재검증 비용을 표시해 늦은 전달이 공짜처럼 보이지 않게 하겠습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Review milestones and closing",
+      "title_ko": "검토 마일스톤과 마무리",
+      "turns": [
+        {
+          "speaker": "Minseo Choi",
+          "en": "Our first checkpoint is Friday, October twenty-third, at two in the afternoon Seoul time. We will review inventory completeness, the two startup repairs, baseline reproducibility, and partner delivery commitments. The final adoption review is Friday, November sixth, at ten in the morning Seoul time. Its possible outcomes are proceed to product planning, extend a narrowly defined investigation, or retain the existing configuration for this program. We will not treat the study's existence as evidence that adoption is inevitable. I will give product planning those three outcomes and the evidence dates today so their assumptions remain explicit.",
+          "ko": "첫 점검은 10월 23일 금요일 서울 시간 오후 2시입니다. 목록 완전성, 시작 실패 두 개 수정, 기준 재현성, 파트너 전달 약속을 검토합니다. 최종 도입 검토는 11월 6일 금요일 서울 시간 오전 10시입니다. 가능한 결과는 제품 기획 진행, 범위가 좁은 추가 조사, 이번 프로그램에서 기존 구성 유지입니다. 연구를 한다는 사실을 도입이 불가피하다는 증거로 보지 않습니다. 오늘 제품 기획에 세 결과와 증거 날짜를 전달해 가정을 명확히 유지하겠습니다."
+        },
+        {
+          "speaker": "Victor Han",
+          "en": "For that first checkpoint, I will bring the dependency graph as well as the inventory count. Eighty-six direct libraries can conceal several nested components, and a percentage alone would understate a critical blocker. The navigation engine and its licensing helper will appear as separate nodes with separate delivery owners. If a partner proposes a compatibility wrapper, we will require its supported behavior and test evidence rather than assume it solves every mapping assumption. I will ask partners to name exactly which artifact they certify, because a statement about a product family is too broad for our image.",
+          "ko": "첫 점검에는 목록 수뿐 아니라 의존성 그래프도 가져오겠습니다. 직접 라이브러리 86개 뒤에 중첩 구성 요소가 여럿 숨을 수 있고 비율만으로는 핵심 차단 요인을 과소평가합니다. 내비게이션 엔진과 라이선스 도우미는 별도 담당자가 있는 별도 노드로 표시합니다. 파트너가 호환 래퍼를 제안하면 모든 매핑 가정을 해결한다고 여기지 않고 지원 동작과 검증 증거를 요구합니다. 제품군에 대한 확인은 우리 이미지에 너무 넓으므로 파트너가 어떤 아티팩트를 확인하는지 정확히 명시하도록 요청하겠습니다."
+        },
+        {
+          "speaker": "Alex Moreno",
+          "en": "I will make the measurement package reproducible by including image identifiers, device configuration, workload data, and collection commands. Any reported benefit will identify the configuration where it occurred and the costs observed elsewhere. If low-memory devices regress, I will not hide that in a combined average or explain it away without evidence. We may find that the larger-page configuration is appropriate for one product class and premature for another. That is a useful engineering result. The goal is a justified choice, not a slide showing that a larger number must always be better.",
+          "ko": "이미지 식별자, 기기 설정, 작업 데이터, 수집 명령을 포함해 측정 패키지를 재현 가능하게 만들겠습니다. 이점을 보고할 때 발생한 구성과 다른 곳의 비용을 명시합니다. 저메모리 기기가 회귀하면 합산 평균에 숨기거나 증거 없이 대수롭지 않게 설명하지 않겠습니다. 큰 페이지 구성이 한 제품군에는 적합하고 다른 제품군에는 이르다는 결과가 나올 수도 있습니다. 그것도 유용한 엔지니어링 결과입니다. 목표는 큰 수가 언제나 더 좋다는 슬라이드가 아니라 근거 있는 선택입니다."
+        },
+        {
+          "speaker": "Grace Allen",
+          "en": "I will publish the coverage ledger before testing starts. It will distinguish passed, failed, blocked, and untested, and each blocked row will name a dependency and owner. At the checkpoint, a feature owner must explain any missing execution path. I will also retain a small set of deliberately incompatible artifacts to confirm that our inspection and runtime gates detect known problems. A gate that reports green for those controls is not ready to judge the candidate. That check gives us confidence in the process itself before we use its results for a platform decision.",
+          "ko": "테스트 시작 전에 검증 범위 장부를 공개합니다. 통과, 실패, 차단, 미검증을 구분하고 차단 행에는 의존성과 담당자를 적습니다. 점검에서 기능 담당자는 빠진 실행 경로를 설명해야 합니다. 검사와 런타임 기준이 알려진 문제를 감지하는지 확인하려고 의도적으로 호환되지 않는 아티팩트 소수도 유지합니다. 그 대조군을 녹색으로 보고하는 기준은 후보를 판정할 준비가 안 된 것입니다. 플랫폼 결정에 결과를 쓰기 전에 과정 자체를 신뢰할 수 있게 하는 검사입니다."
+        },
+        {
+          "speaker": "Leila Haddad",
+          "en": "I have the workflow owners to contact and the contract tests to prepare. I will start with the diagnostic daemon because we control its source and can demonstrate the difference between querying page size and replacing a magic constant. Then I will use the document service to show why source correctness, linking, and packaging all matter. I will send those examples before Monday's work begins, so teams share the same vocabulary when they report readiness. If an assumption is uncertain, we will record it as a question with an owner rather than bury it in a successful build log.",
+          "ko": "연락할 작업 흐름 담당자와 준비할 계약 테스트를 확인했습니다. 소스를 제어할 수 있고 페이지 크기 조회와 상수 치환의 차이를 보여 줄 수 있는 진단 데몬부터 시작합니다. 그다음 문서 서비스로 소스 정확성, 링크, 패키징이 모두 중요한 이유를 보여 주겠습니다. 팀이 준비 상태를 보고할 때 같은 용어를 쓰도록 월요일 작업 시작 전에 예제를 보내겠습니다. 가정이 불확실하면 성공 빌드 로그에 묻지 말고 담당자가 있는 질문으로 기록하겠습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "a discovery program",
+      "meaning_ko": "조사 프로그램",
+      "usage_ko": "제품 확정 전 탐색 범위를 정할 때",
+      "example": "Today's objective is to approve a discovery program, not select a shipping configuration.",
+      "practice": "We approved a discovery program before committing the product schedule."
+    },
+    {
+      "phrase": "boot success is not compatibility evidence",
+      "meaning_ko": "부팅 성공은 호환성 증거가 아니다",
+      "usage_ko": "검증 범위의 한계를 설명할 때",
+      "example": "That is useful progress, but boot success is not compatibility evidence.",
+      "practice": "Remember that boot success is not compatibility evidence."
+    },
+    {
+      "phrase": "a clean four-kilobyte baseline",
+      "meaning_ko": "깨끗한 4KB 기준",
+      "usage_ko": "통제된 비교 대상을 만들 때",
+      "example": "I would like to establish a clean four-kilobyte baseline from the same source before we advertise any memory or startup benefit.",
+      "practice": "Prepare a clean four-kilobyte baseline before comparing latency."
+    },
+    {
+      "phrase": "a transitive dependency",
+      "meaning_ko": "간접 의존성",
+      "usage_ko": "파트너의 하위 구성 요소를 추적할 때",
+      "example": "I do not want the schedule to assume a transitive dependency will repair itself.",
+      "practice": "The missing helper is a transitive dependency of the navigation engine."
+    },
+    {
+      "phrase": "a dependency map",
+      "meaning_ko": "의존성 지도",
+      "usage_ko": "차단 요소와 담당 관계를 정리할 때",
+      "example": "The program should produce a dependency map, not just a pile of local patches.",
+      "practice": "Bring a dependency map to the readiness review."
+    },
+    {
+      "phrase": "boundary cases",
+      "meaning_ko": "경계 사례",
+      "usage_ko": "매핑 계산의 극단 조건을 시험할 때",
+      "example": "The code should query the page size and test the boundary cases.",
+      "practice": "The unit tests should cover boundary cases around file offsets."
+    },
+    {
+      "phrase": "expected and observed coverage",
+      "meaning_ko": "예상 검증 범위와 관찰 범위",
+      "usage_ko": "실제 로드 이력을 대조할 때",
+      "example": "We then compare expected and observed coverage.",
+      "practice": "Compare expected and observed coverage for every workflow."
+    },
+    {
+      "phrase": "credible delivery plans",
+      "meaning_ko": "믿을 만한 전달 계획들",
+      "usage_ko": "외부 일정의 신뢰성을 평가할 때",
+      "example": "I would continue if critical workflows are correct, partner blockers have credible delivery plans, and measurements show a meaningful benefit within our resource budgets.",
+      "practice": "We need credible delivery plans for the remaining binary components."
+    },
+    {
+      "phrase": "paired runs",
+      "meaning_ko": "짝지은 실행",
+      "usage_ko": "조건을 맞춘 성능 측정에서",
+      "example": "We need paired runs with the same application data, thermal starting condition, and background workload.",
+      "practice": "Use paired runs with identical application data."
+    },
+    {
+      "phrase": "isolated images",
+      "meaning_ko": "격리된 이미지들",
+      "usage_ko": "제품 브랜치 외 실험을 설명할 때",
+      "example": "This approves engineering work on isolated images, not a product page-size commitment.",
+      "practice": "Keep the study on isolated images until its gates pass."
+    },
+    {
+      "phrase": "an unanswered email",
+      "meaning_ko": "답 없는 이메일",
+      "usage_ko": "미확인 의존성을 표시할 때",
+      "example": "An unanswered email will not become a green cell merely because a supplier has supported the previous platform.",
+      "practice": "An unanswered email does not count as a delivery commitment."
+    },
+    {
+      "phrase": "provisional until",
+      "meaning_ko": "그때까지 잠정적인",
+      "usage_ko": "최종 판정 전 조건을 명시할 때",
+      "example": "Performance results are provisional until the required workflows pass.",
+      "practice": "The result is provisional until correctness testing finishes."
+    },
+    {
+      "phrase": "a narrowly defined investigation",
+      "meaning_ko": "범위가 좁게 정의된 조사",
+      "usage_ko": "추가 연구 범위를 제한할 때",
+      "example": "Its possible outcomes are proceed to product planning, extend a narrowly defined investigation, or retain the existing configuration for this program.",
+      "practice": "We can approve a narrowly defined investigation of memory overhead."
+    },
+    {
+      "phrase": "a justified choice",
+      "meaning_ko": "근거 있는 선택",
+      "usage_ko": "도입 결정의 목표를 설명할 때",
+      "example": "The goal is a justified choice, not a slide showing that a larger number must always be better.",
+      "practice": "The measurements should support a justified choice."
+    },
+    {
+      "phrase": "a question with an owner",
+      "meaning_ko": "담당자가 있는 질문",
+      "usage_ko": "불확실성을 실행 항목으로 바꿀 때",
+      "example": "If an assumption is uncertain, we will record it as a question with an owner rather than bury it in a successful build log.",
+      "practice": "Turn each unknown into a question with an owner."
+    }
+  ]
+}
