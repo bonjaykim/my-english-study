@@ -1,0 +1,294 @@
+{
+  "date": "2026-10-21",
+  "category": "business",
+  "topic": "sw-tech",
+  "subject": "Designing Crash Loop Containment for a Privileged Android Service",
+  "title_ko": "권한 Android 서비스의 반복 충돌 억제 설계",
+  "summary_ko": "가상의 Android 시스템 SW 설계 회의에서 액세서리 네이티브 엔드포인트의 반복 충돌이 부팅 응답성과 배터리에 미치는 영향을 분석하고, 신뢰 가능한 연결 generation·제한된 재시도·성능 저하 모드·검증 기준을 결정합니다. 모든 인물·기업·제품·빌드·로그·결함·수치·일정은 영어 학습을 위한 가상 교육용 설정입니다.",
+  "participants": [
+    {
+      "name": "Mina Park",
+      "team": "Platform Reliability"
+    },
+    {
+      "name": "Evan Cho",
+      "team": "Platform Reliability"
+    },
+    {
+      "name": "Ravi Menon",
+      "team": "Vendor Integration"
+    },
+    {
+      "name": "Sofia Han",
+      "team": "Security Architecture"
+    },
+    {
+      "name": "Daniel Wu",
+      "team": "Quality Engineering"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Objective",
+      "title_ko": "참석 확인과 목표",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "Thanks for joining. We have Platform Reliability, Vendor Integration, Security Architecture, and Quality Engineering represented. Our objective is narrow: decide how the privileged Accessory Bridge service should behave when its native endpoint repeatedly dies. Build R18 restarted that endpoint forty-seven times in eleven minutes after one malformed dock event. Android remained technically booted, but system_server spent enough time reconnecting that Setup Wizard missed input and the device lost nine percent battery. I want an implementable containment rule today, with evidence collection, ownership, and a validation date. We are not redesigning every init service in this meeting.",
+          "ko": "참석해 주셔서 감사합니다. 플랫폼 신뢰성, 벤더 통합, 보안 아키텍처, 품질 엔지니어링이 참석했습니다. 오늘 목표는 좁습니다. 권한 서비스인 Accessory Bridge의 네이티브 엔드포인트가 반복해서 종료될 때 어떻게 동작해야 하는지 결정하는 것입니다. R18 빌드에서는 잘못된 도크 이벤트 하나 뒤에 해당 엔드포인트가 11분 동안 47번 재시작했습니다. Android는 기술적으로 부팅된 상태였지만 system_server가 재연결에 많은 시간을 써서 설정 마법사가 입력을 놓쳤고 배터리가 9퍼센트 감소했습니다. 오늘 증거 수집, 담당자, 검증 날짜를 포함한 구현 가능한 억제 규칙을 정하고 싶습니다. 이 회의에서 모든 init 서비스를 재설계하려는 것은 아닙니다."
+        },
+        {
+          "speaker": "Ravi Menon",
+          "en": "Vendor Integration is present. I brought the endpoint trace, the dock controller packet capture, and two comparison runs. The malformed event declares a payload length of sixty-four bytes but supplies twelve. Our parser rejects it and exits, as the current contract requires. The controller resends the same event after each connection, so the immediate restart recreates the trigger. We can reproduce the loop on six of six R18 devices with controller firmware D7, but not with D6. My concern is that a platform-side circuit breaker could hide a vendor protocol defect and leave users without keyboard or charging-state updates.",
+          "ko": "벤더 통합팀 참석했습니다. 엔드포인트 추적 로그, 도크 컨트롤러 패킷 캡처, 비교 실행 두 건을 가져왔습니다. 잘못된 이벤트는 페이로드 길이를 64바이트라고 선언하지만 실제로는 12바이트만 제공합니다. 현재 계약에 따라 파서가 이를 거부하고 종료합니다. 컨트롤러가 연결될 때마다 같은 이벤트를 다시 보내므로 즉시 재시작하면 트리거가 재현됩니다. D7 컨트롤러 펌웨어가 있는 R18 단말 6대 모두에서 반복 재현되지만 D6에서는 발생하지 않습니다. 플랫폼 측 회로 차단기가 벤더 프로토콜 결함을 숨기고 사용자에게 키보드나 충전 상태 업데이트를 제공하지 못하게 할 수 있다는 점이 우려됩니다."
+        },
+        {
+          "speaker": "Sofia Han",
+          "en": "Security is here. I agree that silent failure is unacceptable, but unlimited privileged restarts are also a security and availability problem. Each launch reopens device nodes, rebuilds Binder registrations, and parses attacker-influenced input before the user unlocks. We need to preserve fail-closed handling for malformed packets while stopping resource amplification. Please distinguish disabling the endpoint from accepting bad data. A containment state may keep charging at the hardware default, reject accessory input, and expose a clear health signal without weakening validation. I will object to any design that turns malformed lengths into truncation or permits an untrusted controller to reset the retry counter.",
+          "ko": "보안팀 참석했습니다. 조용히 실패하는 것은 용납할 수 없다는 데 동의하지만, 권한 프로세스의 무제한 재시작 역시 보안 및 가용성 문제입니다. 매번 실행될 때 사용자 잠금 해제 전부터 장치 노드를 다시 열고 Binder 등록을 재구성하며 공격자가 영향을 줄 수 있는 입력을 파싱합니다. 잘못된 패킷에 대한 폐쇄형 실패 처리는 유지하면서 자원 증폭은 멈춰야 합니다. 엔드포인트 비활성화와 잘못된 데이터 수용을 구분해 주세요. 억제 상태에서는 하드웨어 기본값으로 충전을 유지하고 액세서리 입력을 거부하며 검증을 약화시키지 않고 명확한 상태 신호를 제공할 수 있습니다. 잘못된 길이를 잘라서 받아들이거나 신뢰할 수 없는 컨트롤러가 재시도 횟수를 초기화하게 하는 설계에는 반대하겠습니다."
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "Quality Engineering is present. We have one gap before choosing thresholds: forty-seven restarts describes the loud failure, not the normal distribution. On R17, healthy docking causes one endpoint restart during firmware handoff on roughly three percent of insertions, and two restarts on less than one tenth of a percent. A simple one-strike rule would create a regression. I propose that we define the user-visible outcomes first: boot responsiveness, charging continuity, accessory availability, diagnostic completeness, and recovery after physical removal. Then we can select a retry budget against measured healthy behavior rather than intuition. I can build the matrix once the state transitions are explicit.",
+          "ko": "품질 엔지니어링팀 참석했습니다. 임계값을 선택하기 전에 한 가지 공백이 있습니다. 47회 재시작은 심각한 실패를 설명하지만 정상 분포를 설명하지는 않습니다. R17에서 정상 도킹은 펌웨어 핸드오프 중 약 3퍼센트의 삽입에서 엔드포인트를 한 번 재시작하게 하고, 0.1퍼센트 미만에서는 두 번 재시작하게 합니다. 한 번만 실패해도 차단하는 규칙은 회귀를 만들 것입니다. 먼저 사용자에게 보이는 결과, 즉 부팅 응답성, 충전 지속성, 액세서리 사용 가능성, 진단 완전성, 물리적 분리 후 복구를 정의하자고 제안합니다. 그러면 직감이 아니라 측정된 정상 동작을 기준으로 재시도 한도를 정할 수 있습니다. 상태 전이가 명확해지면 제가 테스트 행렬을 만들겠습니다."
+        },
+        {
+          "speaker": "Evan Cho",
+          "en": "I am covering the service and init integration. The current unit uses an always-restart policy with a fixed two-hundred-millisecond delay, while system_server retries its Binder lookup every half second. Those independent loops synchronize after the first few crashes and create the CPU bursts Mina mentioned. There is no durable notion of one accessory session; unplugging the dock looks the same as a process death. I suggest that we separate crash accounting from connection accounting. The physical attach generation should bound a session, and only a trusted kernel detach event should open a clean retry window. That gives us a basis for containment without making the controller authoritative.",
+          "ko": "저는 서비스와 init 통합을 담당합니다. 현재 유닛은 200밀리초 고정 지연의 항상 재시작 정책을 사용하고, system_server는 0.5초마다 Binder 조회를 다시 시도합니다. 이 두 독립 루프는 처음 몇 번의 충돌 뒤 동기화되어 Mina가 언급한 CPU 급증을 만듭니다. 하나의 액세서리 세션이라는 지속적인 개념이 없어서 도크 분리와 프로세스 종료가 똑같아 보입니다. 충돌 횟수와 연결 횟수를 분리하자고 제안합니다. 물리적 연결 generation이 한 세션의 범위를 정하고, 신뢰할 수 있는 커널 분리 이벤트만 깨끗한 재시도 구간을 열게 해야 합니다. 그러면 컨트롤러에 권한을 주지 않고도 억제의 기반을 만들 수 있습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and Failure Model",
+      "title_ko": "증거와 실패 모델",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "Let us put the evidence on one timeline. At 08:14:02 the kernel reported attach generation 311. The endpoint received the short frame, wrote reason code P17, and exited in fourteen milliseconds. Init relaunched it, system_server rebound, and the controller replayed the frame. By restart eight, both loops occupied one large core for sixty-two percent of each second. Setup Wizard's input dispatcher then crossed its five-second timeout. The battery loss was a consequence, not the initiating fault. This matters because a generic CPU throttle would treat the symptom and preserve the endless loop. Does anyone have evidence that the endpoint can safely remain absent for a limited period?",
+          "ko": "증거를 하나의 타임라인에 놓아 봅시다. 08시 14분 02초에 커널이 연결 generation 311을 보고했습니다. 엔드포인트는 짧은 프레임을 받고 원인 코드 P17을 기록한 뒤 14밀리초 만에 종료했습니다. init이 이를 다시 실행하고 system_server가 다시 바인딩했으며 컨트롤러는 프레임을 재전송했습니다. 여덟 번째 재시작부터 두 루프가 매초 대형 코어 하나의 62퍼센트를 점유했습니다. 그 뒤 설정 마법사의 입력 디스패처가 5초 타임아웃을 넘었습니다. 배터리 감소는 시작 원인이 아니라 결과였습니다. 따라서 일반적인 CPU 제한은 증상만 다루고 끝없는 반복을 유지할 것입니다. 엔드포인트가 제한된 기간 동안 없어도 안전하다는 증거가 있습니까?"
+        },
+        {
+          "speaker": "Ravi Menon",
+          "en": "Yes, with qualifications. Charging negotiation is completed by the embedded controller before Android receives accessory events, so the hardware holds the last safe current when the endpoint disappears. We verified thirty minutes of stable charging in containment by manually stopping the process. However, keyboard reports and dock battery percentage stop immediately, and display hot-plug state may be stale until reconnect. The controller watchdog does not reset merely because Android stops reading. That gives us a safe degraded mode for power, but not full function. I would document that distinction in the health signal so support does not tell a user that the accessory is fully operational.",
+          "ko": "조건부로 그렇습니다. 충전 협상은 Android가 액세서리 이벤트를 받기 전에 임베디드 컨트롤러에서 완료하므로 엔드포인트가 사라져도 하드웨어는 마지막 안전 전류를 유지합니다. 프로세스를 수동 중지한 억제 상태에서 30분 동안 안정적인 충전을 확인했습니다. 하지만 키보드 보고와 도크 배터리 퍼센트는 즉시 중단되고 디스플레이 핫플러그 상태는 다시 연결할 때까지 오래된 값일 수 있습니다. Android가 읽기를 멈췄다는 이유만으로 컨트롤러 워치독이 리셋되지는 않습니다. 전원에는 안전한 성능 저하 모드가 가능하지만 전체 기능은 아닙니다. 지원팀이 사용자에게 액세서리가 완전히 작동한다고 말하지 않도록 상태 신호에 그 차이를 기록하겠습니다."
+        },
+        {
+          "speaker": "Sofia Han",
+          "en": "That evidence supports containment, provided the last current is capped by the kernel's certified ceiling rather than a userspace request. I reviewed the driver path: removal invalidates the generation in the kernel, and a new attach allocates a monotonically increasing value. Userspace cannot forge either transition. We should make that generation the unit of trust. The retry ledger must live outside the crashing endpoint, otherwise every launch erases its history. It also needs a boot-scoped salt in diagnostics so we can correlate events without exposing a stable accessory identifier. The security boundary is clear: data validation stays strict, while availability policy moves to a small supervisor with no packet parsing.",
+          "ko": "그 증거는 억제를 뒷받침합니다. 단, 마지막 전류는 사용자 공간 요청이 아니라 커널의 인증된 상한으로 제한되어야 합니다. 드라이버 경로를 검토했습니다. 분리 시 커널에서 generation이 무효화되고 새 연결 시 단조 증가 값이 할당됩니다. 사용자 공간은 어느 전이도 위조할 수 없습니다. 그 generation을 신뢰 단위로 삼아야 합니다. 재시도 기록은 충돌하는 엔드포인트 외부에 있어야 하며, 그렇지 않으면 매번 실행할 때 기록이 지워집니다. 안정적인 액세서리 식별자를 노출하지 않고 이벤트를 연관시키도록 진단 정보에는 부팅 범위 salt도 필요합니다. 보안 경계는 분명합니다. 데이터 검증은 엄격하게 유지하고 가용성 정책은 패킷을 파싱하지 않는 작은 supervisor로 옮깁니다."
+        },
+        {
+          "speaker": "Evan Cho",
+          "en": "I tested the absence path this morning. system_server currently logs a warning every half second forever, so stopping only the endpoint is not enough. We need one coordinated contract: the supervisor publishes AVAILABLE, RETRYING, or CONTAINED for the active generation. Accessory Bridge must stop Binder lookup while CONTAINED and expose a single degraded notification to the system UI. A new kernel generation clears containment; a screen toggle, app request, or controller message does not. I initially favored putting exponential backoff directly in init, but that would mix device-specific recovery with global process policy. The evidence changes my view. Keep init simple and make the accessory supervisor own this bounded state machine.",
+          "ko": "오늘 아침 엔드포인트 부재 경로를 시험했습니다. system_server는 현재 0.5초마다 영원히 경고를 기록하므로 엔드포인트만 중지하는 것으로는 부족합니다. 하나의 조정된 계약이 필요합니다. supervisor는 활성 generation에 대해 AVAILABLE, RETRYING, CONTAINED 중 하나를 게시합니다. Accessory Bridge는 CONTAINED 동안 Binder 조회를 중단하고 시스템 UI에 성능 저하 알림 하나만 노출해야 합니다. 새 커널 generation은 억제를 해제하지만 화면 토글, 앱 요청, 컨트롤러 메시지는 해제하지 않습니다. 처음에는 지수 백오프를 init에 직접 넣는 편을 선호했지만, 그러면 장치별 복구가 전역 프로세스 정책과 섞입니다. 증거를 보고 의견이 바뀌었습니다. init은 단순하게 유지하고 액세서리 supervisor가 이 제한된 상태 머신을 소유하게 합시다."
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "I can convert that contract into observable assertions. During RETRYING, the combined endpoint and client CPU must stay below fifteen percent of one large core over a sixty-second window. CONTAINED must begin before the fifth crash can launch, preserve charging, stop keyboard delivery, show one notification, and emit exactly one incident bundle. Detach and reattach must produce a new generation and restore service without rebooting. We also need a negative test in which a forged controller frame claims a detach; it must not clear the ledger. Finally, a single spontaneous endpoint death during a healthy session must recover without showing the degraded notification. Those cases separate resilience from masking.",
+          "ko": "그 계약을 관찰 가능한 검증 항목으로 바꿀 수 있습니다. RETRYING 중에는 엔드포인트와 클라이언트의 합산 CPU가 60초 구간에서 대형 코어 하나의 15퍼센트 미만이어야 합니다. CONTAINED는 다섯 번째 충돌이 실행되기 전에 시작되고, 충전을 유지하며, 키보드 전달을 중단하고, 알림 하나를 표시하며, 사고 번들 하나만 생성해야 합니다. 분리 후 재연결하면 새 generation이 만들어지고 재부팅 없이 서비스가 복구되어야 합니다. 컨트롤러의 위조 프레임이 분리를 주장하는 부정 테스트도 필요하며 이 프레임은 기록을 초기화하면 안 됩니다. 마지막으로 정상 세션에서 한 번 발생하는 자발적 엔드포인트 종료는 성능 저하 알림 없이 복구되어야 합니다. 이런 사례가 회복성과 결함 은폐를 구분합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Threshold Debate and Design",
+      "title_ko": "임계값 논쟁과 설계",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "We now need actual numbers. My proposal is three launches per attach generation: immediate recovery once, then delays of two seconds and eight seconds. If the third launched instance dies within ninety seconds of the first crash with the same normalized reason family, the supervisor enters CONTAINED. A different reason still counts toward the launch budget; otherwise alternating failures can evade containment. Stable operation for ten minutes should close the incident, but it should not refill the budget within the same generation. That is intentionally conservative. I would rather lose keyboard function with a visible explanation than let a privileged storm degrade the entire setup path.",
+          "ko": "이제 실제 수치가 필요합니다. 연결 generation마다 세 번 실행하도록 제안합니다. 한 번은 즉시 복구하고, 그다음은 2초와 8초 지연을 둡니다. 세 번째로 실행된 인스턴스가 첫 충돌 후 90초 이내에 같은 정규화 원인 계열로 종료되면 supervisor가 CONTAINED로 전환합니다. 다른 원인도 실행 한도에는 포함해야 합니다. 그렇지 않으면 번갈아 발생하는 실패가 억제를 피할 수 있습니다. 10분 동안 안정적으로 동작하면 사고를 종료하되 같은 generation에서 한도를 다시 채우지는 않아야 합니다. 의도적으로 보수적인 선택입니다. 권한 프로세스 폭주가 설정 경로 전체를 저하시키게 두기보다는 설명이 표시된 상태에서 키보드 기능을 잃는 편이 낫습니다."
+        },
+        {
+          "speaker": "Ravi Menon",
+          "en": "I disagree with counting every reason against one budget. During firmware handoff, the endpoint may exit once for transport reset and then once for descriptor refresh. Those are expected and use different reason families. If an unrelated parser failure follows, your rule contains on the third launch even though no fault repeated. I would give each reason family three attempts. That preserves legitimate recovery and produces cleaner vendor diagnostics. I accept that alternating malformed frames could game it, but we have not observed that pattern. We should not penalize measured behavior to defend against a hypothetical sequence.",
+          "ko": "모든 원인을 하나의 한도에 포함하는 데 반대합니다. 펌웨어 핸드오프 중 엔드포인트는 전송 리셋으로 한 번, 디스크립터 새로 고침으로 한 번 종료될 수 있습니다. 두 경우는 예상된 동작이며 서로 다른 원인 계열을 사용합니다. 이어서 관련 없는 파서 실패가 발생하면 같은 결함이 반복되지 않았는데도 제안한 규칙에서는 세 번째 실행에서 억제됩니다. 원인 계열마다 세 번씩 시도하게 하겠습니다. 그러면 합법적인 복구를 보존하고 더 깔끔한 벤더 진단을 만듭니다. 잘못된 프레임이 번갈아 발생하면 이를 악용할 수 있다는 점은 인정하지만 그런 패턴은 관찰되지 않았습니다. 가상의 순서를 방어하려고 측정된 동작에 불이익을 주면 안 됩니다."
+        },
+        {
+          "speaker": "Sofia Han",
+          "en": "Reason-family budgets are too easy to expand accidentally. A new parser code would silently create more privilege-bearing launches, and a malicious controller could vary invalid lengths to obtain them. However, Mina's total of three is close to Daniel's healthy tail. I propose a compromise: expected transport and descriptor exits are not crashes if they carry a supervisor-issued handoff token tied to the generation and consumed once. All abnormal deaths share a budget of three, regardless of reason. The token is granted only before a commanded firmware transition, expires after five seconds, and cannot be requested by packet content. This keeps normal handoff outside the crash calculation without teaching the supervisor every vendor error.",
+          "ko": "원인 계열별 한도는 우발적으로 늘어나기 너무 쉽습니다. 새 파서 코드가 권한을 가진 실행 기회를 조용히 더 만들 수 있고 악성 컨트롤러가 잘못된 길이를 바꿔 가며 이를 얻을 수 있습니다. 하지만 Mina가 제안한 총 세 번은 Daniel이 말한 정상 분포의 꼬리와 가깝습니다. 절충안을 제안합니다. 예상된 전송 및 디스크립터 종료는 generation에 묶여 한 번만 소비되는 supervisor 발급 핸드오프 토큰을 가지고 있다면 충돌로 세지 않습니다. 모든 비정상 종료는 원인과 무관하게 세 번의 공통 한도를 사용합니다. 토큰은 명령된 펌웨어 전환 전에만 부여되고 5초 뒤 만료되며 패킷 내용으로 요청할 수 없습니다. 그러면 정상 핸드오프를 충돌 계산에서 제외하면서 supervisor에 모든 벤더 오류를 가르칠 필요가 없습니다."
+        },
+        {
+          "speaker": "Evan Cho",
+          "en": "That is implementable, but I want to tighten the sequence. The initial process is launch zero, not an attempt. After its first abnormal death, the supervisor performs restart one immediately, restart two after two seconds, and restart three after eight seconds. If restart three dies before the ninety-second incident window closes, containment begins; that means four process instances total. This gives one more diagnostic sample than Mina's wording implied. Each instance writes a bounded sixteen-kilobyte tombstone fragment and the supervisor retains the first and last fragments, packet metadata without payload, generation, reason, and timing. We cap the bundle at forty-eight kilobytes to avoid turning evidence collection into another resource problem.",
+          "ko": "구현 가능하지만 순서를 더 명확히 하겠습니다. 최초 프로세스는 시도 횟수가 아니라 실행 0입니다. 첫 번째 비정상 종료 후 supervisor가 즉시 재시작 1을 수행하고, 2초 뒤 재시작 2, 8초 뒤 재시작 3을 수행합니다. 재시작 3이 90초 사고 구간이 닫히기 전에 종료하면 억제가 시작됩니다. 즉, 프로세스 인스턴스는 총 네 개입니다. Mina의 표현보다 진단 샘플을 하나 더 제공합니다. 각 인스턴스는 최대 16킬로바이트 tombstone 조각을 기록하고 supervisor는 첫 조각과 마지막 조각, 페이로드를 제외한 패킷 메타데이터, generation, 원인, 타이밍을 보존합니다. 증거 수집이 또 다른 자원 문제가 되지 않도록 번들을 48킬로바이트로 제한합니다."
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "Four instances still fit the CPU target with two- and eight-second gaps, based on a replay I ran during this discussion. The input timeout did not occur, and peak combined CPU was twelve percent. I support the handoff token, but its tests must include expiration, reuse, wrong generation, and a valid token followed by an unrelated crash. For release criteria, I want zero missed input deadlines in two hundred automated dock cycles, successful recovery in all fifty detach-reattach cycles, and no more than one incident bundle per generation. A single run is not enough because timing behavior is the product here. We should execute on both six-gigabyte and twelve-gigabyte devices.",
+          "ko": "방금 논의 중에 실행한 재현에 따르면 2초와 8초 간격을 둔 네 인스턴스도 CPU 목표에 들어옵니다. 입력 타임아웃은 발생하지 않았고 합산 CPU 최고치는 12퍼센트였습니다. 핸드오프 토큰에 동의하지만 만료, 재사용, 잘못된 generation, 유효한 토큰 뒤에 이어지는 관련 없는 충돌을 시험해야 합니다. 릴리스 기준으로 자동화 도크 200회에서 입력 마감 누락 0건, 분리 후 재연결 50회 모두 복구 성공, generation당 사고 번들 최대 한 개를 요구합니다. 여기서는 타이밍 동작 자체가 제품이므로 한 번의 실행으로는 충분하지 않습니다. 6기가바이트와 12기가바이트 단말 모두에서 실행해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision Owners and Deadlines",
+      "title_ko": "결정, 담당자와 기한",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "I am recording the decision. We will implement an accessory-specific supervisor, not alter global init restart policy. One trusted kernel attach generation defines the session. Expected handoff exits require Sofia's single-use token. All abnormal deaths share three restarts after the initial instance: immediate, two seconds, and eight seconds. A fourth abnormal death inside ninety seconds enters CONTAINED until a kernel detach and new attach generation. In containment, certified charging continues, accessory input stops, Binder polling stops, one user notification appears, and one bounded incident bundle is captured. Ten stable minutes closes telemetry for the incident but does not restore spent retries. Is that an accurate statement of agreement?",
+          "ko": "결정을 기록하겠습니다. 전역 init 재시작 정책을 변경하지 않고 액세서리 전용 supervisor를 구현합니다. 신뢰할 수 있는 커널 연결 generation 하나가 세션을 정의합니다. 예상된 핸드오프 종료에는 Sofia의 일회용 토큰이 필요합니다. 모든 비정상 종료는 최초 인스턴스 뒤에 공통으로 세 번 재시작합니다. 즉시, 2초 뒤, 8초 뒤입니다. 90초 이내에 네 번째 비정상 종료가 발생하면 커널 분리와 새 연결 generation이 생길 때까지 CONTAINED로 전환합니다. 억제 상태에서는 인증된 충전을 유지하고 액세서리 입력과 Binder 폴링을 중단하며 사용자 알림 하나를 표시하고 제한된 사고 번들 하나를 수집합니다. 10분 안정 상태는 사고 텔레메트리를 종료하지만 소비된 재시도 횟수를 복구하지 않습니다. 합의 내용을 정확히 표현했습니까?"
+        },
+        {
+          "speaker": "Ravi Menon",
+          "en": "Yes, with one operational addition. Vendor Integration will own the D7 protocol fix and the compatibility note. I will deliver controller firmware D8 and a signed change summary by October 22 at 15:00 KST. The endpoint must still reject the short frame, and the platform containment must remain because deployed D7 docks will not all update immediately. I will also provide Daniel with captures for the valid handoff, short payload, oversized payload, and alternating invalid-length cases by noon tomorrow. We should treat the firmware fix and platform resilience as independent deliverables; neither is a reason to waive the other.",
+          "ko": "네, 운영상 한 가지를 추가하겠습니다. 벤더 통합팀이 D7 프로토콜 수정과 호환성 문서를 담당합니다. 제가 10월 22일 15시 KST까지 D8 컨트롤러 펌웨어와 서명된 변경 요약을 전달하겠습니다. 엔드포인트는 여전히 짧은 프레임을 거부해야 하며, 배포된 D7 도크가 모두 즉시 업데이트되지는 않으므로 플랫폼 억제도 유지해야 합니다. 또한 내일 정오까지 정상 핸드오프, 짧은 페이로드, 과대 페이로드, 번갈아 나타나는 잘못된 길이 사례의 캡처를 Daniel에게 제공하겠습니다. 펌웨어 수정과 플랫폼 회복성을 독립적인 산출물로 다뤄야 하며 어느 한쪽도 다른 쪽을 면제하는 이유가 되어서는 안 됩니다."
+        },
+        {
+          "speaker": "Sofia Han",
+          "en": "Security Architecture will specify and review the token and diagnostic privacy rules. I will send the interface definition by October 21 at 17:00 KST: generation binding, five-second expiry, atomic consumption, boot-scoped correlation salt, and denial behavior. By October 22 at 11:00, I will review Evan's prototype for any path that accepts controller-originated resets or includes raw packet payloads. My approval condition is that containment never broadens device-node access and the notification service receives only state and generation, not accessory identity. I will also add the malformed-frame sequence to our pre-unlock threat regression set.",
+          "ko": "보안 아키텍처팀은 토큰과 진단 개인정보 규칙을 명세하고 검토합니다. 제가 10월 21일 17시 KST까지 generation 결합, 5초 만료, 원자적 소비, 부팅 범위 연관 salt, 거부 동작을 포함한 인터페이스 정의를 보내겠습니다. 10월 22일 11시까지 컨트롤러가 유발한 초기화를 수용하거나 원시 패킷 페이로드를 포함하는 경로가 있는지 Evan의 프로토타입을 검토하겠습니다. 승인 조건은 억제가 장치 노드 접근을 넓히지 않고 알림 서비스가 액세서리 식별자가 아닌 상태와 generation만 받는 것입니다. 잘못된 프레임 순서도 잠금 해제 전 위협 회귀 세트에 추가하겠습니다."
+        },
+        {
+          "speaker": "Evan Cho",
+          "en": "Platform Reliability will own the supervisor and client contract. I will post a reviewable prototype by October 22 at 09:30 KST, including the four-state implementation, bounded ledger, backoff timers, and incident-bundle cap. Mina will integrate the system UI message and stop Binder polling in CONTAINED by October 22 at 16:00. We will keep the feature behind accessory_restart_guard so Daniel can compare guarded and current behavior on the same image. I will add structured counters for abnormal deaths, tokens consumed, containment entries, and successful new-generation recovery. No counter will contain a stable dock identifier.",
+          "ko": "플랫폼 신뢰성팀이 supervisor와 클라이언트 계약을 담당합니다. 제가 10월 22일 09시 30분 KST까지 네 가지 상태 구현, 제한된 기록, 백오프 타이머, 사고 번들 상한을 포함한 검토 가능한 프로토타입을 게시하겠습니다. Mina는 10월 22일 16시까지 시스템 UI 메시지를 통합하고 CONTAINED에서 Binder 폴링을 중단합니다. Daniel이 같은 이미지에서 보호 적용 동작과 현재 동작을 비교할 수 있도록 accessory_restart_guard 기능 플래그 뒤에 유지하겠습니다. 비정상 종료, 소비된 토큰, 억제 진입, 새 generation 복구 성공에 대한 구조화 카운터를 추가하겠습니다. 어떤 카운터에도 안정적인 도크 식별자는 포함하지 않습니다."
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "Quality Engineering will publish the full matrix by October 21 at 18:00 KST and start automation when Evan's prototype lands. I own two hundred dock cycles on each memory tier, fifty recovery cycles, token abuse tests, pre-unlock runs, and a twelve-hour charging soak in CONTAINED. The pass report is due October 23 at 08:30 KST. I will report distributions, not just averages: maximum CPU, input deadline misses, time to containment, duplicate bundles, and recovery latency. If any certified charging value changes during containment, I will stop testing and escalate immediately rather than continue the soak.",
+          "ko": "품질 엔지니어링팀은 10월 21일 18시 KST까지 전체 행렬을 게시하고 Evan의 프로토타입이 등록되면 자동화를 시작합니다. 제가 각 메모리 등급에서 도크 200회, 복구 50회, 토큰 악용 테스트, 잠금 해제 전 실행, CONTAINED 상태 12시간 충전 지속 시험을 담당합니다. 통과 보고서는 10월 23일 08시 30분 KST까지입니다. 평균만이 아니라 최대 CPU, 입력 마감 누락, 억제까지 걸린 시간, 중복 번들, 복구 지연시간의 분포를 보고하겠습니다. 억제 중 인증된 충전 값이 하나라도 바뀌면 지속 시험을 계속하지 않고 즉시 중단하고 에스컬레이션하겠습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Risks and Next Meeting",
+      "title_ko": "위험과 차기 회의",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "Before we close, I see three residual risks. First, a kernel detach may be delayed during suspend, so recovery after a physical replug could wait for resume. Second, a notification during Setup Wizard needs localization and accessibility review. Third, feature-flag comparison can contaminate results if the retry ledger survives a flag change. Evan, please make flag transitions clear the boot-scoped ledger only on engineering builds and reject runtime changes on production builds. Daniel, add suspend-replug coverage. I will ask Experience Quality for notification copy today, but that review is not a gate for collecting technical evidence.",
+          "ko": "마무리 전에 남은 위험 세 가지가 보입니다. 첫째, 절전 중 커널 분리 이벤트가 지연되어 물리적 재연결 뒤 복구가 재개 시점까지 기다릴 수 있습니다. 둘째, 설정 마법사 중 알림은 현지화와 접근성 검토가 필요합니다. 셋째, 기능 플래그를 바꿀 때 재시도 기록이 남아 있으면 비교 결과가 오염될 수 있습니다. Evan은 엔지니어링 빌드에서만 플래그 전환 시 부팅 범위 기록을 지우고 생산 빌드에서는 런타임 변경을 거부하도록 해 주세요. Daniel은 절전 중 재연결 검증을 추가해 주세요. 저는 오늘 Experience Quality에 알림 문구를 요청하겠지만 그 검토가 기술 증거 수집의 게이트는 아닙니다."
+        },
+        {
+          "speaker": "Ravi Menon",
+          "en": "There is one vendor risk to add. D8 prevents the short frame, but older docks can retain D7 if the user never opens the accessory updater. I will ask Operations for the installed-version estimate by October 22 at 10:00 KST. That estimate should guide rollout monitoring, not the containment threshold. I also recommend that the incident bundle record controller major version when the driver has already authenticated it. Version is useful for cohort analysis and is less sensitive than a serial number. Sofia, I will route the exact field through your privacy review before Evan adds it.",
+          "ko": "벤더 위험 한 가지를 추가하겠습니다. D8은 짧은 프레임을 막지만 사용자가 액세서리 업데이터를 열지 않으면 구형 도크에 D7이 남을 수 있습니다. 10월 22일 10시 KST까지 운영팀에 설치 버전 추정치를 요청하겠습니다. 그 추정치는 억제 임계값이 아니라 배포 모니터링을 안내해야 합니다. 드라이버가 이미 인증한 경우 사고 번들에 컨트롤러 주 버전을 기록할 것도 권합니다. 버전은 코호트 분석에 유용하고 일련번호보다 덜 민감합니다. Evan이 추가하기 전에 정확한 필드를 Sofia의 개인정보 검토로 보내겠습니다."
+        },
+        {
+          "speaker": "Sofia Han",
+          "en": "Controller major version is acceptable in principle if it is authenticated, coarse, and excluded from user-facing logs. I will include that decision in tomorrow's review. I also want a hard assertion that the supervisor cannot request firmware update while CONTAINED. Recovery and update are separate authorities; combining them would let a malformed-input incident trigger a privileged write path. The notification may offer instructions, but it must not silently start an update. With that boundary and the production flag restriction Mina described, I have no remaining design objection. My security sign-off remains conditional on code review and the negative token tests.",
+          "ko": "컨트롤러 주 버전이 인증되고 거친 정보이며 사용자에게 보이는 로그에서 제외된다면 원칙적으로 허용할 수 있습니다. 내일 검토에 그 결정을 포함하겠습니다. 또한 CONTAINED 중 supervisor가 펌웨어 업데이트를 요청할 수 없다는 강한 검증 조건을 원합니다. 복구와 업데이트는 별개의 권한이며, 둘을 결합하면 잘못된 입력 사고가 권한 있는 쓰기 경로를 촉발할 수 있습니다. 알림은 안내를 제공할 수 있지만 조용히 업데이트를 시작해서는 안 됩니다. 이 경계와 Mina가 설명한 생산 플래그 제한이 있다면 남은 설계 반대는 없습니다. 보안 승인은 코드 검토와 부정 토큰 테스트를 조건으로 유지합니다."
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "I added suspend-replug and the no-update assertion to the matrix. For the release decision, a passing lab result will allow a one-percent internal rollout only; it will not authorize consumer deployment. During that internal stage we need forty-eight hours with zero restart storms, zero charging regressions, and successful recovery for every observed new generation. I will build a dashboard that separates endpoint crashes from expected tokenized exits, because combining them would make the rate look worse while concealing whether containment works. If the internal cohort enters CONTAINED, we will inspect the bounded bundle before increasing exposure.",
+          "ko": "절전 중 재연결과 업데이트 금지 검증을 행렬에 추가했습니다. 릴리스 결정에서 시험실 통과 결과는 내부 1퍼센트 배포만 허용하며 소비자 배포를 승인하지는 않습니다. 내부 단계에서는 48시간 동안 재시작 폭주 0건, 충전 회귀 0건, 관찰된 모든 새 generation에서 복구 성공이 필요합니다. 엔드포인트 충돌과 토큰으로 표시된 예상 종료를 구분하는 대시보드를 만들겠습니다. 둘을 합치면 비율이 나빠 보이는 동시에 억제가 작동하는지 숨길 수 있기 때문입니다. 내부 코호트가 CONTAINED로 전환되면 노출을 늘리기 전에 제한된 번들을 조사하겠습니다."
+        },
+        {
+          "speaker": "Mina Park",
+          "en": "The next decision meeting is Friday, October 23, at 10:00 KST. We will review Daniel's pass report, Sofia's security findings, D8 availability, and the internal-rollout checklist. The go decision requires all laboratory gates, an approved token interface, no raw payload in diagnostics, and named monitoring owners for the forty-eight-hour stage. If one item is missing, the guard remains engineering-only and we schedule another review; we will not trade an unclear safety boundary for schedule. I will circulate these minutes within thirty minutes. Thank you. We have a bounded design, independent vendor and platform fixes, measurable exit criteria, and no change to global init behavior.",
+          "ko": "다음 의사결정 회의는 10월 23일 금요일 10시 KST입니다. Daniel의 통과 보고서, Sofia의 보안 검토 결과, D8 가용성, 내부 배포 체크리스트를 검토합니다. 진행 결정에는 모든 시험실 게이트, 승인된 토큰 인터페이스, 진단 정보에 원시 페이로드가 없다는 조건, 48시간 단계의 지정된 모니터링 담당자가 필요합니다. 하나라도 빠지면 보호 기능은 엔지니어링 전용으로 유지하고 다시 검토 일정을 잡습니다. 불명확한 안전 경계를 일정과 맞바꾸지 않겠습니다. 30분 이내에 이 회의록을 배포하겠습니다. 감사합니다. 제한된 설계, 독립적인 벤더와 플랫폼 수정, 측정 가능한 종료 기준, 전역 init 동작을 변경하지 않는다는 원칙을 확보했습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "our objective is narrow",
+      "meaning_ko": "우리의 목표 범위가 좁다",
+      "usage_ko": "논의 범위를 분명히 제한할 때",
+      "example": "Our objective is narrow: decide how the privileged Accessory Bridge service should behave when its native endpoint repeatedly dies.",
+      "practice": "Our objective is narrow: confirm the rollback trigger and choose one owner."
+    },
+    {
+      "phrase": "preserve fail-closed handling",
+      "meaning_ko": "폐쇄형 실패 처리를 유지하다",
+      "usage_ko": "안전하지 않은 입력은 계속 거부해야 함을 강조할 때",
+      "example": "We need to preserve fail-closed handling for malformed packets while stopping resource amplification.",
+      "practice": "We must preserve fail-closed handling while improving the error message."
+    },
+    {
+      "phrase": "define the user-visible outcomes first",
+      "meaning_ko": "먼저 사용자에게 보이는 결과를 정의하다",
+      "usage_ko": "기술 수단보다 결과 기준을 먼저 합의할 때",
+      "example": "I propose that we define the user-visible outcomes first: boot responsiveness, charging continuity, accessory availability, diagnostic completeness, and recovery after physical removal.",
+      "practice": "Let us define the user-visible outcomes first and select the mechanism afterward."
+    },
+    {
+      "phrase": "separate crash accounting from connection accounting",
+      "meaning_ko": "충돌 집계와 연결 집계를 분리하다",
+      "usage_ko": "서로 다른 상태 단위를 구분할 때",
+      "example": "I suggest that we separate crash accounting from connection accounting.",
+      "practice": "The design should separate crash accounting from connection accounting."
+    },
+    {
+      "phrase": "put the evidence on one timeline",
+      "meaning_ko": "증거를 하나의 타임라인에 놓다",
+      "usage_ko": "여러 로그의 인과관계를 맞출 때",
+      "example": "Let us put the evidence on one timeline.",
+      "practice": "Please put the evidence on one timeline before assigning a root cause."
+    },
+    {
+      "phrase": "the unit of trust",
+      "meaning_ko": "신뢰의 단위",
+      "usage_ko": "보안상 어떤 식별 단위를 신뢰할지 말할 때",
+      "example": "We should make that generation the unit of trust.",
+      "practice": "A signed deployment generation should be the unit of trust."
+    },
+    {
+      "phrase": "The evidence changes my view",
+      "meaning_ko": "증거를 보고 의견이 바뀌었다",
+      "usage_ko": "새 자료를 근거로 입장 변경을 명확히 할 때",
+      "example": "The evidence changes my view.",
+      "practice": "The evidence changes my view, so I now support the smaller rollout."
+    },
+    {
+      "phrase": "convert that contract into observable assertions",
+      "meaning_ko": "그 계약을 관찰 가능한 검증 항목으로 바꾸다",
+      "usage_ko": "설계를 시험 가능한 조건으로 변환할 때",
+      "example": "I can convert that contract into observable assertions.",
+      "practice": "QA will convert that contract into observable assertions before implementation."
+    },
+    {
+      "phrase": "We now need actual numbers",
+      "meaning_ko": "이제 실제 수치가 필요하다",
+      "usage_ko": "원칙 논의에서 구체적 임계값 논의로 전환할 때",
+      "example": "We now need actual numbers.",
+      "practice": "We now need actual numbers for latency and error tolerance."
+    },
+    {
+      "phrase": "a compromise",
+      "meaning_ko": "절충안",
+      "usage_ko": "대립하는 제안의 핵심을 조합할 때",
+      "example": "I propose a compromise: expected transport and descriptor exits are not crashes if they carry a supervisor-issued handoff token tied to the generation and consumed once.",
+      "practice": "I propose a compromise that protects the deadline and the safety gate."
+    },
+    {
+      "phrase": "A single run is not enough",
+      "meaning_ko": "한 번의 실행으로는 충분하지 않다",
+      "usage_ko": "변동성이 있어 반복 검증이 필요할 때",
+      "example": "A single run is not enough because timing behavior is the product here.",
+      "practice": "A single run is not enough to establish thermal stability."
+    },
+    {
+      "phrase": "I am recording the decision",
+      "meaning_ko": "결정을 기록하겠다",
+      "usage_ko": "최종 합의를 공식적으로 요약할 때",
+      "example": "I am recording the decision.",
+      "practice": "I am recording the decision and the owners in the minutes."
+    },
+    {
+      "phrase": "independent deliverables",
+      "meaning_ko": "독립적인 산출물",
+      "usage_ko": "서로 대체할 수 없는 별도 작업을 구분할 때",
+      "example": "We should treat the firmware fix and platform resilience as independent deliverables; neither is a reason to waive the other.",
+      "practice": "The migration tool and audit report are independent deliverables."
+    },
+    {
+      "phrase": "residual risks",
+      "meaning_ko": "남은 위험",
+      "usage_ko": "결정 뒤에도 관리해야 할 위험을 검토할 때",
+      "example": "Before we close, I see three residual risks.",
+      "practice": "Before approval, let us list the residual risks and monitoring signals."
+    },
+    {
+      "phrase": "measurable exit criteria",
+      "meaning_ko": "측정 가능한 종료 기준",
+      "usage_ko": "작업 완료 조건을 객관적으로 정할 때",
+      "example": "We have a bounded design, independent vendor and platform fixes, measurable exit criteria, and no change to global init behavior.",
+      "practice": "Every temporary control needs measurable exit criteria."
+    }
+  ]
+}
