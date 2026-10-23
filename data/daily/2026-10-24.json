@@ -1,0 +1,124 @@
+{
+  "date": "2026-10-24",
+  "category": "daily",
+  "subject": "My Daily Routine",
+  "title_ko": "나의 하루 일과",
+  "summary_ko": "오전 6시 15분 기상부터 통근버스, 사무실 아침 식사와 업무 계획, 퇴근 후 휴식까지 자신의 하루를 자연스럽게 영어로 설명합니다.",
+  "sections": [
+    {
+      "title_en": "Getting Ready",
+      "title_ko": "아침 준비",
+      "en": "I usually wake up at 6:15 in the morning. The first thing I do is make my bed and wash my face. Then I get dressed and head out to catch the bus to work.",
+      "ko": "저는 보통 아침 6시 15분에 일어납니다. 가장 먼저 이불을 개고 세수를 합니다. 그런 다음 옷을 입고 출근 버스를 타러 집을 나섭니다."
+    },
+    {
+      "title_en": "The Morning Commute",
+      "title_ko": "아침 출근길",
+      "en": "Luckily, there's a bus stop right in front of my house. I catch the 6:35 bus and usually get to work around 7:30. Since I spend quite a bit of time on the bus, I usually watch YouTube videos about cycling or the stock market. It's a nice way to pass the time during my commute.",
+      "ko": "다행히 집 바로 앞에 버스 정류장이 있습니다. 6시 35분 버스를 타고 보통 7시 30분쯤 회사에 도착합니다. 버스에서 보내는 시간이 꽤 길어서 주로 자전거나 주식시장 관련 유튜브 영상을 봅니다. 출퇴근 시간을 보내기에 좋은 방법입니다."
+    },
+    {
+      "title_en": "Starting the Workday",
+      "title_ko": "업무 시작",
+      "en": "Once I arrive, I grab some breakfast to go and head to my office. While I'm eating, I go over my schedule and plan out what I need to get done that day. After that, I spend most of the day working.",
+      "ko": "도착하면 아침 식사를 포장해서 사무실로 갑니다. 먹으면서 일정을 확인하고 그날 해야 할 일들을 정리합니다. 그다음에는 하루 대부분을 일하면서 보냅니다."
+    },
+    {
+      "title_en": "Heading Home",
+      "title_ko": "퇴근과 휴식",
+      "en": "I usually get home around 7 or 8 in the evening. By the time I get home, I'm pretty exhausted, so I tend to go straight to bed.",
+      "ko": "보통 저녁 7시나 8시쯤 집에 도착합니다. 집에 도착할 때쯤이면 상당히 피곤해서 바로 잠자리에 드는 편입니다."
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "make my bed",
+      "meaning_ko": "이불을 개고 침대를 정리하다",
+      "example": "I make my bed right after I wake up.",
+      "example_ko": "일어난 직후 이불을 갭니다."
+    },
+    {
+      "phrase": "get dressed",
+      "meaning_ko": "옷을 입다",
+      "example": "I get dressed before breakfast.",
+      "example_ko": "아침 식사 전에 옷을 입습니다."
+    },
+    {
+      "phrase": "head out",
+      "meaning_ko": "집을 나서다, 출발하다",
+      "example": "I head out around 6:30.",
+      "example_ko": "6시 30분쯤 집을 나섭니다."
+    },
+    {
+      "phrase": "catch the bus",
+      "meaning_ko": "버스를 타다",
+      "example": "I catch the 6:35 bus.",
+      "example_ko": "6시 35분 버스를 탑니다."
+    },
+    {
+      "phrase": "get to work",
+      "meaning_ko": "회사에 도착하다",
+      "example": "I get to work around 7:30.",
+      "example_ko": "7시 30분쯤 회사에 도착합니다."
+    },
+    {
+      "phrase": "grab some breakfast to go",
+      "meaning_ko": "아침 식사를 포장해서 사다",
+      "example": "I grab some breakfast to go.",
+      "example_ko": "아침을 포장해서 삽니다."
+    },
+    {
+      "phrase": "go over my schedule",
+      "meaning_ko": "일정을 살펴보다",
+      "example": "I go over my schedule while eating.",
+      "example_ko": "먹으면서 일정을 살펴봅니다."
+    },
+    {
+      "phrase": "plan out",
+      "meaning_ko": "계획을 구체적으로 세우다",
+      "example": "I plan out my day every morning.",
+      "example_ko": "매일 아침 하루 일과를 계획합니다."
+    },
+    {
+      "phrase": "quite a bit of time",
+      "meaning_ko": "꽤 많은 시간",
+      "example": "I spend quite a bit of time commuting.",
+      "example_ko": "출퇴근에 꽤 많은 시간을 씁니다."
+    },
+    {
+      "phrase": "pass the time",
+      "meaning_ko": "시간을 보내다",
+      "example": "I watch videos to pass the time.",
+      "example_ko": "시간을 보내려고 영상을 봅니다."
+    },
+    {
+      "phrase": "by the time I get home",
+      "meaning_ko": "집에 도착할 때쯤이면",
+      "example": "By the time I get home, I'm tired.",
+      "example_ko": "집에 도착할 때쯤이면 피곤합니다."
+    },
+    {
+      "phrase": "go straight to bed",
+      "meaning_ko": "바로 잠자리에 들다",
+      "example": "I usually go straight to bed.",
+      "example_ko": "보통 바로 잠자리에 듭니다."
+    }
+  ],
+  "practice": [
+    {
+      "question_ko": "몇 시에 일어나나요?",
+      "question_en": "What time do you usually wake up?",
+      "answer_en": "I usually wake up at 6:15 in the morning."
+    },
+    {
+      "question_ko": "출근길에는 무엇을 하나요?",
+      "question_en": "What do you usually do on your commute?",
+      "answer_en": "I usually watch YouTube videos about cycling or the stock market."
+    },
+    {
+      "question_ko": "퇴근 후에는 무엇을 하나요?",
+      "question_en": "What do you do after work?",
+      "answer_en": "I'm usually pretty exhausted, so I tend to go straight to bed."
+    }
+  ]
+}
