@@ -76,7 +76,8 @@ def validate(lesson):
 def document(title, body, prefix='', search=False, current='business'):
     mark = lambda name: ' aria-current="page"' if current == name else ''
     home_current, business_current, system_current = mark('home'), mark('business'), mark('system')
-    return f'''<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#07111f"><title>{escape(title)} · My English Study</title><link rel="stylesheet" href="{prefix}assets/style.css">{f'<script defer src="{prefix}assets/search.js"></script>' if search else ''}</head><body><header><a class="brand" href="{prefix}index.html"><span class="mark" aria-hidden="true">En</span><span><strong>My English Study</strong><small>매일 만나는 비즈니스 영어</small></span></a><nav class="primary-nav" aria-label="주요 메뉴"><a href="{prefix}index.html"{home_current}>학습 보관함</a><a href="{prefix}business/index.html"{business_current}>Business English</a><a href="{prefix}systemsw/index.html"{system_current}>System SW</a></nav></header>{body}<footer>영문 대본 → 한국어 번역 → 핵심 표현 · 읽기 시간은 분당 120단어 기준의 추정치입니다.</footer></body></html>'''
+    daily_current = mark('daily')
+    return f'''<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#07111f"><title>{escape(title)} · My English Study</title><link rel="stylesheet" href="{prefix}assets/style.css">{f'<script defer src="{prefix}assets/search.js"></script>' if search else ''}</head><body><header><a class="brand" href="{prefix}index.html"><span class="mark" aria-hidden="true">En</span><span><strong>My English Study</strong><small>매일 만나는 비즈니스 영어</small></span></a><nav class="primary-nav" aria-label="주요 메뉴"><a href="{prefix}index.html"{home_current}>학습 보관함</a><a href="{prefix}business/index.html"{business_current}>Business English</a><a href="{prefix}systemsw/index.html"{system_current}>System SW</a><a href="{prefix}daily/index.html"{daily_current}>일상 영어 연습</a></nav></header>{body}<footer>영문 대본 → 한국어 번역 → 핵심 표현 · 읽기 시간은 분당 120단어 기준의 추정치입니다.</footer></body></html>'''
 
 def filename(lesson):
     return f"{lesson['date']} {lesson['subject']}.html"
@@ -140,6 +141,44 @@ def index_page(lessons, prefix='', track=None):
     current = track or ('home' if not prefix else 'business')
     return document(page_title, body, prefix, search=True, current=current)
 
+
+def daily_pages(target):
+    daily_dir = ROOT / 'data/daily'
+    lessons = []
+    for path in sorted(daily_dir.glob('*.json'), reverse=True):
+        item = json.loads(path.read_text(encoding='utf-8'))
+        assert path.stem == item['date'] and item['category'] == 'daily'
+        assert item['sections'] and item['expressions']
+        lessons.append(item)
+    (target / 'daily').mkdir(parents=True, exist_ok=True)
+    cards = []
+    for item in lessons:
+        e = escape
+        sections = ''.join(
+            f'<section class="daily-section"><h2>{e(x["title_en"])} · {e(x["title_ko"])}</h2><p lang="en">{e(x["en"])}</p><p lang="ko" class="muted">{e(x["ko"])}</p></section>'
+            for x in item['sections']
+        )
+        expressions = ''.join(
+            f'<article class="expression"><h3>{e(x["phrase"])}</h3><p><strong>{e(x["meaning_ko"])}</strong></p><p lang="en">{e(x["example"])}</p><p class="muted">{e(x["example_ko"])}</p></article>'
+            for x in item['expressions']
+        )
+        practice = ''.join(
+            f'<article class="expression"><h3>{e(x["question_en"])}</h3><p>{e(x["question_ko"])}</p><p lang="en">{e(x["answer_en"])}</p></article>'
+            for x in item.get('practice', [])
+        )
+        body = (f'<main class="lesson"><a class="back-link" href="index.html">← 일상 영어 연습</a>'
+                f'<p class="eyebrow">DAILY ENGLISH / {e(item["date"])}</p>'
+                f'<h1>{e(item["subject"])}</h1><p>{e(item["title_ko"])}</p>'
+                f'<p class="muted">{e(item["summary_ko"])}</p>'
+                f'<nav><a href="#script">영어·한국어</a><a href="#expressions">핵심 표현</a><a href="#practice">말하기 연습</a></nav>'
+                f'<section id="script"><h2>01 / English & Korean</h2>{sections}</section>'
+                f'<section id="expressions"><h2>02 / Useful expressions</h2>{expressions}</section>'
+                f'<section id="practice"><h2>03 / Speaking practice</h2>{practice}</section></main>')
+        (target / 'daily' / (item['date'] + '.html')).write_text(document(item['subject'], body, '../', current='daily'), encoding='utf-8')
+        cards.append(f'<article class="card"><div class="card-meta"><time>{e(item["date"])}</time></div><h3><a href="{e(item["date"])}.html">{e(item["title_ko"])}</a></h3><p lang="en">{e(item["subject"])}</p><p class="muted">{e(item["summary_ko"])}</p><a href="{e(item["date"])}.html">학습하기 ↗</a></article>')
+    body = '<main class="library"><section class="browse-section"><p class="eyebrow">DAILY ENGLISH</p><h1>일상 영어 연습</h1><p class="muted">나의 일상을 영어와 한국어로 익히고 핵심 표현을 연습하세요.</p><div class="cards">' + ''.join(cards) + '</div></section></main>'
+    (target / 'daily/index.html').write_text(document('Daily English', body, '../', current='daily'), encoding='utf-8')
+
 def build(output=None):
     target = Path(output).resolve() if output else ROOT
     lessons = []
@@ -157,6 +196,7 @@ def build(output=None):
     (target / 'business/index.html').write_text(index_page(lessons, '../', 'business'), encoding='utf-8')
     (target / 'systemsw').mkdir(parents=True, exist_ok=True)
     (target / 'systemsw/index.html').write_text(index_page(lessons, '../', 'system'), encoding='utf-8')
+    daily_pages(target)
     (target / '.nojekyll').touch()
     print(f'Built {len(lessons)} validated lesson(s) in {target}')
 
