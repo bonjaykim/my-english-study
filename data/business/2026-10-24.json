@@ -1,0 +1,294 @@
+{
+  "date": "2026-10-24",
+  "category": "business",
+  "topic": "sw-kickoff",
+  "subject": "Kicking Off a Low Overhead Android Wakeup Attribution Pilot",
+  "title_ko": "저오버헤드 Android 절전 해제 원인 추적 파일럿 킥오프",
+  "summary_ko": "가상의 Android 시스템 SW 팀이 깊은 절전 이후 예상치 못한 깨우기의 원인을 연결하는 제한적 계측 파일럿을 시작합니다. 인과 역할·오버헤드·개인정보 경계·대조 실험·중단 조건과 담당 일정을 합의합니다. 모든 인물·기업·단말·빌드·계측·로그·결함·수치·일정은 영어 학습을 위한 가상 교육용 설정입니다.",
+  "participants": [
+    {
+      "name": "Eunji Park",
+      "team": "Power Platform"
+    },
+    {
+      "name": "Caleb Moon",
+      "team": "Kernel Systems"
+    },
+    {
+      "name": "Sara Ito",
+      "team": "Telemetry Governance"
+    },
+    {
+      "name": "Minho Kang",
+      "team": "Device Quality"
+    },
+    {
+      "name": "Lena Ortiz",
+      "team": "Power Platform"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Pilot Goal",
+      "title_ko": "참석 확인과 파일럿 목표",
+      "turns": [
+        {
+          "speaker": "Eunji Park",
+          "en": "Good morning. Power Platform, Kernel Systems, Telemetry Governance, and Device Quality are represented. We are starting a limited pilot to attribute unexpected wakeups that occur after Android enters deep suspend. Current reports tell us that a device woke, but they often lose the causal path between the interrupt, the driver callback, and the userspace work that followed. Engineers then reproduce for days with broad tracing enabled. The pilot is not approval for fleet collection. By the end of this meeting, we need a narrow technical question, data boundaries, overhead limits, three target scenarios, owners, and a date for deciding whether the approach deserves productization.",
+          "ko": "좋은 아침입니다. 전력 플랫폼, 커널 시스템, 텔레메트리 거버넌스, 단말 품질팀이 참석했습니다. Android가 깊은 절전에 들어간 뒤 발생하는 예상치 못한 깨우기의 원인을 연결하는 제한된 파일럿을 시작합니다. 현재 보고서는 단말이 깨어났다는 사실은 알려 주지만 인터럽트, 드라이버 콜백, 이후 사용자 공간 작업 사이의 인과 경로를 자주 잃습니다. 엔지니어들은 광범위한 추적을 켜고 며칠 동안 재현합니다. 이번 파일럿은 전체 단말 수집 승인이 아닙니다. 회의가 끝날 때까지 좁은 기술 질문, 데이터 경계, 오버헤드 한도, 목표 시나리오 세 개, 담당자, 제품화 가치 판단 날짜를 정해야 합니다."
+        },
+        {
+          "speaker": "Caleb Moon",
+          "en": "Kernel Systems is present. I propose an in-memory wake chain built from existing tracepoints plus two new hooks: one where the interrupt controller marks the first wake source, and one where the resumed driver schedules its first work item. A boot-scoped numeric token would connect those records to a later suspend-exit reason. We can implement the prototype with a fixed ring buffer and no persistent kernel storage. My concern is semantic accuracy. Several interrupts can arrive before clocks stabilize, and the first interrupt is not always the cause that keeps the system awake. We need to distinguish trigger, contributor, and sustained activity rather than publish one misleading culprit.",
+          "ko": "커널 시스템팀 참석했습니다. 기존 tracepoint와 두 개의 새 훅으로 메모리 내 wake chain을 만들자고 제안합니다. 하나는 인터럽트 컨트롤러가 최초 깨우기 소스를 표시하는 지점이고 다른 하나는 재개된 드라이버가 첫 work item을 예약하는 지점입니다. 부팅 범위 숫자 토큰으로 이 레코드들을 이후 절전 종료 원인에 연결합니다. 고정 ring buffer와 영구 커널 저장 없이 프로토타입을 구현할 수 있습니다. 우려는 의미 정확성입니다. 클록이 안정되기 전에 여러 인터럽트가 도착할 수 있고 첫 인터럽트가 시스템을 계속 깨어 있게 만드는 원인이라고 항상 볼 수는 없습니다. 오해를 부르는 하나의 범인 대신 트리거, 기여 요인, 지속 활동을 구분해야 합니다."
+        },
+        {
+          "speaker": "Sara Ito",
+          "en": "Telemetry Governance is here. The boot-scoped token helps, but the proposed chain can still expose behavior if userspace process names, network endpoints, sensor values, or precise timestamps leave the device. For this pilot, I recommend engineering units only, explicit enrollment, and local export through a debugging command. The exported record should contain approved component categories, relative timing in coarse buckets, and result codes. Raw interrupt numbers may be acceptable internally if the mapping table stays with the build, but package names and payload values are not. We should design the minimum dataset before writing hooks, because removing fields later does not undo copied diagnostics.",
+          "ko": "텔레메트리 거버넌스팀 참석했습니다. 부팅 범위 토큰은 도움이 되지만 사용자 공간 프로세스 이름, 네트워크 엔드포인트, 센서 값, 정밀 타임스탬프가 단말 밖으로 나가면 제안한 chain이 여전히 행동을 노출할 수 있습니다. 이번 파일럿은 엔지니어링 단말, 명시적 등록, 디버깅 명령을 통한 로컬 내보내기로 제한하길 권합니다. 내보낸 레코드에는 승인된 컴포넌트 범주, 거친 구간의 상대 시간, 결과 코드만 포함해야 합니다. 매핑 테이블이 빌드 내부에 남는다면 원시 인터럽트 번호는 내부적으로 허용할 수 있지만 패키지 이름과 페이로드 값은 안 됩니다. 나중에 필드를 제거해도 복사된 진단 정보가 되돌아오지 않으므로 훅을 작성하기 전에 최소 데이터셋을 설계해야 합니다."
+        },
+        {
+          "speaker": "Minho Kang",
+          "en": "Device Quality is present. I can supply three recurring scenarios with different ambiguity. First, a Bluetooth controller signals host wake but audio never starts. Second, a motion sensor interrupt coincides with an alarm scheduled within forty milliseconds. Third, a modem status line rises during poor coverage and userspace holds the device awake for ninety seconds. We already have external power measurements and scripted stimuli for all three. Success should mean the chain points investigators toward the correct subsystem faster than existing suspend statistics, not that it reconstructs every instruction. I also need a control group because extra hooks can change the races we are trying to observe.",
+          "ko": "단말 품질팀 참석했습니다. 모호성이 서로 다른 반복 시나리오 세 가지를 제공할 수 있습니다. 첫째, Bluetooth 컨트롤러가 host wake를 알리지만 오디오가 시작되지 않는 경우입니다. 둘째, 모션 센서 인터럽트가 40밀리초 이내에 예약된 알람과 겹치는 경우입니다. 셋째, 약한 신호 중 모뎀 상태선이 올라가고 사용자 공간이 단말을 90초 동안 깨어 있게 하는 경우입니다. 세 경우 모두 외부 전력 측정과 스크립트 자극이 이미 있습니다. 성공은 모든 명령을 복원하는 것이 아니라 기존 절전 통계보다 조사자를 올바른 하위 시스템으로 더 빨리 안내하는 것입니다. 추가 훅이 관찰하려는 경쟁 상태를 바꿀 수 있으므로 대조군도 필요합니다."
+        },
+        {
+          "speaker": "Lena Ortiz",
+          "en": "I will own analysis for Power Platform. Today, a wake report has a kernel reason, aggregate wake-lock duration, and a userspace history sampled several seconds later. Those clocks and identities do not align. My proposed output is one bounded narrative per suspend cycle: what triggered resume, which components contributed in the first five hundred milliseconds, and what sustained activity beyond five seconds. The narrative can be expressed as category codes with confidence, not names. I want the pilot to answer one practical question: can an engineer classify an unexplained wake into the correct owner team within fifteen minutes without enabling full tracing and reproducing again?",
+          "ko": "전력 플랫폼팀의 분석을 제가 담당하겠습니다. 현재 wake 보고서에는 커널 원인, 집계된 wake lock 시간, 몇 초 뒤 샘플링된 사용자 공간 이력이 있지만 시계와 식별자가 맞지 않습니다. 제가 제안하는 출력은 절전 주기마다 하나의 제한된 서술입니다. 무엇이 재개를 촉발했고 첫 500밀리초에 어떤 컴포넌트들이 기여했으며 5초 넘게 활동을 유지한 것이 무엇인지 보여 줍니다. 이름 대신 신뢰도가 포함된 범주 코드로 표현할 수 있습니다. 파일럿이 답해야 할 실무 질문은 하나입니다. 엔지니어가 전체 추적을 활성화하고 다시 재현하지 않고 15분 이내에 설명되지 않은 wake를 올바른 담당팀으로 분류할 수 있는가입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Scope and Evidence Model",
+      "title_ko": "범위와 증거 모델",
+      "turns": [
+        {
+          "speaker": "Eunji Park",
+          "en": "Let us formalize the vocabulary before debating implementation. Trigger means an event that changes the hardware suspend state. Contributor means work causally scheduled within the resume window, even if it did not trigger hardware. Sustainer means a component that prevents return to suspend beyond our threshold. These labels are roles, not blame. One component can occupy more than one role, and a chain may remain unresolved. The prototype must report uncertainty instead of forcing attribution. Caleb, can the kernel produce that separation without following arbitrary pointers or recording every scheduler edge?",
+          "ko": "구현을 논쟁하기 전에 용어를 공식화합시다. 트리거는 하드웨어 절전 상태를 바꾸는 이벤트입니다. 기여자는 하드웨어를 깨우지 않았더라도 재개 구간 안에서 인과적으로 예약된 작업입니다. 지속자는 임계값을 넘어 다시 절전으로 돌아가는 것을 막는 컴포넌트입니다. 이 표시는 비난이 아니라 역할입니다. 하나의 컴포넌트가 여러 역할을 가질 수 있고 chain이 미해결로 남을 수도 있습니다. 프로토타입은 억지로 원인을 지정하지 말고 불확실성을 보고해야 합니다. Caleb, 임의 포인터를 따라가거나 모든 스케줄러 edge를 기록하지 않고 커널이 이 구분을 만들 수 있습니까?"
+        },
+        {
+          "speaker": "Caleb Moon",
+          "en": "Partly. Trigger is reliable when the interrupt controller provides a latched wake bit. Contributors can be approximated by propagating the wake token through workqueue insertion and selected Binder entry points for five hundred milliseconds. Sustainers should not propagate indefinitely; instead, the power manager can attach the token to approved wake-lock categories and report duration buckets. We must cap fan-out. I suggest at most sixteen contributor edges and eight category nodes per cycle. If the cap is exceeded, the record says TRUNCATED and keeps aggregate counts. We will never walk task ancestry after the fact, because that is expensive and can invent causality from mere timing.",
+          "ko": "부분적으로 가능합니다. 인터럽트 컨트롤러가 latch된 wake bit를 제공하면 트리거는 신뢰할 수 있습니다. 기여자는 500밀리초 동안 workqueue 삽입과 선택된 Binder 진입점으로 wake token을 전달해 근사할 수 있습니다. 지속자는 무기한 전달하면 안 됩니다. 대신 전력 관리자가 승인된 wake lock 범주에 토큰을 연결하고 지속 시간 구간을 보고할 수 있습니다. fan-out을 제한해야 합니다. 주기마다 기여자 edge 최대 16개, 범주 노드 최대 8개를 제안합니다. 한도를 넘으면 레코드에 TRUNCATED를 표시하고 집계 수를 보존합니다. 비용이 크고 단순한 시간 일치에서 인과관계를 만들어 낼 수 있으므로 사후에 task ancestry를 따라가지 않습니다."
+        },
+        {
+          "speaker": "Sara Ito",
+          "en": "That cap also supports data minimization. I want category assignment to occur on device from a reviewed static table: radio, short-range connectivity, sensors, storage, display, alarm, system service, and unknown. The exported record contains categories, role, confidence level, duration bucket, truncation flag, and a boot-local sequence number. Exact driver symbols remain only in the local engineering view and disappear from shared exports. Binder propagation must stop at the approved system-service boundary; it cannot follow into application UIDs. The pilot question concerns system software ownership, so application attribution is outside scope and creates unnecessary privacy risk.",
+          "ko": "그 한도는 데이터 최소화에도 도움이 됩니다. 범주 지정은 검토된 정적 테이블을 사용해 단말에서 수행해야 합니다. radio, 근거리 연결, 센서, 저장소, 디스플레이, 알람, 시스템 서비스, unknown입니다. 내보낸 레코드에는 범주, 역할, 신뢰도, 지속 시간 구간, 잘림 플래그, 부팅 로컬 순번만 포함합니다. 정확한 드라이버 심볼은 로컬 엔지니어링 보기 안에만 남고 공유 내보내기에서는 사라집니다. Binder 전달은 승인된 시스템 서비스 경계에서 멈춰야 하며 애플리케이션 UID까지 따라가면 안 됩니다. 파일럿 질문은 시스템 소프트웨어 담당을 찾는 것이므로 애플리케이션 귀속은 범위 밖이며 불필요한 개인정보 위험을 만듭니다."
+        },
+        {
+          "speaker": "Minho Kang",
+          "en": "For evidence quality, each scripted scenario will have a hidden ground-truth sheet based on stimulus timing, hardware analyzer output, and full tracing from a separate reference run. Pilot investigators will see only the bounded record and ordinary bug report. They must choose an owner team, explain the chain, and state confidence. We will measure correct routing, time to classification, false certainty, and requests for additional reproduction. The control group uses current tools. I propose twelve investigators, six per group, with scenarios crossed after a washout day. That tests utility rather than merely confirming that authors understand their own format.",
+          "ko": "증거 품질을 위해 각 스크립트 시나리오에는 자극 타이밍, 하드웨어 분석기 출력, 별도 참조 실행의 전체 추적을 기반으로 한 비공개 정답 시트를 둡니다. 파일럿 조사자는 제한된 레코드와 일반 버그 보고서만 봅니다. 담당팀을 선택하고 chain을 설명하며 신뢰도를 밝혀야 합니다. 올바른 라우팅, 분류 시간, 잘못된 확신, 추가 재현 요청을 측정합니다. 대조군은 현재 도구를 사용합니다. 그룹당 6명씩 조사자 12명을 두고 하루의 휴지 뒤 시나리오를 교차하는 방식을 제안합니다. 그러면 작성자가 자신의 포맷을 이해한다는 사실이 아니라 실제 효용을 시험할 수 있습니다."
+        },
+        {
+          "speaker": "Lena Ortiz",
+          "en": "I support the blinded comparison. We should predefine what improvement justifies continuing. My proposal is at least eighty percent correct owner routing, median classification under fifteen minutes, no increase in high-confidence wrong answers, and at least a forty-percent reduction in requests for another full-trace reproduction. Technical overhead is a separate gate: suspend entry and exit each add under one hundred microseconds, idle battery changes by less than zero point two percent over eight hours, and memory remains below two hundred fifty-six kilobytes. A useful diagnostic that perturbs suspend behavior is still a failed prototype.",
+          "ko": "블라인드 비교를 지지합니다. 계속 진행할 가치가 있는 개선 수준을 미리 정의해야 합니다. 올바른 담당팀 라우팅 80퍼센트 이상, 분류 시간 중앙값 15분 미만, 높은 신뢰도의 오답 증가 없음, 전체 추적 재현 추가 요청 40퍼센트 이상 감소를 제안합니다. 기술 오버헤드는 별도 게이트입니다. 절전 진입과 종료에 각각 100마이크로초 미만 추가, 8시간 유휴 배터리 변화 0.2퍼센트 미만, 메모리 256킬로바이트 미만입니다. 유용한 진단이라도 절전 동작을 교란하면 실패한 프로토타입입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Architecture Debate and Guardrails",
+      "title_ko": "아키텍처 논쟁과 보호 장치",
+      "turns": [
+        {
+          "speaker": "Eunji Park",
+          "en": "There are two implementation options. Caleb's token propagation gives stronger causality but touches workqueue and Binder paths. A simpler alternative samples active wake-lock categories after resume and correlates by time. The simpler version carries less kernel risk, yet it may reproduce the ambiguity we already have. I want us to choose based on the pilot question, not on which patch is easiest. Caleb, what is the smallest token design that still distinguishes the simultaneous sensor interrupt and alarm scenario? Sara, please identify any boundary that makes propagation unacceptable even on enrolled engineering units.",
+          "ko": "구현 선택지는 두 가지입니다. Caleb의 토큰 전달은 인과관계가 더 강하지만 workqueue와 Binder 경로를 건드립니다. 더 단순한 대안은 재개 후 활성 wake lock 범주를 샘플링하고 시간으로 연관하는 것입니다. 단순 버전은 커널 위험이 적지만 이미 가진 모호성을 다시 만들 수 있습니다. 가장 쉬운 패치가 아니라 파일럿 질문을 기준으로 선택하고 싶습니다. Caleb, 동시에 발생하는 센서 인터럽트와 알람 시나리오를 구분할 수 있는 최소 토큰 설계는 무엇입니까? Sara, 등록된 엔지니어링 단말에서도 전달을 허용할 수 없게 만드는 경계를 밝혀 주세요."
+        },
+        {
+          "speaker": "Caleb Moon",
+          "en": "The minimum is narrower than full propagation. We tag the first latched interrupt, copy the token only into work items queued directly by its resume callback, and allow one handoff into an approved system-service Binder transaction. The alarm path begins with a separate clock event and therefore receives another token. If both arrive in the same resume episode, the record carries two roots rather than merging them. We do not modify general scheduler state, sockets, timers, or application Binder calls. Static keys compile each hook out when the pilot flag is disabled, so production control devices execute one unlikely branch but allocate no ring buffer.",
+          "ko": "최소 설계는 전체 전달보다 좁습니다. 첫 latch 인터럽트에 태그를 붙이고 해당 재개 콜백이 직접 큐에 넣은 work item에만 토큰을 복사하며 승인된 시스템 서비스 Binder 트랜잭션으로 한 번만 넘길 수 있게 합니다. 알람 경로는 별도 clock 이벤트로 시작하므로 다른 토큰을 받습니다. 둘이 같은 재개 에피소드에 도착하면 레코드는 합치지 않고 두 root를 가집니다. 일반 스케줄러 상태, 소켓, 타이머, 애플리케이션 Binder 호출은 수정하지 않습니다. 파일럿 플래그가 꺼지면 static key가 각 훅을 컴파일 경로에서 제거하므로 생산 대조 단말은 가능성이 낮은 분기 하나만 실행하고 ring buffer를 할당하지 않습니다."
+        },
+        {
+          "speaker": "Sara Ito",
+          "en": "That boundary is acceptable for local engineering collection, with three conditions. First, enrollment must require an engineering build and a physical debugging authorization; a remote property alone cannot enable it. Second, exported sequence numbers reset on reboot and cannot be joined with account or device identifiers. Third, the exact-symbol local view must display a warning and remain outside automatic bug-report attachments. I also want the category table reviewed like an interface. A new category cannot be added casually because a very specific label may reveal behavior even without a package name. Unknown is a valid outcome, not a reason to expand collection during the pilot.",
+          "ko": "그 경계는 로컬 엔지니어링 수집에 허용 가능하지만 조건이 세 가지 있습니다. 첫째, 등록에는 엔지니어링 빌드와 물리적 디버깅 승인이 필요하며 원격 속성만으로 활성화할 수 없습니다. 둘째, 내보낸 순번은 재부팅 시 초기화되고 계정이나 단말 식별자와 결합할 수 없습니다. 셋째, 정확한 심볼을 보여 주는 로컬 화면에는 경고를 표시하고 자동 버그 보고서 첨부에서 제외해야 합니다. 범주 테이블도 인터페이스처럼 검토해야 합니다. 매우 구체적인 라벨은 패키지 이름이 없어도 행동을 드러낼 수 있으므로 새 범주를 가볍게 추가하면 안 됩니다. unknown은 유효한 결과이며 파일럿 중 수집을 확대할 이유가 아닙니다."
+        },
+        {
+          "speaker": "Minho Kang",
+          "en": "For the control group, I need a build where static keys are off but every unrelated commit is identical. We will randomize devices, not people, because investigators may notice the report format. Each scenario runs fifty times on pilot devices and fifty on controls before the human study. We will compare wake frequency, resume latency distribution, deep-suspend residency, and external current. If the prototype changes the incidence of the race by more than two percentage points, we stop regardless of average overhead. Race frequency is the most sensitive measure of observer effect here.",
+          "ko": "대조군에는 static key가 꺼져 있지만 관련 없는 모든 커밋은 동일한 빌드가 필요합니다. 조사자가 보고서 포맷을 알아챌 수 있으므로 사람이 아니라 단말을 무작위 배정합니다. 사람 대상 연구 전에 각 시나리오를 파일럿 단말에서 50회, 대조군에서 50회 실행합니다. wake 빈도, 재개 지연 분포, 깊은 절전 체류율, 외부 전류를 비교합니다. 프로토타입이 경쟁 상태 발생률을 2퍼센트포인트 넘게 바꾸면 평균 오버헤드와 상관없이 중단합니다. 여기서는 경쟁 상태 빈도가 관찰자 효과의 가장 민감한 척도입니다."
+        },
+        {
+          "speaker": "Lena Ortiz",
+          "en": "I disagree with allowing one Binder handoff in the first prototype. It increases explanatory value, but it also doubles review surfaces before we know whether driver-to-workqueue attribution is useful. The Bluetooth and modem cases can be routed with kernel categories alone. Only the sensor-versus-alarm case benefits from Binder context, and we can label it unresolved in phase one. I propose two phases: week one stops at kernel work items and wake-lock categories; the continuation review decides whether a single system-service handoff is justified. This preserves a clean causal core and gives us evidence before expanding instrumentation.",
+          "ko": "첫 프로토타입에서 Binder handoff 한 번을 허용하는 데 반대합니다. 설명 가치는 높아지지만 드라이버에서 workqueue까지의 귀속이 유용한지 알기 전에 검토 표면을 두 배로 늘립니다. Bluetooth와 모뎀 사례는 커널 범주만으로 라우팅할 수 있습니다. 센서 대 알람 사례만 Binder 문맥의 이점을 받고 1단계에서는 미해결로 표시할 수 있습니다. 두 단계로 제안합니다. 첫 주에는 커널 work item과 wake lock 범주에서 멈추고 계속 진행 검토에서 시스템 서비스 handoff 한 번이 정당한지 결정합니다. 그러면 깨끗한 인과 핵심을 보존하고 계측을 확대하기 전에 증거를 얻을 수 있습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Pilot Decision Owners and Dates",
+      "title_ko": "파일럿 결정, 담당자와 일정",
+      "turns": [
+        {
+          "speaker": "Eunji Park",
+          "en": "I accept the phased proposal. Phase one includes latched interrupt roots, direct resume work items, approved wake-lock categories, bounded edges, confidence, and truncation. It excludes Binder, application identity, network details, sensor values, persistent storage, and remote upload. Enrollment requires an engineering build plus physical authorization. The pilot uses Bluetooth, sensor-versus-alarm, and modem scenarios, but we expect the middle case may remain ambiguous. Continuation depends on utility, privacy, overhead, and observer-effect gates. We are funding a measurement experiment, not committing to a product architecture. The phase-one review is October 30 at 10:00 KST.",
+          "ko": "단계적 제안을 수용합니다. 1단계에는 latch된 인터럽트 root, 직접 재개 work item, 승인된 wake lock 범주, 제한된 edge, 신뢰도, 잘림 표시가 포함됩니다. Binder, 애플리케이션 식별, 네트워크 상세, 센서 값, 영구 저장소, 원격 업로드는 제외합니다. 등록에는 엔지니어링 빌드와 물리적 승인이 필요합니다. 파일럿은 Bluetooth, 센서 대 알람, 모뎀 시나리오를 사용하지만 가운데 사례는 모호하게 남을 수 있다고 예상합니다. 계속 진행 여부는 효용, 개인정보, 오버헤드, 관찰자 효과 게이트에 달려 있습니다. 제품 아키텍처에 투자하는 것이 아니라 측정 실험에 투자합니다. 1단계 검토는 10월 30일 10시 KST입니다."
+        },
+        {
+          "speaker": "Caleb Moon",
+          "en": "Kernel Systems owns the prototype. I will publish the tracepoint contract and ring-buffer layout by October 24 at 16:00 KST. A reviewable build is due October 27 at noon. The buffer is two hundred fifty-six kilobytes, overwrites oldest complete cycles, and clears on reboot. I will implement sixteen-edge and eight-node caps, explicit TRUNCATED and UNRESOLVED outcomes, and static-key disablement. Trigger confidence derives only from hardware latch capability; timing proximity never earns high confidence. I will provide paired pilot and control kernels from the same source commit and document every instruction added to suspend entry and exit paths.",
+          "ko": "커널 시스템팀이 프로토타입을 담당합니다. 10월 24일 16시 KST까지 tracepoint 계약과 ring buffer 레이아웃을 게시하겠습니다. 검토 가능한 빌드는 10월 27일 정오까지입니다. 버퍼는 256킬로바이트이고 가장 오래된 완전한 주기부터 덮어쓰며 재부팅 시 지워집니다. edge 16개와 노드 8개 한도, 명시적인 TRUNCATED 및 UNRESOLVED 결과, static key 비활성화를 구현합니다. 트리거 신뢰도는 하드웨어 latch 능력에서만 나오며 시간적 근접성만으로 높은 신뢰도를 부여하지 않습니다. 같은 소스 커밋에서 파일럿 및 대조 커널 쌍을 제공하고 절전 진입과 종료 경로에 추가된 모든 명령을 문서화하겠습니다."
+        },
+        {
+          "speaker": "Sara Ito",
+          "en": "Telemetry Governance owns the data contract and enrollment review. By October 25 at 11:00 KST, I will publish the allowed category table, export schema, retention rule, and prohibited-field tests. I will inspect the debugging command and exact-symbol view before any device enrolls. Exported files must expire from the collection workstation after seven days and may be attached only to the pilot project, not general issue trackers. I will also run a re-identification review using the proposed records alone. Privacy approval for phase one does not carry forward to Binder propagation or any fleet mechanism; those require a new decision.",
+          "ko": "텔레메트리 거버넌스팀이 데이터 계약과 등록 검토를 담당합니다. 10월 25일 11시 KST까지 허용 범주 테이블, 내보내기 스키마, 보존 규칙, 금지 필드 테스트를 게시하겠습니다. 어떤 단말이 등록되기 전에 디버깅 명령과 정확한 심볼 화면을 점검합니다. 내보낸 파일은 수집 워크스테이션에서 7일 뒤 만료되고 일반 이슈 트래커가 아니라 파일럿 프로젝트에만 첨부할 수 있습니다. 제안된 레코드만 사용한 재식별 검토도 실행합니다. 1단계 개인정보 승인은 Binder 전달이나 전체 단말 메커니즘에 이어지지 않으며 그런 변경에는 새 결정이 필요합니다."
+        },
+        {
+          "speaker": "Minho Kang",
+          "en": "Device Quality owns execution and ground truth. Stimulus scripts and hidden answer sheets are due October 26 at 18:00 KST. Once paired builds arrive, I will run three scenarios fifty times per build, plus eight-hour idle and one thousand suspend-resume cycles. Technical results are due October 29 at 09:00. If all technical gates pass, the twelve-investigator blinded study runs that afternoon, with analysis by October 30 at 08:00. I will stop immediately for a kernel crash, lost wake event, race-frequency shift above two points, memory above cap, or any exported prohibited field.",
+          "ko": "단말 품질팀이 실행과 정답 데이터를 담당합니다. 자극 스크립트와 비공개 정답 시트는 10월 26일 18시 KST까지입니다. 빌드 쌍이 도착하면 빌드마다 세 시나리오를 50회씩 실행하고 8시간 유휴 및 1,000회 절전-재개 주기를 수행합니다. 기술 결과는 10월 29일 09시까지입니다. 모든 기술 게이트를 통과하면 그날 오후 조사자 12명의 블라인드 연구를 수행하고 10월 30일 08시까지 분석합니다. 커널 충돌, wake 이벤트 손실, 경쟁 빈도 2포인트 초과 변화, 메모리 한도 초과, 금지 필드 내보내기가 하나라도 있으면 즉시 중단합니다."
+        },
+        {
+          "speaker": "Lena Ortiz",
+          "en": "Power Platform owns the investigator rubric and baseline comparison. I will finalize scoring by October 26 at noon: owner routing, chain explanation, confidence calibration, classification time, and reproduction request. I will not count an UNRESOLVED answer as wrong when the phase-one record lacks the required edge; instead, high-confidence invention is penalized. For continuation, we need eighty percent routing accuracy, median under fifteen minutes, no increase in confident errors, and forty percent fewer full-trace requests. I will also prepare a specific phase-two question: whether one bounded Binder handoff resolves enough sensor-versus-alarm cases to justify its added review surface.",
+          "ko": "전력 플랫폼팀이 조사자 평가 기준과 기준선 비교를 담당합니다. 10월 26일 정오까지 담당팀 라우팅, chain 설명, 신뢰도 보정, 분류 시간, 재현 요청을 포함한 점수 체계를 확정합니다. 1단계 레코드에 필요한 edge가 없을 때 UNRESOLVED 답변을 오답으로 세지 않고 높은 신뢰도로 꾸며낸 답변에 불이익을 줍니다. 계속 진행하려면 라우팅 정확도 80퍼센트, 중앙값 15분 미만, 확신하는 오답 증가 없음, 전체 추적 요청 40퍼센트 감소가 필요합니다. 한 번의 제한된 Binder handoff가 센서 대 알람 사례를 충분히 해결해 추가 검토 표면을 정당화하는지 구체적인 2단계 질문도 준비하겠습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Risks and Next Review",
+      "title_ko": "위험과 차기 검토",
+      "turns": [
+        {
+          "speaker": "Eunji Park",
+          "en": "Before closing, I see four risks. First, engineers may treat a causal hint as proof and blame the wrong owner. Second, category tables can drift from build contents. Third, truncation may be correlated with the hardest failures, biasing the study. Fourth, an engineering tool may quietly become a support requirement before governance is ready. Mitigations are confidence labels, build-time table validation, reporting truncation as a first-class outcome, and an explicit ban on support workflows. We will record how often each risk appears, not merely state that controls exist. Does anyone have a blocking concern that the current action plan does not address?",
+          "ko": "마무리 전에 위험 네 가지가 보입니다. 첫째, 엔지니어가 인과 힌트를 증거로 취급하고 잘못된 담당자를 탓할 수 있습니다. 둘째, 범주 테이블이 빌드 내용과 어긋날 수 있습니다. 셋째, 가장 어려운 실패에서 잘림이 많이 발생해 연구가 편향될 수 있습니다. 넷째, 거버넌스 준비 전에 엔지니어링 도구가 조용히 지원 요구사항이 될 수 있습니다. 완화책은 신뢰도 라벨, 빌드 시 테이블 검증, 잘림을 주요 결과로 보고, 지원 워크플로 사용을 명시적으로 금지하는 것입니다. 제어가 존재한다고만 말하지 않고 각 위험이 얼마나 자주 나타나는지 기록합니다. 현재 실행 계획으로 다루지 못한 차단 우려가 있습니까?"
+        },
+        {
+          "speaker": "Caleb Moon",
+          "en": "One technical risk remains: some wake-capable devices share a parent interrupt, so the hardware latch identifies a controller rather than the child device. The record must not promote that parent to high-confidence component ownership. I will model shared parents as a trigger group and require the direct resume callback before naming a category contributor. If no callback is observed within the bounded window, the result stays UNKNOWN_TRIGGER_GROUP. The category table validator will ensure that a shared interrupt never maps to one child. That should prevent apparent precision where hardware provides none.",
+          "ko": "기술 위험 하나가 남습니다. 일부 wake 가능 장치는 부모 인터럽트를 공유하므로 하드웨어 latch가 하위 장치가 아니라 컨트롤러를 식별합니다. 레코드가 그 부모를 높은 신뢰도의 컴포넌트 담당으로 올리면 안 됩니다. 공유 부모는 트리거 그룹으로 모델링하고 범주 기여자를 지정하기 전에 직접 재개 콜백을 요구하겠습니다. 제한된 구간 안에 콜백이 없으면 결과는 UNKNOWN_TRIGGER_GROUP으로 남습니다. 범주 테이블 검증기는 공유 인터럽트가 하나의 하위 장치에 매핑되지 않도록 합니다. 하드웨어가 제공하지 않는 정밀도를 가장하는 일을 막을 수 있습니다."
+        },
+        {
+          "speaker": "Sara Ito",
+          "en": "My blocking condition is clear: no collection begins until prohibited-field tests inspect actual binary exports, not only the schema definition. I will seed package-like strings, precise timestamps, and synthetic identifiers in internal structures and verify they cannot cross the export boundary. I also want screenshots disabled in the exact-symbol view because a warning banner does not prevent accidental capture. If that requires extra implementation time, enrollment waits. The pilot schedule is less important than proving the boundary where sensitive detail becomes an approved category record.",
+          "ko": "제 차단 조건은 명확합니다. 금지 필드 테스트가 스키마 정의뿐 아니라 실제 바이너리 내보내기를 검사하기 전에는 수집을 시작하지 않습니다. 내부 구조에 패키지처럼 보이는 문자열, 정밀 타임스탬프, 합성 식별자를 심고 내보내기 경계를 넘지 못하는지 검증합니다. 경고 배너만으로 우발적 캡처를 막을 수 없으므로 정확한 심볼 화면에서는 스크린샷도 비활성화하고 싶습니다. 구현 시간이 더 필요해도 등록을 기다립니다. 파일럿 일정은 민감한 상세가 승인된 범주 레코드로 바뀌는 경계를 증명하는 것보다 덜 중요합니다."
+        },
+        {
+          "speaker": "Minho Kang",
+          "en": "I will add shared-interrupt and export-boundary cases before the main runs. For study integrity, investigators will receive training on role labels and confidence without seeing pilot scenarios. We will randomize scenario order and keep authors out of the investigator pool. Truncated records will remain in the sample and count against utility if they prevent routing; removing them would overstate value. I will publish exclusions and stop reasons before revealing group results. That sequence prevents us from changing analysis rules after seeing whether the prototype appears successful.",
+          "ko": "본 실행 전에 공유 인터럽트와 내보내기 경계 사례를 추가하겠습니다. 연구의 무결성을 위해 조사자들은 파일럿 시나리오를 보지 않고 역할 라벨과 신뢰도에 관한 교육만 받습니다. 시나리오 순서를 무작위화하고 작성자는 조사자 풀에서 제외합니다. 잘린 레코드는 샘플에 남기며 라우팅을 막으면 효용에 불리하게 계산합니다. 제거하면 가치가 과장될 수 있습니다. 그룹 결과를 공개하기 전에 제외 기준과 중단 사유를 게시하겠습니다. 그러면 프로토타입이 성공적으로 보이는지 본 뒤 분석 규칙을 바꾸지 못합니다."
+        },
+        {
+          "speaker": "Eunji Park",
+          "en": "The next meeting is Friday, October 30, at 10:00 KST. We will review privacy-boundary evidence, paired-build overhead, observer effect, scenario accuracy, investigator outcomes, and truncation frequency. Phase two starts only if every hard safety gate passes and the utility thresholds justify more instrumentation. A failure can still produce a useful conclusion: we may improve existing reports instead of propagating tokens. I will circulate the charter today and maintain a decision log for scope changes. Thank you. We have a limited experiment with falsifiable goals, protected data boundaries, control devices, named owners, and no implied fleet commitment.",
+          "ko": "다음 회의는 10월 30일 금요일 10시 KST입니다. 개인정보 경계 증거, 빌드 쌍의 오버헤드, 관찰자 효과, 시나리오 정확도, 조사자 결과, 잘림 빈도를 검토합니다. 모든 필수 안전 게이트를 통과하고 효용 임계값이 추가 계측을 정당화할 때만 2단계를 시작합니다. 실패도 유용한 결론을 낼 수 있습니다. 토큰을 전달하는 대신 기존 보고서를 개선할 수 있습니다. 오늘 헌장을 배포하고 범위 변경 결정 로그를 유지하겠습니다. 감사합니다. 반증 가능한 목표, 보호된 데이터 경계, 대조 단말, 지정 담당자, 전체 단말 적용 약속이 없는 제한된 실험을 마련했습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "a limited pilot",
+      "meaning_ko": "제한된 파일럿",
+      "usage_ko": "영향 범위를 명확히 제한한 시험을 말할 때",
+      "example": "We are starting a limited pilot to attribute unexpected wakeups that occur after Android enters deep suspend.",
+      "practice": "We will begin with a limited pilot on engineering devices."
+    },
+    {
+      "phrase": "distinguish trigger, contributor, and sustained activity",
+      "meaning_ko": "트리거, 기여 요인, 지속 활동을 구분하다",
+      "usage_ko": "복합 원인의 역할을 분리할 때",
+      "example": "We need to distinguish trigger, contributor, and sustained activity rather than publish one misleading culprit.",
+      "practice": "The report must distinguish trigger, contributor, and sustained activity."
+    },
+    {
+      "phrase": "design the minimum dataset",
+      "meaning_ko": "최소 데이터셋을 설계하다",
+      "usage_ko": "수집 전에 꼭 필요한 필드만 정할 때",
+      "example": "We should design the minimum dataset before writing hooks, because removing fields later does not undo copied diagnostics.",
+      "practice": "We should design the minimum dataset before adding instrumentation."
+    },
+    {
+      "phrase": "One practical question",
+      "meaning_ko": "하나의 실무 질문",
+      "usage_ko": "파일럿 목표를 검증 가능한 질문으로 좁힐 때",
+      "example": "I want the pilot to answer one practical question: can an engineer classify an unexplained wake into the correct owner team within fifteen minutes without enabling full tracing and reproducing again?",
+      "practice": "The experiment should answer one practical question."
+    },
+    {
+      "phrase": "roles, not blame",
+      "meaning_ko": "비난이 아닌 역할",
+      "usage_ko": "원인 분석의 목적이 책임 추궁이 아님을 강조할 때",
+      "example": "These labels are roles, not blame.",
+      "practice": "These labels describe roles, not blame."
+    },
+    {
+      "phrase": "cap fan-out",
+      "meaning_ko": "분기 확산을 제한하다",
+      "usage_ko": "그래프나 이벤트 전파의 크기를 제한할 때",
+      "example": "We must cap fan-out.",
+      "practice": "We need to cap fan-out to protect memory and readability."
+    },
+    {
+      "phrase": "blinded comparison",
+      "meaning_ko": "블라인드 비교",
+      "usage_ko": "평가자의 편향을 줄인 비교를 말할 때",
+      "example": "I support the blinded comparison.",
+      "practice": "A blinded comparison will reveal whether the new report helps."
+    },
+    {
+      "phrase": "a separate gate",
+      "meaning_ko": "별도 게이트",
+      "usage_ko": "서로 다른 평가 기준을 독립적으로 판단할 때",
+      "example": "Technical overhead is a separate gate: suspend entry and exit each add under one hundred microseconds, idle battery changes by less than zero point two percent over eight hours, and memory remains below two hundred fifty-six kilobytes.",
+      "practice": "Privacy approval is a separate gate from performance."
+    },
+    {
+      "phrase": "the smallest token design",
+      "meaning_ko": "가장 작은 토큰 설계",
+      "usage_ko": "필요 기능을 만족하는 최소 계측을 논의할 때",
+      "example": "Caleb, what is the smallest token design that still distinguishes the simultaneous sensor interrupt and alarm scenario?",
+      "practice": "Show us the smallest token design that preserves causality."
+    },
+    {
+      "phrase": "outside scope",
+      "meaning_ko": "범위 밖",
+      "usage_ko": "이번 작업에서 다루지 않을 항목을 분명히 할 때",
+      "example": "The pilot question concerns system software ownership, so application attribution is outside scope and creates unnecessary privacy risk.",
+      "practice": "Application attribution is outside scope for this pilot."
+    },
+    {
+      "phrase": "a clean causal core",
+      "meaning_ko": "깨끗한 인과 핵심",
+      "usage_ko": "불필요한 계측 없이 핵심 인과관계를 유지할 때",
+      "example": "This preserves a clean causal core and gives us evidence before expanding instrumentation.",
+      "practice": "Phase one should preserve a clean causal core."
+    },
+    {
+      "phrase": "I accept the phased proposal",
+      "meaning_ko": "단계적 제안을 수용한다",
+      "usage_ko": "논쟁 후 단계별 접근에 합의할 때",
+      "example": "I accept the phased proposal.",
+      "practice": "I accept the phased proposal with the stated gates."
+    },
+    {
+      "phrase": "does not carry forward",
+      "meaning_ko": "후속 단계에 자동 적용되지 않는다",
+      "usage_ko": "현재 승인이 다음 범위로 이어지지 않음을 강조할 때",
+      "example": "Privacy approval for phase one does not carry forward to Binder propagation or any fleet mechanism; those require a new decision.",
+      "practice": "This exception does not carry forward to production."
+    },
+    {
+      "phrase": "A useful diagnostic",
+      "meaning_ko": "유용한 진단 도구",
+      "usage_ko": "효용과 부작용을 함께 평가할 때",
+      "example": "A useful diagnostic that perturbs suspend behavior is still a failed prototype.",
+      "practice": "A useful diagnostic must still meet the overhead budget."
+    },
+    {
+      "phrase": "falsifiable goals",
+      "meaning_ko": "반증 가능한 목표",
+      "usage_ko": "성공과 실패를 객관적으로 가를 목표를 말할 때",
+      "example": "We have a limited experiment with falsifiable goals, protected data boundaries, control devices, named owners, and no implied fleet commitment.",
+      "practice": "Every experiment needs falsifiable goals and stop conditions."
+    }
+  ]
+}
