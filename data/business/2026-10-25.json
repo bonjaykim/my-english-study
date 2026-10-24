@@ -1,0 +1,270 @@
+{
+  "date": "2026-10-25",
+  "category": "business",
+  "topic": "sw-launch",
+  "subject": "Preserving Scheduled Alarms during a Time Zone Data Update",
+  "title_ko": "시간대 데이터 갱신 중 예약 알람 연속성 확보",
+  "summary_ko": "가상의 Android 출시 회의에서 direct boot 상태의 시간대 데이터 갱신 뒤 반복 알람이 누락되는 문제를 분석하고, 다음 발생 보존·잠금 해제 후 원자적 재계산·출시 게이트를 결정합니다. 모든 인물·기업·단말·앱·빌드·시간대 규칙·로그·결함·수치·일정은 영어 학습을 위한 가상 교육용 설정입니다.",
+  "participants": [
+    {
+      "name": "Hana Lee",
+      "team": "Release Management"
+    },
+    {
+      "name": "Victor Chen",
+      "team": "Time Platform"
+    },
+    {
+      "name": "Maya Singh",
+      "team": "App Compatibility"
+    },
+    {
+      "name": "Noah Park",
+      "team": "System Quality"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Launch Risk",
+      "title_ko": "참석 확인과 출시 위험",
+      "turns": [
+        {
+          "speaker": "Hana Lee",
+          "en": "Thanks for joining on the weekend. Release Management, Time Platform, App Compatibility, and System Quality are present. We have five days before the Luma phone launch candidate freezes. During overnight testing, repeating alarms disappeared after a time-zone data module updated in direct boot. The clock displayed the correct local time, but fourteen of sixty scheduled events did not fire until the user unlocked. We need to determine which alarm classes are affected, whether the update should remain in the launch image, and what evidence is required for release. Today must end with one recovery policy, named owners, deadlines, and a follow-up decision time.",
+          "ko": "주말에 참석해 주셔서 감사합니다. 릴리스 관리, 시간 플랫폼, 앱 호환성, 시스템 품질팀이 참석했습니다. Luma 단말 출시 후보 동결까지 5일 남았습니다. 야간 시험 중 direct boot 상태에서 시간대 데이터 모듈이 갱신된 뒤 반복 알람이 사라졌습니다. 시계는 정확한 현지 시각을 표시했지만 예약된 이벤트 60개 중 14개가 사용자 잠금 해제 전까지 실행되지 않았습니다. 어떤 알람 종류가 영향을 받는지, 업데이트를 출시 이미지에 유지할지, 릴리스에 어떤 증거가 필요한지 결정해야 합니다. 오늘 하나의 복구 정책, 지정 담당자, 기한, 후속 의사결정 시간을 정하고 마쳐야 합니다."
+        },
+        {
+          "speaker": "Victor Chen",
+          "en": "Time Platform is here. The kernel clock and time-zone rules are correct. The failure sits between the module update callback and Alarm Manager's persistent store. Wall-clock repeating alarms are saved with their next local occurrence and the rule version used to calculate it. During direct boot, the module broadcasts a rule-version change before credential-encrypted app records are available. Alarm Manager marks those records pending recalculation and removes their kernel entries. When the user remains locked, nothing restores them. Elapsed-realtime alarms and device-encrypted system alarms continue normally. My proposed fix is to keep the old kernel deadline until each record can be recalculated atomically. A blanket reset would damage healthy schedules.",
+          "ko": "시간 플랫폼팀 참석했습니다. 커널 시계와 시간대 규칙은 정확합니다. 실패는 모듈 업데이트 콜백과 Alarm Manager 영구 저장소 사이에 있습니다. 현지 시각 반복 알람은 다음 현지 발생 시각과 계산에 사용된 규칙 버전을 함께 저장합니다. direct boot 중 모듈이 credential-encrypted 앱 레코드를 사용할 수 있기 전에 규칙 버전 변경을 브로드캐스트합니다. Alarm Manager는 해당 레코드를 재계산 대기로 표시하고 커널 등록을 제거합니다. 사용자가 잠긴 상태로 남아 있으면 아무것도 이를 복구하지 않습니다. elapsed-realtime 알람과 device-encrypted 시스템 알람은 정상입니다. 각 레코드를 원자적으로 재계산할 수 있을 때까지 이전 커널 마감 시간을 유지하는 수정을 제안합니다. 일괄 초기화는 정상 일정을 손상시킬 수 있습니다."
+        },
+        {
+          "speaker": "Maya Singh",
+          "en": "App Compatibility is present. Keeping the old deadline prevents silence, but it can fire an alarm at the wrong civil time if the new rules move an offset. Calendar reminders usually prefer one possibly shifted notification over none, while medication and prayer applications may have stricter expectations. Android does not expose enough intent to choose per application. We should classify by alarm semantics we already know: exact one-shot, repeating wall clock, and elapsed duration. I oppose inventing a new permission or asking developers to update before launch. The platform needs deterministic behavior for existing applications, plus a compatibility note explaining how a rule change is handled while locked.",
+          "ko": "앱 호환성팀 참석했습니다. 이전 마감 시간을 유지하면 침묵은 막지만 새 규칙이 오프셋을 바꾸면 잘못된 시민 시각에 알람이 울릴 수 있습니다. 캘린더 알림은 아예 오지 않는 것보다 약간 이동한 알림 하나를 선호하는 경우가 많지만 복약 및 기도 앱은 더 엄격할 수 있습니다. Android에는 앱별로 선택할 만큼 충분한 의도가 노출되지 않습니다. 이미 알고 있는 알람 의미로 분류해야 합니다. 정확한 일회성, 현지 시각 반복, 경과 시간입니다. 출시 전에 새 권한을 만들거나 개발자 업데이트를 요구하는 데 반대합니다. 플랫폼은 기존 앱에 결정적 동작을 제공하고 잠금 상태에서 규칙 변경을 처리하는 방법을 호환성 문서로 설명해야 합니다."
+        },
+        {
+          "speaker": "Noah Park",
+          "en": "System Quality is present. We reproduced the loss only when three conditions align: a rule update changes the stored zone, the device reboots into direct boot, and the user stays locked past the next occurrence. If the update changes data for another zone, the callback still clears entries even though their calculation is unchanged. That is unnecessary exposure. We also found that a one-shot exact alarm survives because its absolute epoch deadline is copied into device-encrypted metadata, but a repeating exact alarm does not. I want the design to define preservation and recalculation for every class, including what happens when the preserved deadline passes before unlock.",
+          "ko": "시스템 품질팀 참석했습니다. 세 조건이 일치할 때만 누락을 재현했습니다. 규칙 업데이트가 저장된 시간대를 변경하고, 단말이 direct boot로 재부팅되며, 사용자가 다음 발생 시각을 넘도록 잠금을 유지하는 경우입니다. 업데이트가 다른 시간대의 데이터만 바꿔도 콜백은 계산이 그대로인 항목을 제거합니다. 불필요한 노출입니다. 일회성 exact alarm은 절대 epoch 마감이 device-encrypted 메타데이터에 복사되어 살아남지만 반복 exact alarm은 그렇지 않다는 것도 발견했습니다. 보존된 마감이 잠금 해제 전에 지나가는 경우를 포함해 모든 종류의 보존 및 재계산 동작을 설계가 정의해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and Alarm Semantics",
+      "title_ko": "증거와 알람 의미",
+      "turns": [
+        {
+          "speaker": "Hana Lee",
+          "en": "Let us agree on the user contract before selecting code. An elapsed alarm represents duration and must not move with civil rules. A one-shot wall-clock alarm represents one intended instant and should preserve its already resolved epoch deadline. A repeating wall-clock alarm represents a local pattern and future occurrences should use the new rules. The difficult case is its next occurrence during a locked transition. We need a policy that neither deletes it nor delivers two copies. Victor, can we retain one execution token for the old deadline, then recalculate the subsequent occurrence after credentials become available?",
+          "ko": "코드를 선택하기 전에 사용자 계약부터 합의합시다. 경과 시간 알람은 기간을 나타내므로 시민 시간 규칙과 함께 움직이면 안 됩니다. 일회성 현지 시각 알람은 의도된 한 시점을 나타내므로 이미 결정된 epoch 마감을 보존해야 합니다. 반복 현지 시각 알람은 지역 패턴을 나타내며 이후 발생은 새 규칙을 사용해야 합니다. 어려운 사례는 잠긴 전환 중 다음 발생입니다. 이를 삭제하지도 두 번 전달하지도 않는 정책이 필요합니다. Victor, 이전 마감에 대한 실행 토큰 하나를 유지한 뒤 credential을 사용할 수 있게 되면 그다음 발생을 재계산할 수 있습니까?"
+        },
+        {
+          "speaker": "Victor Chen",
+          "en": "Yes, if we separate delivery identity from schedule identity. Each persisted alarm already has a stable record key. I can add a device-encrypted transition ticket containing that key's hash, the preserved epoch deadline, old rule version, target rule version, and a delivered bit. The ticket cannot reconstruct application content. During direct boot, the kernel keeps exactly one deadline. If it fires, the dispatcher marks delivered before invoking the existing protected delivery path. After unlock, recalculation reads the credential record, consumes the ticket, and schedules the next local occurrence under the new rule. If the deadline has not fired, recalculation replaces it atomically rather than adding another.",
+          "ko": "전달 식별과 일정 식별을 분리하면 가능합니다. 각 영구 알람에는 이미 안정적인 레코드 키가 있습니다. 해당 키의 해시, 보존된 epoch 마감, 이전 규칙 버전, 목표 규칙 버전, 전달 여부 bit를 포함하는 device-encrypted 전환 티켓을 추가할 수 있습니다. 티켓만으로 앱 내용을 복원할 수는 없습니다. direct boot 중 커널은 정확히 하나의 마감을 유지합니다. 실행되면 dispatcher가 기존 보호된 전달 경로를 호출하기 전에 전달됨을 표시합니다. 잠금 해제 후 재계산은 credential 레코드를 읽고 티켓을 소비하며 새 규칙으로 다음 현지 발생을 예약합니다. 마감이 아직 실행되지 않았다면 새 항목을 추가하지 않고 원자적으로 교체합니다."
+        },
+        {
+          "speaker": "Maya Singh",
+          "en": "That handles duplication, but we must address updates that move the next local time earlier than the preserved deadline. Suppose the rule change advances midnight and the correct new occurrence has already passed when credentials unlock. We should not replay every missed interval. Existing repeating-alarm policy coalesces missed occurrences into one delivery, with a count for applications that inspect it. I recommend preserving at most one pre-unlock delivery, then performing one coalesced delivery after unlock only if no transition delivery occurred and the newly calculated occurrence is in the past. The following occurrence resumes normally. This matches established catch-up behavior instead of creating a special flood.",
+          "ko": "중복은 해결하지만 새 규칙이 다음 현지 시각을 보존된 마감보다 앞당기는 경우를 다뤄야 합니다. 규칙 변경으로 자정이 앞당겨지고 credential 잠금이 풀릴 때 올바른 새 발생 시각이 이미 지났다고 가정합시다. 놓친 모든 구간을 재생하면 안 됩니다. 기존 반복 알람 정책은 놓친 발생을 한 번의 전달로 합치고 이를 확인하는 앱에 횟수를 제공합니다. 잠금 해제 전 전달은 최대 한 번만 보존하고, 전환 전달이 없었으며 새로 계산한 발생이 과거인 경우에만 잠금 해제 후 한 번의 합쳐진 전달을 권합니다. 그다음 발생은 정상적으로 재개합니다. 특별한 폭주를 만들지 않고 기존 따라잡기 동작과 일치합니다."
+        },
+        {
+          "speaker": "Noah Park",
+          "en": "I can turn that into a state matrix. Inputs are alarm class, whether the active zone's rules actually changed, whether the preserved deadline fired, whether the new occurrence is past or future, and whether unlock happens before reboot. Outputs are keep, replace, coalesce once, or leave unchanged. We need crash tests around every atomic boundary: ticket written before kernel removal, delivered bit before dispatch, credential recalculation before ticket deletion, and a second reboot while locked. A useful invariant is that each logical occurrence produces at most one delivery and every repeating record ends with exactly one future kernel deadline after unlock.",
+          "ko": "이를 상태 행렬로 만들 수 있습니다. 입력은 알람 종류, 활성 시간대 규칙의 실제 변경 여부, 보존된 마감 실행 여부, 새 발생 시각이 과거인지 미래인지, 재부팅 전에 잠금 해제가 되는지입니다. 출력은 유지, 교체, 한 번 합치기, 변경 없음입니다. 모든 원자적 경계에서 충돌 시험이 필요합니다. 커널 제거 전 티켓 쓰기, 전달 전 delivered bit 기록, 티켓 삭제 전 credential 재계산, 잠금 상태에서 두 번째 재부팅입니다. 유용한 불변식은 각 논리적 발생이 최대 한 번 전달되고 잠금 해제 뒤 모든 반복 레코드가 정확히 하나의 미래 커널 마감을 갖는다는 것입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Disagreement on Launch Scope",
+      "title_ko": "출시 범위에 대한 이견",
+      "turns": [
+        {
+          "speaker": "Hana Lee",
+          "en": "The schedule question is whether to ship the module update with this framework patch or remove the update from launch. Removing it avoids the transition but leaves several regional rule corrections absent. Shipping both gives correct rules but introduces new state code late in qualification. A third option is to keep the module installed and defer activation until first unlock, which avoids direct boot but means the displayed zone can be outdated for hours. I prefer shipping the patch if we can prove the invariants by Tuesday. Please state objections with a concrete failure mode and not simply the age of the change.",
+          "ko": "일정상 질문은 이 프레임워크 패치와 모듈 업데이트를 함께 출시할지, 출시에서 업데이트를 제거할지입니다. 제거하면 전환은 피하지만 여러 지역 규칙 수정이 빠집니다. 둘을 함께 출시하면 규칙은 정확하지만 자격 검증 후반에 새 상태 코드가 들어갑니다. 세 번째 선택지는 모듈을 설치한 채 첫 잠금 해제까지 활성화를 미루는 것인데 direct boot는 피하지만 표시 시간대가 몇 시간 동안 오래될 수 있습니다. 화요일까지 불변식을 증명할 수 있다면 패치 출시를 선호합니다. 단순히 변경이 늦었다는 이유가 아니라 구체적인 실패 모드로 이의를 말해 주세요."
+        },
+        {
+          "speaker": "Victor Chen",
+          "en": "My objection is to making transition tickets permanent architecture before measuring how often direct-boot rule changes occur. For launch, we can avoid new storage by not removing existing kernel entries during direct boot. After unlock, current recalculation code atomically replaces them. That eliminates silence and duplication for the tested path with a much smaller patch. The missed-earlier-occurrence case would fire at the preserved old deadline, possibly later than the new civil rule intends, but only during the locked window. I propose this as the launch containment and develop tickets for the next maintenance release after a broader design review.",
+          "ko": "direct boot 규칙 변경이 얼마나 자주 일어나는지 측정하기 전에 전환 티켓을 영구 아키텍처로 만드는 것에 반대합니다. 출시에서는 새 저장소 없이 direct boot 중 기존 커널 항목을 제거하지 않을 수 있습니다. 잠금 해제 뒤 현재 재계산 코드가 원자적으로 교체합니다. 시험된 경로에서 훨씬 작은 패치로 침묵과 중복을 없앱니다. 더 일찍 발생해야 하는 알람을 놓친 사례는 잠긴 구간에 한해 새 시민 규칙보다 늦을 수 있지만 보존된 이전 마감에는 울립니다. 이를 출시 억제책으로 제안하고 더 넓은 설계 검토 뒤 다음 유지보수 릴리스용 티켓을 개발하겠습니다."
+        },
+        {
+          "speaker": "Maya Singh",
+          "en": "I support the smaller launch patch. Existing applications already tolerate a time-zone change between scheduling and firing; the platform has never promised that a locked, repeating alarm is retroactively moved before credentials are available. It has promised not to silently discard alarms. We should document that the next protected occurrence uses the previously resolved instant, while future occurrences adopt new rules after unlock. Do not call that stale behavior; it is a deliberate continuity rule. For exact one-shot and elapsed alarms, behavior remains unchanged. The ticket design can later improve civil-time fidelity, but it should not be a launch blocker.",
+          "ko": "더 작은 출시 패치를 지지합니다. 기존 앱은 예약과 실행 사이의 시간대 변경을 이미 허용합니다. 플랫폼은 잠긴 반복 알람을 credential 사용 전에 소급 이동한다고 약속한 적이 없습니다. 알람을 조용히 버리지 않는다는 약속은 했습니다. 다음 보호된 발생은 이전에 결정된 시점을 사용하고 이후 발생은 잠금 해제 뒤 새 규칙을 채택한다고 문서화해야 합니다. 이를 오래된 동작이라고 부르지 말고 의도적인 연속성 규칙이라고 합시다. exact one-shot 및 elapsed 알람 동작은 그대로입니다. 티켓 설계는 나중에 시민 시각 충실도를 개선할 수 있지만 출시 차단 요소가 되어서는 안 됩니다."
+        },
+        {
+          "speaker": "Noah Park",
+          "en": "The smaller patch reduces test surface, but it needs one additional guard. The callback currently clears all wall-clock entries whenever any zone file changes. We should compare the active zone's old and new transition table and skip recalculation if relevant offsets are identical through the next scheduled occurrence. Otherwise, a module correcting another continent still touches our alarm heap. I can validate that comparison with synthetic rule packages. For launch acceptance, I want zero lost or duplicate deliveries across five hundred transitions, correct unchanged-zone behavior, and no more than one-second added boot time. Civil-time deviation during a locked rule change must be bounded and explicitly reported.",
+          "ko": "더 작은 패치는 시험 범위를 줄이지만 보호 조건 하나가 더 필요합니다. 현재 콜백은 어떤 시간대 파일이 바뀌어도 모든 현지 시각 항목을 지웁니다. 활성 시간대의 이전 및 새 transition table을 비교하고 다음 예약 발생까지 관련 오프셋이 같으면 재계산을 건너뛰어야 합니다. 그렇지 않으면 다른 대륙을 수정한 모듈도 알람 heap을 건드립니다. 합성 규칙 패키지로 그 비교를 검증할 수 있습니다. 출시 인수 조건으로 전환 500회에서 누락 및 중복 전달 0건, 변경 없는 시간대의 올바른 동작, 부팅 시간 추가 1초 이하를 원합니다. 잠긴 규칙 변경 중 시민 시각 편차는 범위를 정하고 명시적으로 보고해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision Owners and Deadlines",
+      "title_ko": "결정, 담당자와 기한",
+      "turns": [
+        {
+          "speaker": "Hana Lee",
+          "en": "I am recording the launch decision. We will keep the time-zone module update and ship a minimal framework containment patch. During direct boot, an affected repeating wall-clock alarm retains its previously resolved kernel deadline; it is never removed merely because credentials are unavailable. After unlock, existing code atomically replaces the next deadline using new rules. Exact one-shot and elapsed alarms remain unchanged. If the active zone has no relevant offset change before the next occurrence, the callback leaves the alarm untouched. Transition tickets are deferred to a separate maintenance design and are not required for launch. The candidate remains blocked until all stated gates pass.",
+          "ko": "출시 결정을 기록하겠습니다. 시간대 모듈 업데이트를 유지하고 최소 프레임워크 억제 패치를 출시합니다. direct boot 중 영향을 받는 반복 현지 시각 알람은 이전에 결정된 커널 마감을 유지하며 credential을 사용할 수 없다는 이유만으로 제거되지 않습니다. 잠금 해제 뒤 기존 코드가 새 규칙으로 다음 마감을 원자적으로 교체합니다. exact one-shot과 elapsed 알람은 바뀌지 않습니다. 다음 발생 전에 활성 시간대의 관련 오프셋 변경이 없다면 콜백은 알람을 건드리지 않습니다. 전환 티켓은 별도 유지보수 설계로 미루며 출시에는 필요하지 않습니다. 명시된 모든 게이트가 통과할 때까지 후보는 차단 상태입니다."
+        },
+        {
+          "speaker": "Victor Chen",
+          "en": "Time Platform owns the patch. I will post the direct-boot preservation change and active-zone comparison by October 25 at 14:00 KST. The code review closes October 26 at noon, and an instrumented candidate is due at 15:00. I will add counters for preserved deadlines, post-unlock replacements, unchanged-zone skips, and any heap entry lacking a credential record. Counters contain alarm class and rule version only, never package identity or scheduled time. I also own the maintenance proposal for transition tickets, due November 6, including storage, crash recovery, and whether improved fidelity justifies the added state.",
+          "ko": "시간 플랫폼팀이 패치를 담당합니다. 10월 25일 14시 KST까지 direct boot 보존 변경과 활성 시간대 비교를 게시하겠습니다. 코드 검토는 10월 26일 정오에 닫고 계측 후보는 15시까지입니다. 보존된 마감, 잠금 해제 후 교체, 변경 없는 시간대 건너뛰기, credential 레코드가 없는 heap 항목 카운터를 추가합니다. 카운터에는 알람 종류와 규칙 버전만 포함하며 패키지 식별이나 예약 시각은 절대 포함하지 않습니다. 저장소, 충돌 복구, 개선된 충실도가 추가 상태를 정당화하는지를 포함한 전환 티켓 유지보수 제안도 제가 맡아 11월 6일까지 제출합니다."
+        },
+        {
+          "speaker": "Maya Singh",
+          "en": "App Compatibility owns behavior documentation and ecosystem checks. By October 26 at 16:00 KST, I will publish the continuity rule with examples for repeating, exact one-shot, and elapsed alarms. I will test twenty popular alarm, calendar, medication, prayer, and automation applications without contacting developers or changing permissions. The report will distinguish an application relying on unsupported internals from a platform regression. For launch, no application may lose the protected next occurrence or receive it twice. A later shift caused by preserving the old deadline will be measured and disclosed, not counted as loss.",
+          "ko": "앱 호환성팀이 동작 문서와 생태계 검사를 담당합니다. 10월 26일 16시 KST까지 반복, exact one-shot, elapsed 알람 예시를 포함한 연속성 규칙을 게시하겠습니다. 개발자에게 연락하거나 권한을 바꾸지 않고 인기 있는 알람, 캘린더, 복약, 기도, 자동화 앱 20개를 시험합니다. 보고서는 앱이 지원되지 않는 내부 동작에 의존한 경우와 플랫폼 회귀를 구분합니다. 출시에서 어떤 앱도 보호된 다음 발생을 잃거나 두 번 받아서는 안 됩니다. 이전 마감을 보존해 늦어진 경우는 측정하고 공개하지만 누락으로 세지 않습니다."
+        },
+        {
+          "speaker": "Noah Park",
+          "en": "System Quality owns qualification. The complete matrix runs from October 26 at 15:00 through October 28 at 08:00 KST. It covers five hundred rule transitions across twelve zones, no-op updates, offset advances and delays, repeating and one-shot alarms, elapsed timers, two locked reboots, factory reset, low battery, and module rollback. We will test unlock before, during, and after the preserved deadline. Release fails on one lost or duplicate occurrence, one unchanged-zone heap mutation, any alarm-class crossover, boot regression above one second, or crash. I will publish event-level results rather than only a pass percentage.",
+          "ko": "시스템 품질팀이 자격 검증을 담당합니다. 전체 행렬은 10월 26일 15시부터 10월 28일 08시 KST까지 실행합니다. 12개 시간대에서 규칙 전환 500회, 실질 변경 없는 업데이트, 오프셋 앞당김과 지연, 반복 및 일회성 알람, elapsed 타이머, 잠긴 재부팅 2회, 공장 초기화, 저전력, 모듈 롤백을 포함합니다. 보존된 마감 전, 도중, 후에 잠금 해제를 시험합니다. 누락 또는 중복 발생 1건, 변경 없는 시간대 heap 변경 1건, 알람 종류 교차, 부팅 회귀 1초 초과, 충돌이 있으면 릴리스가 실패합니다. 통과율만이 아니라 이벤트 수준 결과를 게시하겠습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Residual Risks and Follow Up",
+      "title_ko": "잔여 위험과 후속 회의",
+      "turns": [
+        {
+          "speaker": "Hana Lee",
+          "en": "Three residual risks remain. First, preserving an old deadline can be late or early relative to the new civil rule while locked. Second, third-party applications may reschedule independently after receiving a time-change broadcast. Third, module rollback could repeat the transition in reverse. Our controls are bounded-deviation reporting, duplicate detection around application rescheduling, and symmetric update-and-rollback tests. Customer guidance should say that the next existing alarm is preserved during a locked rule update and future alarms follow corrected local rules after unlock. It should not ask users to unlock immediately or recreate alarms, because the patch is intended to remove that burden.",
+          "ko": "잔여 위험은 세 가지입니다. 첫째, 이전 마감 보존은 잠금 상태에서 새 시민 규칙보다 늦거나 빠를 수 있습니다. 둘째, 서드파티 앱이 시간 변경 브로드캐스트를 받은 뒤 독립적으로 다시 예약할 수 있습니다. 셋째, 모듈 롤백이 반대 방향 전환을 반복할 수 있습니다. 제어 방법은 편차 범위 보고, 앱 재예약 주변의 중복 감지, 대칭적인 업데이트 및 롤백 시험입니다. 고객 안내는 잠긴 규칙 업데이트 중 기존 다음 알람을 보존하고 잠금 해제 뒤 이후 알람이 수정된 현지 규칙을 따른다고 설명해야 합니다. 패치가 그 부담을 없애기 위한 것이므로 즉시 잠금을 풀거나 알람을 다시 만들라고 요구해서는 안 됩니다."
+        },
+        {
+          "speaker": "Victor Chen",
+          "en": "I will add a diagnostic assertion that every affected record has one of three outcomes: preserved in kernel, atomically replaced after unlock, or intentionally canceled by its owner. Anything else creates a fatal test signal on engineering builds and a bounded error counter on production candidates. For module rollback, the comparison uses rule-version direction only for logging; behavior is otherwise symmetric. We must not assume a newer version always moves forward semantically. I will also verify that a process restart during direct boot reconstructs preserved entries from existing device-encrypted metadata without inventing the deferred ticket design.",
+          "ko": "영향받은 모든 레코드가 커널에 보존, 잠금 해제 후 원자적 교체, 소유자에 의한 의도적 취소 중 하나의 결과를 갖도록 진단 assertion을 추가하겠습니다. 그 외 결과는 엔지니어링 빌드에서 치명적 테스트 신호를 만들고 생산 후보에서는 제한된 오류 카운터를 만듭니다. 모듈 롤백에서 비교는 로그에만 규칙 버전 방향을 사용하고 그 외 동작은 대칭입니다. 새 버전이 의미적으로 항상 앞으로 간다고 가정하면 안 됩니다. direct boot 중 프로세스 재시작 시 지연된 티켓 설계를 만들지 않고 기존 device-encrypted 메타데이터에서 보존 항목을 복원하는지도 검증하겠습니다."
+        },
+        {
+          "speaker": "Maya Singh",
+          "en": "For application rescheduling, I will capture whether the platform or application created each kernel entry, but only in the local test harness. If an app cancels and replaces its alarm after the broadcast, the platform must respect that owner action rather than restore a stale copy. The preservation patch therefore checks the stable record generation before post-unlock replacement. I will include applications that disable themselves until unlock and ones that store schedules in device-encrypted storage. This should reveal whether our continuity rule interacts differently with modern direct-boot-aware apps and legacy credential-only apps.",
+          "ko": "앱 재예약을 위해 각 커널 항목을 플랫폼과 앱 중 누가 만들었는지 로컬 테스트 하네스에서만 캡처하겠습니다. 앱이 브로드캐스트 뒤 알람을 취소하고 교체하면 플랫폼은 오래된 복사본을 복원하지 말고 그 소유자 동작을 존중해야 합니다. 따라서 보존 패치는 잠금 해제 후 교체 전에 안정적인 레코드 generation을 확인합니다. 잠금 해제 전 스스로 비활성화되는 앱과 일정을 device-encrypted 저장소에 보관하는 앱도 포함하겠습니다. 현대적인 direct-boot 인지 앱과 레거시 credential-only 앱에서 연속성 규칙이 다르게 상호작용하는지 드러날 것입니다."
+        },
+        {
+          "speaker": "Noah Park",
+          "en": "I added record-generation changes to the race suite. We will cancel, replace, and disable alarms at each boundary while the module callback, unlock, and process restart interleave. The oracle follows the latest owner generation, not whichever kernel deadline was written first. We will also measure the largest civil-time deviation for preserved repeating alarms across all twelve zones and report it beside the no-loss result. That keeps release language honest: continuity is guaranteed for the next occurrence, while perfect local-time reinterpretation during a locked transition is deferred. If deviation exceeds the zone's actual offset change, we treat it as a calculation defect.",
+          "ko": "레코드 generation 변경을 경쟁 상태 시험에 추가했습니다. 모듈 콜백, 잠금 해제, 프로세스 재시작이 교차하는 동안 각 경계에서 알람을 취소, 교체, 비활성화합니다. 판정 기준은 먼저 기록된 커널 마감이 아니라 최신 소유자 generation을 따릅니다. 12개 시간대에서 보존된 반복 알람의 최대 시민 시각 편차도 측정해 누락 없음 결과와 함께 보고합니다. 그러면 출시 문구가 정직해집니다. 다음 발생의 연속성은 보장하지만 잠긴 전환 중 완벽한 현지 시각 재해석은 미룹니다. 편차가 시간대의 실제 오프셋 변경보다 크면 계산 결함으로 처리합니다."
+        },
+        {
+          "speaker": "Hana Lee",
+          "en": "The launch decision meeting is Wednesday, October 28, at 10:00 KST. We will review the event-level matrix, compatibility report, civil-time deviation, boot performance, code review, and module rollback. Approval requires every hard gate, no unresolved alarm-class crossover, and named monitoring owners for the first forty-eight hours of internal use. If evidence is incomplete, the launch candidate keeps the previous module and we schedule a controlled post-launch update; we will not waive alarm continuity for schedule. The written record will reach every owner before 10:45 KST today. We have a smaller containment patch, an explicit user contract, and a separate path for the richer ticket design. The first internal cohort will include devices that remain locked overnight, devices that unlock immediately after the module update, and devices that cross an offset boundary during the observation window. Release Management will compare delivery continuity, local-time deviation, and battery impact separately for each cohort. We will keep the module rollout at one percent until a full day of monitoring shows no lost occurrence, no duplicate notification, and no unexplained growth in pending recalculation records. This operational hold is independent of laboratory approval, because real usage introduces application cancellation and rescheduling patterns that scripted tests may not reproduce.",
+          "ko": "출시 의사결정 회의는 10월 28일 수요일 10시 KST입니다. 이벤트 수준 행렬, 호환성 보고서, 시민 시각 편차, 부팅 성능, 코드 검토, 모듈 롤백을 검토합니다. 승인에는 모든 필수 게이트, 해결되지 않은 알람 종류 교차 0건, 내부 사용 첫 48시간의 지정 모니터링 담당자가 필요합니다. 증거가 불완전하면 출시 후보는 이전 모듈을 유지하고 통제된 출시 후 업데이트 일정을 잡습니다. 일정을 위해 알람 연속성을 면제하지 않습니다. 오늘 10시 45분 KST 전에 모든 담당자에게 기록을 전달하겠습니다. 더 작은 억제 패치, 명시적인 사용자 계약, 더 풍부한 티켓 설계를 위한 별도 경로를 마련했습니다. 첫 내부 코호트에는 밤새 잠긴 상태를 유지하는 단말, 모듈 업데이트 직후 잠금을 해제하는 단말, 관찰 구간 중 오프셋 경계를 넘는 단말을 포함합니다. 릴리스 관리팀은 각 코호트의 전달 연속성, 현지 시각 편차, 배터리 영향을 별도로 비교합니다. 하루 동안 모니터링해 발생 누락, 중복 알림, 재계산 대기 레코드의 설명되지 않은 증가가 없을 때까지 모듈 배포를 1퍼센트로 유지합니다. 실제 사용에는 스크립트 시험이 재현하지 못할 수 있는 앱 취소와 재예약 패턴이 들어가므로 이 운영 보류는 시험실 승인과 독립적입니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "five days before",
+      "meaning_ko": "닷새 전",
+      "usage_ko": "마감까지 남은 시간을 강조할 때",
+      "example": "We have five days before the Luma phone launch candidate freezes.",
+      "practice": "We are five days before the branch deadline."
+    },
+    {
+      "phrase": "a blanket reset",
+      "meaning_ko": "일괄 초기화",
+      "usage_ko": "모든 상태를 지우는 거친 해결책을 말할 때",
+      "example": "A blanket reset would damage healthy schedules.",
+      "practice": "A blanket reset would damage healthy schedules."
+    },
+    {
+      "phrase": "deterministic behavior",
+      "meaning_ko": "결정적인 동작",
+      "usage_ko": "같은 조건에서 예측 가능한 결과를 요구할 때",
+      "example": "The platform needs deterministic behavior for existing applications, plus a compatibility note explaining how a rule change is handled while locked.",
+      "practice": "Existing clients need deterministic behavior across updates."
+    },
+    {
+      "phrase": "user contract",
+      "meaning_ko": "사용자 계약",
+      "usage_ko": "플랫폼이 보장해야 할 동작을 정의할 때",
+      "example": "Let us agree on the user contract before selecting code.",
+      "practice": "Let us settle the user contract before implementation."
+    },
+    {
+      "phrase": "separate delivery identity from schedule identity",
+      "meaning_ko": "전달 식별과 일정 식별을 분리하다",
+      "usage_ko": "중복 방지와 재계산을 분리할 때",
+      "example": "Yes, if we separate delivery identity from schedule identity.",
+      "practice": "We should separate delivery identity from schedule identity."
+    },
+    {
+      "phrase": "one coalesced delivery",
+      "meaning_ko": "한 번의 합쳐진 전달",
+      "usage_ko": "누락된 반복 이벤트를 한 번으로 합칠 때",
+      "example": "I recommend preserving at most one pre-unlock delivery, then performing one coalesced delivery after unlock only if no transition delivery occurred and the newly calculated occurrence is in the past.",
+      "practice": "The service emits one coalesced delivery after recovery."
+    },
+    {
+      "phrase": "a useful invariant",
+      "meaning_ko": "유용한 불변식",
+      "usage_ko": "여러 상태에서 항상 성립할 조건을 정할 때",
+      "example": "A useful invariant is that each logical occurrence produces at most one delivery and every repeating record ends with exactly one future kernel deadline after unlock.",
+      "practice": "A useful invariant is that only one future deadline exists."
+    },
+    {
+      "phrase": "the schedule question",
+      "meaning_ko": "일정상 핵심 질문",
+      "usage_ko": "기술 선택을 출시 일정과 연결할 때",
+      "example": "The schedule question is whether to ship the module update with this framework patch or remove the update from launch.",
+      "practice": "The schedule question is whether evidence can arrive before freeze."
+    },
+    {
+      "phrase": "a concrete failure mode",
+      "meaning_ko": "구체적인 실패 모드",
+      "usage_ko": "막연한 우려 대신 실제 위험을 요청할 때",
+      "example": "Please state objections with a concrete failure mode and not simply the age of the change.",
+      "practice": "Please describe a concrete failure mode."
+    },
+    {
+      "phrase": "the smaller launch patch",
+      "meaning_ko": "더 작은 출시 패치",
+      "usage_ko": "출시 직전 변경 범위를 줄인 해결책을 말할 때",
+      "example": "I support the smaller launch patch.",
+      "practice": "I support the smaller launch patch for this candidate."
+    },
+    {
+      "phrase": "I am recording the launch decision",
+      "meaning_ko": "출시 결정을 기록하겠다",
+      "usage_ko": "최종 합의를 공식적으로 정리할 때",
+      "example": "I am recording the launch decision.",
+      "practice": "I am recording the launch decision and owners."
+    },
+    {
+      "phrase": "are not required for launch",
+      "meaning_ko": "출시에 필요하지 않다",
+      "usage_ko": "후속 설계를 현재 게이트에서 제외할 때",
+      "example": "Transition tickets are deferred to a separate maintenance design and are not required for launch.",
+      "practice": "The new schema and migration tool are not required for launch."
+    },
+    {
+      "phrase": "event-level results",
+      "meaning_ko": "이벤트 수준 결과",
+      "usage_ko": "집계율 대신 개별 사례를 보여 줄 때",
+      "example": "I will publish event-level results rather than only a pass percentage.",
+      "practice": "Quality will publish event-level results."
+    },
+    {
+      "phrase": "residual risks",
+      "meaning_ko": "잔여 위험",
+      "usage_ko": "결정 뒤에도 남은 위험을 검토할 때",
+      "example": "Three residual risks remain.",
+      "practice": "We should list the residual risks before approval."
+    },
+    {
+      "phrase": "a separate path",
+      "meaning_ko": "별도 경로",
+      "usage_ko": "현재 수정과 장기 설계를 분리할 때",
+      "example": "We have a smaller containment patch, an explicit user contract, and a separate path for the richer ticket design.",
+      "practice": "We have a separate path for the broader redesign."
+    }
+  ]
+}
