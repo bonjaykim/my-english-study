@@ -1,0 +1,270 @@
+{
+  "date": "2026-10-27",
+  "category": "business",
+  "topic": "sw-release",
+  "subject": "Gating eBPF Network Accounting for the R72 Kernel Baseline",
+  "title_ko": "R72 커널 기준선의 eBPF 네트워크 집계 릴리스 게이트",
+  "summary_ko": "가상의 Android 시스템 SW 릴리스 회의에서 축소된 BTF 때문에 eBPF 네트워크 사용량 집계 프로그램이 거부되는 문제를 분석하고, 제한적 BTF allowlist·명시적 성능 저하 모드·R73 helper 전환과 정량 검증 게이트를 결정합니다. 모든 인물·기업·단말·커널·프로그램·빌드·로그·결함·수치·일정은 영어 학습을 위한 가상 교육용 설정입니다.",
+  "participants": [
+    {
+      "name": "Mina Seo",
+      "team": "Kernel Platform"
+    },
+    {
+      "name": "Aaron Blake",
+      "team": "Network Framework"
+    },
+    {
+      "name": "Priya Nair",
+      "team": "Product Security"
+    },
+    {
+      "name": "Leo Martin",
+      "team": "Release Quality"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Release Context",
+      "title_ko": "참석 확인과 릴리스 배경",
+      "turns": [
+        {
+          "speaker": "Mina Seo",
+          "en": "Thanks for joining. Kernel Platform, Network Framework, Product Security, and Release Quality are represented. We are reviewing the R72 kernel baseline after yesterday's candidate rejected our eBPF network accounting program on two low-memory variants. The devices still connect, but per-application byte counters stop updating and enterprise quota enforcement becomes unreliable. The flagship variant passes with the same userspace package, so this is not a general service failure. Our goal is to identify the compatibility boundary, decide whether the baseline can advance, and define a fallback that preserves enforcement without silently weakening security. We need evidence, named owners, deadlines, and a follow-up decision meeting before the integration window closes.",
+          "ko": "참석해 주셔서 감사합니다. Kernel Platform, Network Framework, Product Security, Release Quality 팀이 참석했습니다. 어제 후보 빌드가 저메모리 변형 두 종에서 eBPF 네트워크 사용량 집계 프로그램을 거부한 R72 커널 기준선을 검토합니다. 단말 연결은 유지되지만 앱별 바이트 카운터 갱신이 중단되고 기업용 할당량 집행이 불안정해집니다. 같은 userspace 패키지를 사용하는 플래그십 변형은 통과하므로 일반적인 서비스 장애는 아닙니다. 호환성 경계를 규명하고 기준선 진행 여부를 결정하며 보안을 조용히 약화시키지 않고 집행을 보존할 fallback을 정의하는 것이 목표입니다. 통합 창이 닫히기 전에 근거, 담당자, 기한, 후속 의사결정 회의가 필요합니다."
+        },
+        {
+          "speaker": "Aaron Blake",
+          "en": "Network Framework is here. The first visible symptom is a verifier rejection for an invalid access to a map value at instruction 418. Our loader then selects the legacy socket-tagging path, but that path reports aggregate interface traffic rather than application ownership during VPN handover. The enterprise policy engine sees a gap and delays quota action for up to six minutes. I disagree with calling the fallback functional simply because traffic continues. Connectivity survives, but an enforcement contract does not. The loader currently checks the kernel release string and a feature bit. Both look compatible on the affected variants, so our capability test is clearly too coarse.",
+          "ko": "Network Framework 팀 참석했습니다. 첫 증상은 418번 명령에서 map value에 대한 잘못된 접근이라는 verifier 거부입니다. 로더는 기존 socket-tagging 경로를 선택하지만 그 경로는 VPN 전환 중 앱 소유권이 아니라 인터페이스 합계 트래픽을 보고합니다. 기업 정책 엔진은 공백을 감지하고 최대 6분 동안 할당량 조치를 지연합니다. 트래픽이 계속된다는 이유만으로 fallback이 정상이라고 부르는 데 반대합니다. 연결은 유지되지만 집행 계약은 유지되지 않습니다. 현재 로더는 커널 릴리스 문자열과 기능 비트를 확인합니다. 문제 변형에서도 둘 다 호환으로 보이므로 capability test가 너무 거칩니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "Product Security is present. The security impact is bounded but real. The gap does not bypass the system firewall, yet a managed profile can exceed a configured cellular allowance before the policy service catches up. Audit records also lose process attribution for packets sent during the gap. I do not support shipping a fallback that changes semantics without an explicit state and administrator-visible signal. However, I also do not want a verifier workaround that relaxes pointer checks globally. We must separate a program-layout incompatibility from a verifier defect and prove that any kernel change remains limited to the accounting program's documented access pattern.",
+          "ko": "Product Security 팀 참석했습니다. 보안 영향은 제한적이지만 실제로 존재합니다. 이 공백이 시스템 방화벽을 우회하지는 않지만 관리 프로필이 정책 서비스가 따라잡기 전에 설정된 셀룰러 허용량을 넘을 수 있습니다. 공백 동안 전송된 패킷의 프로세스 귀속도 감사 기록에서 사라집니다. 명시적인 상태와 관리자에게 보이는 신호 없이 의미가 달라지는 fallback 출시는 지지하지 않습니다. 그렇다고 pointer 검사를 전역적으로 완화하는 verifier 우회책도 원하지 않습니다. 프로그램 레이아웃 비호환성과 verifier 결함을 분리하고 커널 변경이 accounting 프로그램의 문서화된 접근 패턴에만 제한됨을 입증해야 합니다."
+        },
+        {
+          "speaker": "Leo Martin",
+          "en": "Release Quality is present. We have twelve affected runs across two variants and zero failures across three flagship variants. The split follows compiler configuration, not memory size: the affected kernels enable hardened structure randomization and build BTF from a reduced debug description. When we flash the flagship kernel onto the smaller board, the program loads. When we rebuild that kernel with the reduced BTF setting, it fails. That is strong correlation, but it is not yet causation. My team can run a controlled matrix over BTF content, compiler hardening, program object, VPN state, and quota thresholds. I need the exact pass criteria before we spend tonight's lab allocation.",
+          "ko": "Release Quality 팀 참석했습니다. 두 변형에서 12회의 영향 실행이 있었고 플래그십 세 변형에서는 실패가 0건입니다. 차이는 메모리 크기가 아니라 컴파일러 설정을 따릅니다. 영향 커널은 강화된 구조체 무작위화를 사용하고 축소된 디버그 설명에서 BTF를 생성합니다. 소형 보드에 플래그십 커널을 올리면 프로그램이 로드됩니다. 그 커널을 축소 BTF 설정으로 다시 빌드하면 실패합니다. 강한 상관관계지만 아직 인과관계는 아닙니다. BTF 내용, 컴파일러 hardening, 프로그램 object, VPN 상태, quota 임계값에 대한 통제 행렬을 실행할 수 있습니다. 오늘 밤 실험실 자원을 쓰기 전에 정확한 통과 조건이 필요합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and Competing Explanations",
+      "title_ko": "증거와 경쟁 가설",
+      "turns": [
+        {
+          "speaker": "Mina Seo",
+          "en": "Let us walk the evidence from build inputs to runtime behavior. R72 moved the accounting hook from a vendor tracepoint to a stable cgroup socket hook. At the same time, the low-tier configuration began stripping type members marked as unused by native code. The eBPF object uses compile-once-run-everywhere relocation to find a nested protocol field. On the affected image, that member is absent from BTF even though the runtime structure still contains it. The relocation resolves to zero, the generated bounds check becomes inconsistent, and the verifier rejects the load. The question is whether our build stripped required ABI description or whether the program relied on an internal field it never had permission to treat as stable.",
+          "ko": "빌드 입력부터 런타임 동작까지 증거를 살펴봅시다. R72는 accounting hook을 vendor tracepoint에서 안정적인 cgroup socket hook으로 옮겼습니다. 동시에 보급형 설정은 native code가 사용하지 않는다고 표시한 type member를 제거하기 시작했습니다. eBPF object는 compile-once-run-everywhere relocation을 사용해 중첩 protocol field를 찾습니다. 영향 이미지에서는 runtime structure에 그 member가 남아 있어도 BTF에서 사라집니다. relocation이 0으로 해석되고 생성된 bounds check가 불일치해 verifier가 로드를 거부합니다. 빌드가 필요한 ABI 설명을 제거했는지, 프로그램이 안정적이라고 취급할 권한이 없는 내부 field에 의존했는지가 쟁점입니다."
+        },
+        {
+          "speaker": "Aaron Blake",
+          "en": "The program reads that field only to distinguish locally generated traffic from forwarded traffic. The hook documentation exposes the distinction conceptually, but it does not promise this nested member. We chose it because the prior helper returned ambiguous results for tethering. I accept that our dependency was implicit. Still, the BTF reduction creates a misleading contract: it advertises the surrounding type and lets relocation succeed partially rather than reporting that the member is unavailable. A clean capability failure would have selected our compatibility object, which uses a helper and a second map lookup. We should fix both sides: stop depending on the member and make the loader verify every required relocation before attempting load.",
+          "ko": "프로그램은 로컬 생성 트래픽과 전달 트래픽을 구분하기 위해서만 그 field를 읽습니다. hook 문서는 개념적으로 그 구분을 노출하지만 이 중첩 member를 보장하지는 않습니다. 기존 helper가 tethering에서 모호한 결과를 반환해 이를 선택했습니다. 의존성이 암묵적이었다는 점은 인정합니다. 그래도 BTF 축소는 오해를 부르는 계약을 만듭니다. 주변 type을 광고하고 member가 없음을 보고하는 대신 relocation이 부분적으로 성공하게 합니다. 명확한 capability 실패였다면 helper와 두 번째 map lookup을 사용하는 호환 object를 선택했을 것입니다. 양쪽을 모두 고쳐야 합니다. member 의존성을 없애고 load 시도 전에 로더가 모든 필수 relocation을 검증하게 해야 합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "I support removing the internal-field dependency, but I challenge the proposed loader behavior. A preflight relocation check prevents this exact failure, yet it does not tell us that the compatibility object preserves policy semantics. The helper cannot classify forwarded packets until the routing decision is complete, while our current hook runs earlier. Moving the hook later changes which UID owns encapsulated VPN traffic. That could repair loading and still corrupt accounting. We need an end-to-end oracle based on policy outcomes, not merely a successful verifier result. For every path, the same packet must be attributed once, to the documented owner, with no interval in which enforcement assumes zero usage.",
+          "ko": "내부 field 의존성 제거에는 동의하지만 제안된 로더 동작에는 이의를 제기합니다. 사전 relocation 검사는 이 실패를 막지만 호환 object가 정책 의미를 보존하는지는 알려주지 않습니다. helper는 routing 결정이 끝나기 전까지 전달 패킷을 분류할 수 없는데 현재 hook은 더 일찍 실행됩니다. hook을 뒤로 옮기면 캡슐화된 VPN 트래픽의 소유 UID가 달라집니다. 로딩을 고치면서도 accounting을 손상시킬 수 있습니다. verifier 성공 여부가 아니라 정책 결과에 기반한 end-to-end 판정 기준이 필요합니다. 모든 경로에서 같은 패킷은 정확히 한 번 문서화된 소유자에게 귀속돼야 하며 집행이 사용량 0으로 가정하는 구간이 없어야 합니다."
+        },
+        {
+          "speaker": "Leo Martin",
+          "en": "I compared packet-level traces from the primary and compatibility objects. Ordinary cellular and Wi-Fi traffic match within zero point two percent, which is measurement noise. Tethering matches ownership but duplicates forty to sixty bytes per flow during socket migration. The serious difference is always-on VPN: the compatibility object assigns outer packets to the VPN process, while the primary object charges the originating managed application. That confirms Priya's concern. We cannot use one global compatibility object. I propose three experiments: preserve full BTF without changing code, use an exported helper at the original hook, and move only VPN attribution to a post-routing correlation map. Each experiment must be evaluated against identical captured traffic.",
+          "ko": "주 object와 호환 object의 packet-level trace를 비교했습니다. 일반 셀룰러와 Wi-Fi 트래픽은 측정 잡음인 0.2퍼센트 안에서 일치합니다. tethering은 소유권이 일치하지만 socket migration 중 flow당 40~60바이트를 중복 집계합니다. 심각한 차이는 always-on VPN입니다. 호환 object는 외부 패킷을 VPN 프로세스에 귀속하지만 주 object는 원래 관리 앱에 부과합니다. Priya의 우려를 확인했습니다. 하나의 전역 호환 object를 사용할 수 없습니다. 코드를 바꾸지 않고 full BTF 보존, 원래 hook에서 exported helper 사용, VPN 귀속만 post-routing correlation map으로 이동하는 세 실험을 제안합니다. 각 실험은 동일한 캡처 트래픽으로 평가해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Options Risk and Release Debate",
+      "title_ko": "대안·위험·릴리스 논쟁",
+      "turns": [
+        {
+          "speaker": "Mina Seo",
+          "en": "The fastest option is to restore full BTF on the two variants. It adds about nine hundred kilobytes to the compressed boot image and restores the existing object without code churn. The platform reserve can absorb that size, but we introduced reduction to protect next quarter's ramdisk budget. More importantly, restoring metadata preserves an unsupported field dependency. The durable option is an exported helper with stable semantics, but that kernel interface needs review and cannot meet tomorrow's baseline lock. A third option is to hold R72 only on affected variants while we develop the helper. That fragments the kernel baseline and doubles qualification. I want us to evaluate risk explicitly rather than let schedule choose by default.",
+          "ko": "가장 빠른 선택은 두 변형에서 full BTF를 복구하는 것입니다. 압축 boot image에 약 900킬로바이트가 추가되고 코드 변경 없이 기존 object를 복원합니다. 플랫폼 reserve가 그 크기를 수용하지만 다음 분기 ramdisk 예산을 보호하려고 축소를 도입했습니다. 더 중요한 점은 metadata 복원이 지원되지 않는 field 의존성을 보존한다는 것입니다. 지속 가능한 선택은 안정된 의미의 exported helper지만 이 커널 인터페이스는 검토가 필요해 내일 기준선 lock을 맞출 수 없습니다. 세 번째 선택은 helper를 개발하는 동안 영향 변형에서만 R72를 보류하는 것입니다. 그러면 커널 기준선이 분리되고 qualification이 두 배가 됩니다. 일정이 자동으로 선택하게 두지 말고 위험을 명시적으로 평가하고 싶습니다."
+        },
+        {
+          "speaker": "Aaron Blake",
+          "en": "I recommend a bounded bridge rather than a permanent rollback. Restore the required BTF member through an allowlist, not the entire description, and mark the current object as transitional. The allowlist adds twenty-eight kilobytes, keeps relocation deterministic, and avoids variant divergence. In parallel, we implement the helper-based object for R73. The loader will carry a manifest of required type members and reject the primary object before verification if the manifest is incomplete. It will not fall back to semantically weaker accounting during a managed session. Instead, it will keep the last counters, block new quota-sensitive cellular sessions, and surface a degraded state to device policy until a valid object loads.",
+          "ko": "영구 rollback이 아니라 범위가 제한된 연결책을 권고합니다. 전체 설명이 아니라 allowlist를 통해 필요한 BTF member만 복구하고 현재 object를 전환용으로 표시합니다. allowlist는 28킬로바이트만 추가하며 relocation을 결정적으로 유지하고 변형 분기를 피합니다. 동시에 R73용 helper 기반 object를 구현합니다. 로더는 필요한 type member manifest를 포함하고 manifest가 불완전하면 verifier 이전에 주 object를 거부합니다. 관리 세션 중 의미가 약한 accounting으로 fallback하지 않습니다. 대신 마지막 counter를 유지하고 quota에 민감한 새 셀룰러 세션을 차단하며 유효한 object가 로드될 때까지 device policy에 degraded 상태를 표시합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "That bridge is acceptable only with two safeguards. First, the allowlisted member must be read-only metadata for this program; no program may write through it or infer unrelated structure contents. Second, degraded mode must fail predictably. Blocking every managed cellular session could create an availability incident, especially during emergency communication. I propose that existing sessions continue under the last confirmed quota state, new background sessions are blocked, and foreground user-initiated traffic is allowed with an audit marker and administrator notification. Emergency traffic remains exempt under the existing policy. The policy service must never report counters as current when they are frozen. An explicit stale timestamp is part of the security boundary.",
+          "ko": "그 연결책은 두 가지 보호장치가 있을 때만 수용 가능합니다. 첫째, allowlist member는 이 프로그램에서 읽기 전용 metadata여야 합니다. 어떤 프로그램도 이를 통해 쓰거나 관련 없는 구조체 내용을 추론하면 안 됩니다. 둘째, degraded mode는 예측 가능하게 실패해야 합니다. 모든 관리 셀룰러 세션을 막으면 특히 긴급 통신에서 가용성 사고가 생길 수 있습니다. 기존 세션은 마지막으로 확인된 quota 상태로 계속하고 새 background 세션은 차단하며 사용자가 시작한 foreground 트래픽은 audit marker와 관리자 알림을 붙여 허용하자고 제안합니다. 긴급 트래픽은 기존 정책에 따라 예외입니다. 정책 서비스는 동결된 counter를 최신이라고 보고하면 안 됩니다. 명시적인 stale timestamp는 보안 경계의 일부입니다."
+        },
+        {
+          "speaker": "Leo Martin",
+          "en": "I can test that policy, but the state transitions need to be deterministic. We will inject four failures: missing BTF member at boot, verifier rejection after an over-the-air update, accounting process restart during VPN handover, and map pin loss after a crash. For each case, the oracle records object identity, counter freshness, session class, decision, administrator signal, and recovery time. No packet may disappear from both primary and degraded audit streams. Existing quota violations must remain blocked, and emergency traffic must remain allowed. Recovery must load a validated object and reconcile counters before clearing the stale marker. A simple service restart is not sufficient evidence of recovery.",
+          "ko": "그 정책을 시험할 수 있지만 상태 전이는 결정적이어야 합니다. 부팅 시 BTF member 누락, OTA 업데이트 후 verifier 거부, VPN 전환 중 accounting 프로세스 재시작, 충돌 후 map pin 손실이라는 네 가지 실패를 주입하겠습니다. 각 사례에서 object identity, counter freshness, 세션 class, 결정, 관리자 signal, 복구 시간을 기록합니다. 어떤 패킷도 주 audit stream과 degraded audit stream 양쪽에서 모두 사라지면 안 됩니다. 기존 quota 위반은 계속 차단되고 긴급 트래픽은 허용돼야 합니다. 복구는 검증된 object를 로드하고 counter를 대조한 뒤 stale marker를 해제해야 합니다. 단순 서비스 재시작만으로는 복구 증거가 충분하지 않습니다."
+        },
+        {
+          "speaker": "Mina Seo",
+          "en": "We also need to decide whether the allowlist is a release fix or a diagnostic exception. I consider it a release fix with an expiration condition. The build rule will preserve only the named type and member hash, and CI will fail if the source layout changes without a manifest update. The exception expires when R73's helper object passes equivalent accounting tests on all variants, no later than November 20. If the helper slips, the exception does not renew automatically. We return to the release board with image-size data, compatibility evidence, and a removal date. This keeps temporary compatibility debt visible and prevents an emergency patch from becoming an undocumented interface.",
+          "ko": "allowlist가 릴리스 수정인지 진단 예외인지도 결정해야 합니다. 만료 조건이 있는 릴리스 수정으로 봅니다. 빌드 규칙은 지정된 type과 member hash만 보존하고 source layout이 manifest 갱신 없이 바뀌면 CI를 실패시킵니다. 이 예외는 모든 변형에서 R73 helper object가 동등한 accounting 시험을 통과할 때, 늦어도 11월 20일에 만료됩니다. helper가 늦어져도 예외가 자동 연장되지는 않습니다. image 크기 데이터, 호환성 근거, 제거 날짜를 들고 release board로 돌아갑니다. 임시 호환성 부채를 보이게 유지하고 긴급 패치가 문서화되지 않은 인터페이스가 되는 것을 막습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision Owners and Acceptance Gates",
+      "title_ko": "결정·담당자·인수 게이트",
+      "turns": [
+        {
+          "speaker": "Mina Seo",
+          "en": "I am documenting the decision. R72 may advance on all variants only with the narrow BTF allowlist, the relocation manifest, and the explicit degraded-mode state. We will not ship the global compatibility object because its VPN attribution differs. The allowlist is temporary and read-only for the accounting program. The loader must validate requirements before load, and it must never label frozen counters as fresh. R73 replaces the field access with a reviewed helper. Release is blocked by any unattributed packet, incorrect VPN owner, silent fallback, missing administrator signal, or failure to preserve emergency access. The variant kernels remain on one source baseline.",
+          "ko": "결정을 문서화하겠습니다. R72는 좁은 BTF allowlist, relocation manifest, 명시적인 degraded-mode 상태를 모두 포함할 때만 모든 변형에서 진행할 수 있습니다. VPN 귀속이 다르므로 전역 호환 object는 출시하지 않습니다. allowlist는 임시이며 accounting 프로그램에서 읽기 전용입니다. 로더는 load 전에 요구사항을 검증해야 하고 동결 counter를 최신으로 표시하면 안 됩니다. R73은 field 접근을 검토된 helper로 대체합니다. 귀속되지 않은 패킷, 잘못된 VPN 소유자, 조용한 fallback, 관리자 signal 누락, 긴급 접근 보존 실패 중 하나라도 있으면 릴리스를 차단합니다. 변형 커널은 하나의 source baseline을 유지합니다."
+        },
+        {
+          "speaker": "Aaron Blake",
+          "en": "Network Framework owns the loader manifest, degraded-state contract, and R73 helper object. I will post the manifest schema and a loader patch by October 27 at 14:00 KST. A device-policy integration build is due October 28 at 09:00. The state exposes object digest, last successful counter timestamp, failure reason, and recovery phase, but no destination addresses or application payload. By October 30, I will provide the helper proposal with VPN and tethering semantics written as testable examples. I will also remove the legacy automatic fallback from managed sessions and add a migration test proving that pinned maps are either reconciled once or rejected without double counting.",
+          "ko": "Network Framework 팀이 loader manifest, degraded-state 계약, R73 helper object를 담당합니다. 10월 27일 14시 KST까지 manifest schema와 loader patch를 게시하겠습니다. device-policy 통합 빌드는 10월 28일 09시까지입니다. 상태는 object digest, 마지막 성공 counter timestamp, 실패 원인, 복구 단계를 노출하지만 목적지 주소나 앱 payload는 포함하지 않습니다. 10월 30일까지 VPN과 tethering 의미를 시험 가능한 예제로 작성한 helper 제안을 제공하겠습니다. 관리 세션에서 기존 자동 fallback도 제거하고 pinned map을 한 번만 대조하거나 이중 집계 없이 거부함을 증명하는 migration test를 추가하겠습니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "Product Security owns the threat review and policy-state audit. I will publish the allowlist constraints by 16:00 KST today and review the loader patch by 11:00 tomorrow. The review checks that only the approved program digest can use the preserved member, helper permissions cannot expand through tail calls, stale counters remain visibly stale, and administrator events are rate-limited without being suppressed. I will pair with enterprise policy to define foreground, background, and emergency traffic classes from existing authoritative signals. We will not invent a new application-controlled exemption. My approval expires with the allowlist on November 20 and cannot be copied to another BTF member.",
+          "ko": "Product Security 팀이 위협 검토와 정책 상태 감사를 담당합니다. 오늘 16시 KST까지 allowlist 제약을 게시하고 내일 11시까지 loader patch를 검토하겠습니다. 승인된 프로그램 digest만 보존 member를 사용할 수 있는지, helper 권한이 tail call을 통해 확대되지 않는지, stale counter가 계속 명확히 stale로 보이는지, 관리자 event가 누락되지 않으면서 rate limit되는지 확인합니다. 기업 정책팀과 기존 권위 signal을 이용해 foreground, background, emergency 트래픽 class를 정의하겠습니다. 앱이 제어하는 새 예외를 만들지 않습니다. 제 승인은 11월 20일 allowlist와 함께 만료되며 다른 BTF member에 복사할 수 없습니다."
+        },
+        {
+          "speaker": "Leo Martin",
+          "en": "Release Quality owns the controlled matrix and final qualification. The three implementation experiments start at 15:00 KST today, and packet replay results are due by 22:00. If the narrow allowlist matches the reference trace, overnight qualification covers five hundred boots, two hundred VPN handovers, one hundred policy-process restarts, and all four injected failures. I will report results by October 28 at 13:00. Pass requires zero verifier rejection, zero unattributed packets, exact owner agreement for VPN flows, bounded tethering variance below one tenth of a percent, correct degraded decisions, and recovery within thirty seconds. Any failure preserves the object digest, BTF hash, policy state, and replay seed.",
+          "ko": "Release Quality 팀이 통제 행렬과 최종 qualification을 담당합니다. 세 구현 실험은 오늘 15시 KST에 시작하며 packet replay 결과는 22시까지입니다. 좁은 allowlist가 reference trace와 일치하면 야간 qualification에서 부팅 500회, VPN 전환 200회, 정책 프로세스 재시작 100회와 네 가지 주입 실패를 다룹니다. 10월 28일 13시까지 결과를 보고하겠습니다. verifier 거부 0건, 귀속 누락 패킷 0건, VPN flow 소유자 정확히 일치, tethering 편차 0.1퍼센트 미만, 올바른 degraded 결정, 30초 이내 복구가 통과 조건입니다. 실패 시 object digest, BTF hash, 정책 상태, replay seed를 보존합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Residual Risks and Follow Up",
+      "title_ko": "잔여 위험과 후속 회의",
+      "turns": [
+        {
+          "speaker": "Aaron Blake",
+          "en": "One residual risk is counter continuity across an object replacement. A pinned map can have the expected name and still use an older value layout. The loader will compare map type, key size, value size, maximum entries, flags, and a schema digest before reuse. If any field differs, it creates a new map and performs a bounded migration under a generation lock. The old map remains read-only until policy confirms the transferred total. A crash during migration resumes from the last committed generation rather than repeating additions. I will include an adversarial test that swaps a correctly named but incompatible map to prove that names alone never establish identity.",
+          "ko": "잔여 위험 하나는 object 교체 중 counter 연속성입니다. pinned map은 예상 이름을 가지면서도 이전 value layout을 사용할 수 있습니다. 로더는 재사용 전에 map type, key size, value size, 최대 entry, flag, schema digest를 비교합니다. 하나라도 다르면 새 map을 만들고 generation lock 아래에서 범위가 제한된 migration을 수행합니다. 이전 map은 정책이 이전된 합계를 확인할 때까지 읽기 전용으로 남습니다. migration 중 충돌하면 합산을 반복하지 않고 마지막 commit generation에서 재개합니다. 이름만으로 identity가 성립하지 않음을 증명하기 위해 이름은 맞지만 비호환인 map을 바꾸는 적대적 시험도 포함하겠습니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "A second risk is that detailed failure signals become a fingerprinting channel. The public API must expose only healthy, degraded, or unavailable plus counter freshness. Object digests, verifier reasons, and BTF hashes stay in privileged diagnostics with access logging. Administrator notification should say that usage enforcement is delayed, not reveal kernel configuration. We also need retention limits: diagnostic records expire after seven days unless attached to an approved incident. Leo's replay artifacts must use synthetic addresses and application identifiers. These controls do not weaken testability because the internal oracle can correlate a random run identifier with privileged evidence.",
+          "ko": "두 번째 위험은 상세 실패 signal이 fingerprinting channel이 되는 것입니다. public API는 healthy, degraded, unavailable 상태와 counter freshness만 노출해야 합니다. object digest, verifier reason, BTF hash는 접근 기록이 있는 privileged diagnostics에만 둡니다. 관리자 알림은 사용량 집행이 지연된다고 알려야 하며 커널 설정을 드러내면 안 됩니다. 보존 제한도 필요합니다. 진단 기록은 승인된 incident에 첨부되지 않는 한 7일 뒤 만료됩니다. Leo의 replay artifact는 합성 주소와 앱 식별자를 사용해야 합니다. 내부 판정기가 임의 run identifier를 privileged evidence와 연결할 수 있으므로 이런 통제가 testability를 약화시키지는 않습니다."
+        },
+        {
+          "speaker": "Leo Martin",
+          "en": "A third risk is a false sense of coverage from deterministic replay. The captured set exercises known VPN and tethering paths, but it may miss race conditions during CPU hotplug or network namespace teardown. After deterministic qualification, we will run randomized event ordering across object reload, namespace deletion, VPN reconnect, and policy restart for six hours on each variant. The hard gate remains semantic: one owner per packet and one terminal policy decision per session. We will track lost events separately from attribution errors so a clean average cannot hide a rare severe outcome. Random testing supplements the replay oracle; it does not replace it.",
+          "ko": "세 번째 위험은 결정적 replay가 주는 잘못된 coverage 확신입니다. 캡처 세트는 알려진 VPN과 tethering 경로를 실행하지만 CPU hotplug나 network namespace 해제 중 경쟁 상태를 놓칠 수 있습니다. 결정적 qualification 뒤 각 변형에서 object reload, namespace 삭제, VPN 재연결, 정책 재시작 순서를 6시간 동안 무작위화합니다. 필수 게이트는 패킷당 소유자 하나와 세션당 종료 정책 결정 하나라는 의미 기준입니다. 깨끗한 평균이 드문 심각 결과를 숨기지 않도록 lost event를 attribution error와 별도로 추적합니다. 무작위 시험은 replay 판정 기준을 보완하며 대체하지 않습니다."
+        },
+        {
+          "speaker": "Mina Seo",
+          "en": "The follow-up decision meeting is Wednesday, October 28, at 14:30 KST. We will review the allowlist diff, security approval, deterministic replay, overnight qualification, degraded-mode behavior, image-size delta, and any randomized failures available by then. If every hard gate passes, R72 enters the evening integration build with the November 20 removal condition recorded in the release ledger. If evidence is incomplete, the affected variants remain on R71 and no mixed attribution data is accepted for policy decisions. I will send the decision record and owner checklist by 12:00 KST today. We have a bounded bridge, a durable replacement, and measurable conditions for both entry and removal.",
+          "ko": "후속 의사결정 회의는 10월 28일 수요일 14시 30분 KST입니다. allowlist diff, 보안 승인, 결정적 replay, 야간 qualification, degraded-mode 동작, image 크기 변화, 그때까지 확인된 무작위 실패를 검토합니다. 모든 필수 게이트가 통과하면 R72는 11월 20일 제거 조건을 release ledger에 기록하고 저녁 통합 빌드에 들어갑니다. 근거가 불완전하면 영향 변형은 R71에 남고 혼합된 attribution 데이터는 정책 결정에 사용하지 않습니다. 오늘 12시 KST까지 결정 기록과 담당자 checklist를 보내겠습니다. 범위가 제한된 연결책, 지속 가능한 대체안, 도입과 제거를 위한 측정 가능한 조건을 확보했습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "capability test is clearly too coarse",
+      "meaning_ko": "capability 검사가 명백히 너무 거칠다",
+      "usage_ko": "기능 탐지가 실제 호환성을 충분히 구분하지 못할 때",
+      "example": "Both look compatible on the affected variants, so our capability test is clearly too coarse.",
+      "practice": "Our capability test is clearly too coarse for this dependency."
+    },
+    {
+      "phrase": "bounded but real",
+      "meaning_ko": "제한적이지만 실제인",
+      "usage_ko": "영향 범위를 과장하지 않으면서 존재를 인정할 때",
+      "example": "The security impact is bounded but real.",
+      "practice": "The operational risk is bounded but real."
+    },
+    {
+      "phrase": "strong correlation",
+      "meaning_ko": "강한 상관관계",
+      "usage_ko": "인과관계 확정 전 관찰 관계를 설명할 때",
+      "example": "That is strong correlation, but it is not yet causation.",
+      "practice": "The traces show strong correlation, not final proof."
+    },
+    {
+      "phrase": "walk the evidence",
+      "meaning_ko": "증거를 순서대로 살펴보다",
+      "usage_ko": "입력부터 결과까지 근거를 단계별로 검토할 때",
+      "example": "Let us walk the evidence from build inputs to runtime behavior.",
+      "practice": "Let us walk the evidence before choosing a fix."
+    },
+    {
+      "phrase": "dependency was implicit",
+      "meaning_ko": "의존성이 암묵적이었다",
+      "usage_ko": "문서화되지 않은 기술 의존성을 인정할 때",
+      "example": "I accept that our dependency was implicit.",
+      "practice": "The dependency was implicit and needs a contract."
+    },
+    {
+      "phrase": "end-to-end oracle",
+      "meaning_ko": "종단 간 판정 기준",
+      "usage_ko": "부분 성공이 아닌 최종 결과로 검증할 때",
+      "example": "We need an end-to-end oracle based on policy outcomes, not merely a successful verifier result.",
+      "practice": "We need an end-to-end oracle for customer outcomes."
+    },
+    {
+      "phrase": "schedule choose by default",
+      "meaning_ko": "일정이 자동으로 선택하게 하다",
+      "usage_ko": "위험 판단 없이 가장 빠른 안이 선택되는 것을 경계할 때",
+      "example": "I want us to evaluate risk explicitly rather than let schedule choose by default.",
+      "practice": "Do not let the schedule choose by default."
+    },
+    {
+      "phrase": "a bounded bridge",
+      "meaning_ko": "범위가 제한된 연결책",
+      "usage_ko": "임시지만 통제된 전환 방안을 제안할 때",
+      "example": "I recommend a bounded bridge rather than a permanent rollback.",
+      "practice": "We need a bounded bridge until the stable interface lands."
+    },
+    {
+      "phrase": "fail predictably",
+      "meaning_ko": "예측 가능하게 실패하다",
+      "usage_ko": "오류 시 동작을 명확히 정의할 때",
+      "example": "Second, degraded mode must fail predictably.",
+      "practice": "The recovery path must fail predictably."
+    },
+    {
+      "phrase": "deterministic",
+      "meaning_ko": "결정적인",
+      "usage_ko": "같은 조건에서 같은 상태 전이를 요구할 때",
+      "example": "The allowlist adds twenty-eight kilobytes, keeps relocation deterministic, and avoids variant divergence.",
+      "practice": "The state machine must remain deterministic under retry."
+    },
+    {
+      "phrase": "expiration condition",
+      "meaning_ko": "만료 조건",
+      "usage_ko": "임시 예외의 종료 기준을 정할 때",
+      "example": "I consider it a release fix with an expiration condition.",
+      "practice": "Every temporary waiver needs an expiration condition."
+    },
+    {
+      "phrase": "I am documenting the decision",
+      "meaning_ko": "결정을 문서화하겠다",
+      "usage_ko": "회의 합의를 공식 기록으로 전환할 때",
+      "example": "I am documenting the decision.",
+      "practice": "I am documenting the decision and its release gates."
+    },
+    {
+      "phrase": "source baseline",
+      "meaning_ko": "소스 기준선",
+      "usage_ko": "여러 제품이 공유하는 코드 기준을 말할 때",
+      "example": "The variant kernels remain on one source baseline.",
+      "practice": "All variants should remain on one source baseline."
+    },
+    {
+      "phrase": "residual risk",
+      "meaning_ko": "잔여 위험",
+      "usage_ko": "결정 후에도 남는 위험을 설명할 때",
+      "example": "One residual risk is counter continuity across an object replacement.",
+      "practice": "One residual risk remains after the compatibility fix."
+    },
+    {
+      "phrase": "does not replace it",
+      "meaning_ko": "그것을 대체하지 않는다",
+      "usage_ko": "보완 수단과 기준 수단을 구분할 때",
+      "example": "Random testing supplements the replay oracle; it does not replace it.",
+      "practice": "Automation supplements expert review; it does not replace it."
+    }
+  ]
+}
