@@ -1,0 +1,290 @@
+{
+  "date": "2026-10-29",
+  "category": "business",
+  "topic": "sw-status",
+  "subject": "Reviewing Fence Descriptor Growth after Adaptive Video Resolution Changes",
+  "title_ko": "적응형 영상 해상도 전환 후 fence descriptor 증가 현황 검토",
+  "summary_ko": "화면 녹화와 영상 통화가 동시에 진행될 때 적응형 해상도 전환 후 fence 파일 디스크립터가 누적되는 현상을 두고 미디어 프레임워크, 코덱 드라이버, 성능 품질, 릴리스 관리 팀이 증거와 소유권 계약을 검토하고 억제책·수정안·검증 게이트를 결정하는 회의다. 모든 인물·조직·제품·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Yuna Park",
+      "team": "Media Framework"
+    },
+    {
+      "name": "Daniel Ortiz",
+      "team": "Codec Driver"
+    },
+    {
+      "name": "Mei Chen",
+      "team": "Performance Quality"
+    },
+    {
+      "name": "Oliver Grant",
+      "team": "Release Management"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and release context",
+      "title_ko": "참석 확인과 릴리스 배경",
+      "turns": [
+        {
+          "speaker": "Yuna Park",
+          "en": "Thank you for making time. Media Framework, Codec Driver, Performance Quality, and Release Management are represented, so we can make both a technical and rollout decision. Today's narrow question is whether the adaptive-resolution feature can remain enabled in the limited video-call cohort. During a call with screen recording active, the codec sandbox accumulates fence file descriptors whenever the encoder moves between 1080p and 720p. The count falls only when the session ends. We need to separate a harmless delayed cleanup from an ownership defect, agree on containment, and leave with named owners and measurable exit criteria.",
+          "ko": "참석해 주셔서 감사합니다. 미디어 프레임워크, 코덱 드라이버, 성능 품질, 릴리스 관리 팀이 모두 참석했으므로 기술 결정과 배포 결정을 함께 내릴 수 있습니다. 오늘의 핵심 질문은 제한된 영상 통화 사용자군에서 적응형 해상도 기능을 계속 활성화해도 되는지입니다. 화면 녹화가 켜진 통화 중 인코더가 1080p와 720p 사이를 이동할 때마다 코덱 샌드박스에 fence 파일 디스크립터가 누적됩니다. 세션이 끝나야 개수가 줄어듭니다. 무해한 지연 정리인지 소유권 결함인지 구분하고, 억제책에 합의하며, 담당자와 측정 가능한 종료 기준을 정해야 합니다."
+        },
+        {
+          "speaker": "Oliver Grant",
+          "en": "I confirm that the feature is enabled for ten percent of the internal dogfood population and has not reached external beta. Release Operations paused the next cohort expansion at 06:15 KST. We have three reports of a brief black preview, but no process crash and no corrupted recording. I do not want the absence of a crash to become our safety argument. The soft descriptor limit gives us margin today, yet longer enterprise calls could consume that margin. Before noon, I need a recommendation that distinguishes immediate exposure, patch risk, and the evidence required to resume expansion.",
+          "ko": "이 기능은 내부 도그푸드 사용자 중 10퍼센트에게 활성화되어 있고 외부 베타에는 아직 도달하지 않았음을 확인합니다. 릴리스 운영팀은 오전 6시 15분 KST에 다음 사용자군 확대를 중단했습니다. 짧은 검은색 미리보기 신고가 세 건 있었지만 프로세스 충돌이나 손상된 녹화는 없었습니다. 충돌이 없다는 사실을 안전성 논거로 삼고 싶지는 않습니다. 현재는 디스크립터 소프트 한도까지 여유가 있지만 더 긴 기업 통화는 그 여유를 소진할 수 있습니다. 정오 전까지 즉각적인 노출, 패치 위험, 확대 재개에 필요한 증거를 구분한 권고안이 필요합니다."
+        },
+        {
+          "speaker": "Mei Chen",
+          "en": "The laboratory reproduced the growth on two device variants with the same codec service but different kernels. In a forty-minute scripted call, one resolution change every twelve seconds raised the sandbox from 146 open descriptors to 612. A control call pinned at 1080p stayed between 143 and 151. When we stopped screen recording but kept the call alive, the count stopped climbing but did not recover. Ending the codec session returned it to baseline within 800 milliseconds. That pattern makes ordinary garbage collection unlikely, although it does not yet tell us which side owns the stranded handles.",
+          "ko": "실험실은 같은 코덱 서비스를 사용하지만 커널이 다른 두 단말 변형에서 증가 현상을 재현했습니다. 40분짜리 스크립트 통화에서 12초마다 한 번씩 해상도를 변경하자 샌드박스의 열린 디스크립터가 146개에서 612개로 늘었습니다. 1080p로 고정한 대조 통화는 143개에서 151개 사이를 유지했습니다. 화면 녹화를 중단하고 통화를 계속하자 개수는 더 늘지 않았지만 회복되지도 않았습니다. 코덱 세션을 종료하면 800밀리초 안에 기준선으로 돌아왔습니다. 이 양상은 일반적인 가비지 컬렉션 가능성을 낮추지만 어느 쪽이 고립된 핸들을 소유하는지는 아직 알려 주지 않습니다."
+        },
+        {
+          "speaker": "Daniel Ortiz",
+          "en": "Driver tracing shows every submitted buffer eventually completes, including buffers from the retired resolution generation. That is important because an unreturned buffer would point to the kernel queue. However, completion alone does not prove that every duplicated fence is closed in user space. Our interface transfers the acquire-fence descriptor to the codec service on a successful queue call. On a rejected call, ownership stays with the caller. The disputed path is neither simple case: the call succeeds, then a newer configuration supersedes the generation before the completion callback is dispatched. We need one timeline for that exact path.",
+          "ko": "드라이버 추적 결과 폐기된 해상도 세대의 버퍼를 포함해 제출된 모든 버퍼가 결국 완료됩니다. 반환되지 않은 버퍼라면 커널 큐를 가리키기 때문에 중요한 사실입니다. 하지만 완료됐다는 사실만으로 사용자 공간에서 복제된 모든 fence가 닫혔다고 증명되지는 않습니다. 인터페이스상 큐 호출이 성공하면 acquire-fence 디스크립터의 소유권은 코덱 서비스로 이전됩니다. 호출이 거부되면 호출자가 계속 소유합니다. 논쟁 중인 경로는 어느 단순 사례에도 해당하지 않습니다. 호출은 성공하지만 완료 콜백이 전달되기 전에 더 새로운 설정이 해당 세대를 대체합니다. 바로 그 경로에 대한 하나의 타임라인이 필요합니다."
+        },
+        {
+          "speaker": "Yuna Park",
+          "en": "That framing works. Let us keep the scope tight and make the ownership transition observable. By the end of this meeting, we should decide whether to disable adaptive switching, restart the session at a threshold, or take a small framework fix. We also need a regression matrix that covers normal completion, cancellation before queueing, and supersession after queueing. If any proposal depends on undocumented behavior, call that out explicitly. The goal is not to assign blame; the goal is to make every descriptor have one owner at every point in time.",
+          "ko": "동의합니다. 범위를 좁게 유지하고 소유권 전환을 관찰 가능하게 만듭시다. 회의가 끝날 때까지 적응형 전환을 비활성화할지, 임계값에서 세션을 재시작할지, 작은 프레임워크 수정을 적용할지 결정해야 합니다. 또한 정상 완료, 큐 등록 전 취소, 큐 등록 후 세대 교체를 포함하는 회귀 매트릭스가 필요합니다. 제안이 문서화되지 않은 동작에 의존한다면 명확히 지적해 주세요. 목표는 책임을 돌리는 것이 아니라 모든 시점에서 각 디스크립터에 단 하나의 소유자가 있도록 하는 것입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and competing explanations",
+      "title_ko": "증거와 상충하는 설명",
+      "turns": [
+        {
+          "speaker": "Mei Chen",
+          "en": "We added descriptor lineage tags without changing timing. Each acquire fence receives a test cookie before it enters the codec service, and the harness correlates dup, close, and callback events. In 96 percent of transitions, the lineage closes cleanly. The remaining cases share two conditions: screen capture requests a new surface size, and the old generation's completion arrives after the replacement output buffer has already been announced. For each affected transition, exactly one duplicate remains open. The leak rate therefore follows superseded generations, not frame count, elapsed time, or encoder load.",
+          "ko": "타이밍을 바꾸지 않고 디스크립터 계보 태그를 추가했습니다. 각 acquire fence는 코덱 서비스에 들어가기 전에 테스트 쿠키를 받고, 하네스가 dup, close, 콜백 이벤트를 연계합니다. 전환의 96퍼센트에서는 계보가 정상적으로 닫힙니다. 나머지 사례에는 두 가지 조건이 공통적입니다. 화면 캡처가 새 표면 크기를 요청하고, 이전 세대의 완료가 대체 출력 버퍼가 이미 공지된 뒤에 도착합니다. 영향받은 전환마다 정확히 하나의 복제본이 열린 채 남습니다. 따라서 누수율은 프레임 수, 경과 시간, 인코더 부하가 아니라 대체된 세대의 수를 따라갑니다."
+        },
+        {
+          "speaker": "Daniel Ortiz",
+          "en": "I reviewed five tagged traces. The driver duplicates the incoming fence for its internal wait and closes that internal copy when hardware signals. The descriptor visible at session teardown has a different number and the codec service's cookie, so it is not the driver's internal copy. I initially suspected a late interrupt because the issue was more frequent under thermal throttling, but the lineage evidence changes my view. Thermal pressure merely widens the callback window. We should not tune interrupt timing to hide an ownership gap. The open question is why the service retains its bookkeeping duplicate after it discards the old generation.",
+          "ko": "태그가 지정된 추적 다섯 개를 검토했습니다. 드라이버는 내부 대기를 위해 들어온 fence를 복제하고 하드웨어 신호가 오면 그 내부 복사본을 닫습니다. 세션 종료 때 보이는 디스크립터는 번호가 다르고 코덱 서비스의 쿠키를 갖고 있으므로 드라이버 내부 복사본이 아닙니다. 열 제한 상황에서 문제가 더 자주 나타나 처음에는 늦은 인터럽트를 의심했지만 계보 증거로 판단이 바뀌었습니다. 열 압력은 콜백 시간 창만 넓힙니다. 소유권 공백을 감추려고 인터럽트 타이밍을 조정해서는 안 됩니다. 남은 질문은 서비스가 이전 세대를 폐기한 뒤에도 장부용 복제본을 유지하는 이유입니다."
+        },
+        {
+          "speaker": "Yuna Park",
+          "en": "The service keeps a duplicate in a pending-completion record so that it can wait safely if the client abandons the output surface. Normally the callback removes that record and closes the duplicate. In the supersession path, the configuration manager erases the record from the active-generation map before the callback runs. The callback sees an unknown generation, records a stale-completion metric, and returns early. It never reaches the close operation. That is a concrete control-flow defect. The smallest fix is to move descriptor cleanup into a guard that runs before the generation lookup, while leaving buffer delivery conditional on the lookup.",
+          "ko": "서비스는 클라이언트가 출력 표면을 포기하더라도 안전하게 대기할 수 있도록 보류 완료 레코드에 복제본을 보관합니다. 정상적으로는 콜백이 그 레코드를 제거하고 복제본을 닫습니다. 세대 교체 경로에서는 콜백이 실행되기 전에 설정 관리자가 활성 세대 맵에서 레코드를 지웁니다. 콜백은 알 수 없는 세대를 보고 오래된 완료 지표를 기록한 뒤 일찍 반환합니다. 닫기 연산에는 도달하지 않습니다. 이는 구체적인 제어 흐름 결함입니다. 가장 작은 수정은 디스크립터 정리를 세대 조회 전에 실행되는 가드로 이동하고, 버퍼 전달만 조회 결과에 따라 조건부로 두는 것입니다."
+        },
+        {
+          "speaker": "Daniel Ortiz",
+          "en": "I support that direction, with one caution. Cleanup before lookup is correct only if the pending record still owns the descriptor after a successful queue. Our current header says the callee consumes the original, but it says nothing about service-created duplicates. That ambiguity allowed two reasonable mental models. For this patch, the service clearly created and retained the duplicate, so it must close it. Separately, I will add an ownership table to the interface documentation and a debug assertion that rejects a completion record without an explicit owner state. Documentation is not the fix, but it prevents the same argument on the next asynchronous path.",
+          "ko": "그 방향을 지지하지만 한 가지 주의점이 있습니다. 조회 전 정리는 성공적인 큐 등록 후에도 보류 레코드가 그 디스크립터를 소유할 때만 옳습니다. 현재 헤더에는 피호출자가 원본을 소비한다고 되어 있지만 서비스가 만든 복제본에 대해서는 아무 말도 없습니다. 그 모호성 때문에 두 가지 합리적인 해석이 가능했습니다. 이번 패치에서는 서비스가 복제본을 만들고 보유했으므로 서비스가 닫아야 합니다. 별도로 인터페이스 문서에 소유권 표를 추가하고 명시적인 소유자 상태가 없는 완료 레코드를 거부하는 디버그 단언을 넣겠습니다. 문서가 수정 자체는 아니지만 다음 비동기 경로에서 같은 논쟁이 반복되는 것을 막습니다."
+        },
+        {
+          "speaker": "Oliver Grant",
+          "en": "Before we settle on the patch, I want to test the competing operational proposal. Restarting the codec session at 500 descriptors would recover the resources without touching callback code. Is that a credible short-term guard, or would users see a larger interruption than the current black preview? We need to weigh a known restart against a narrowly reasoned code change. Please quantify both options rather than calling one safer by intuition.",
+          "ko": "패치로 결론 내리기 전에 운영 측 대안을 검토하고 싶습니다. 디스크립터 500개에서 코덱 세션을 재시작하면 콜백 코드를 건드리지 않고 자원을 회수할 수 있습니다. 이것이 신뢰할 수 있는 단기 보호책입니까, 아니면 사용자가 현재의 검은색 미리보기보다 더 큰 중단을 겪게 됩니까? 알려진 재시작과 범위가 좁고 논리적으로 도출된 코드 변경을 비교해야 합니다. 직감으로 어느 쪽이 더 안전하다고 하지 말고 두 선택지를 수치화해 주세요."
+        }
+      ]
+    },
+    {
+      "title_en": "Technical disagreement and experiments",
+      "title_ko": "기술적 이견과 실험",
+      "turns": [
+        {
+          "speaker": "Mei Chen",
+          "en": "We measured the restart option yesterday. A controlled session restart produces 1.8 to 2.6 seconds without outgoing video, resets temporal encoder state, and causes a visible quality ramp for another four seconds. It also drops the first audio-video synchronization sample, although audio continues. By contrast, the leaked descriptor has no visible effect until the count approaches 900 in our stress profile. A threshold restart would trade a latent resource risk for a guaranteed interruption. It could be an emergency backstop, but I would not use it as the primary containment for the current cohort.",
+          "ko": "어제 재시작 선택지를 측정했습니다. 제어된 세션 재시작은 1.8초에서 2.6초 동안 송출 영상이 없고, 인코더의 시간 상태를 초기화하며, 추가로 4초 동안 눈에 띄는 품질 상승 구간을 만듭니다. 오디오는 계속되지만 첫 오디오-비디오 동기화 샘플도 유실됩니다. 반면 누수된 디스크립터는 스트레스 프로필에서 개수가 900에 가까워질 때까지 눈에 보이는 영향이 없습니다. 임계값 재시작은 잠재적인 자원 위험을 확정적인 중단으로 바꿉니다. 긴급 최후 방어선으로는 쓸 수 있지만 현재 사용자군의 주된 억제책으로 삼지는 않겠습니다."
+        },
+        {
+          "speaker": "Yuna Park",
+          "en": "Disabling adaptive switching is cleaner operationally, but it has a different cost. On constrained uplinks, a fixed 1080p stream exceeds the transport budget and triggers packet loss; forcing 720p for everyone reduces text readability during screen sharing. We can disable only repeated oscillation by adding a server-side policy that permits one downward change and blocks upward recovery for the rest of the call. That limits descriptor growth to one event while preserving graceful degradation. It is reversible without a client update, although a recovered network would remain at lower resolution until the next call.",
+          "ko": "적응형 전환을 끄는 것이 운영상 더 깔끔하지만 비용이 다릅니다. 제한된 업링크에서 고정 1080p 스트림은 전송 예산을 넘겨 패킷 손실을 유발하고, 모두를 720p로 강제하면 화면 공유 중 텍스트 가독성이 떨어집니다. 서버 측 정책으로 한 번의 하향 변경만 허용하고 통화가 끝날 때까지 상향 복구를 막으면 반복 진동만 비활성화할 수 있습니다. 그러면 자연스러운 품질 저하는 유지하면서 디스크립터 증가를 한 번으로 제한합니다. 클라이언트 업데이트 없이 되돌릴 수 있지만 네트워크가 회복돼도 다음 통화까지 낮은 해상도가 유지됩니다."
+        },
+        {
+          "speaker": "Daniel Ortiz",
+          "en": "That containment is acceptable for exposure, but it will reduce our ability to validate the fix under natural switching. I propose two lanes. Keep the ten-percent cohort under the one-way policy, and create a laboratory-only flag that retains full oscillation with an abort at 750 descriptors. The patch build then runs in the laboratory lane for 1,000 transitions across both kernels. This gives Release a bounded user path and gives Engineering enough repetitions to detect a double close, use-after-close, or missed callback introduced by the guard change.",
+          "ko": "그 억제책은 노출 제어에는 적합하지만 자연스러운 전환에서 수정안을 검증하는 능력을 낮춥니다. 두 개의 경로를 제안합니다. 10퍼센트 사용자군에는 단방향 정책을 적용하고, 실험실에서만 전체 진동을 유지하되 디스크립터 750개에서 중단하는 플래그를 만듭니다. 그런 다음 패치 빌드를 두 커널에서 1,000회 전환하는 실험실 경로로 실행합니다. 릴리스 팀에는 제한된 사용자 경로를, 엔지니어링에는 가드 변경으로 생길 수 있는 이중 닫기, 닫힌 후 사용, 콜백 누락을 탐지할 충분한 반복 횟수를 제공합니다."
+        },
+        {
+          "speaker": "Mei Chen",
+          "en": "I would add fault injection, because a clean 1,000-transition run can miss the disputed ordering. The harness can delay old-generation completions by 20, 80, and 200 milliseconds while issuing a replacement configuration. We will verify three invariants: the open-descriptor count returns within eight of baseline after each burst, every cookie has exactly one terminal close, and no delivered buffer belongs to a retired generation. We should also run the same matrix with screen recording stopped mid-transition, because that cancellation path shares the pending record but uses a different callback dispatcher.",
+          "ko": "깔끔한 1,000회 전환 실행만으로는 논쟁 중인 순서를 놓칠 수 있으므로 장애 주입을 추가하겠습니다. 하네스는 대체 설정을 발행하면서 이전 세대 완료를 20, 80, 200밀리초 지연할 수 있습니다. 세 가지 불변 조건을 검증하겠습니다. 각 버스트 후 열린 디스크립터 수가 기준선의 8개 이내로 돌아올 것, 모든 쿠키에 정확히 하나의 최종 close가 있을 것, 전달된 버퍼가 폐기된 세대에 속하지 않을 것입니다. 화면 녹화를 전환 중간에 중단하는 동일 매트릭스도 실행해야 합니다. 그 취소 경로는 보류 레코드를 공유하지만 다른 콜백 디스패처를 사용하기 때문입니다."
+        },
+        {
+          "speaker": "Oliver Grant",
+          "en": "This is the level of evidence I need. I am not comfortable expanding on a patch that merely stops the counter in one happy-path trace. The release gate should combine ownership correctness, functional continuity, and soak duration. Also, make the failure signal actionable: a generic sandbox crash will not tell the overnight operator whether to roll back the patch or the one-way policy. Please define separate alerts for descriptor drift, duplicate close detection, and black-frame duration.",
+          "ko": "이 정도의 증거가 필요합니다. 한 정상 경로 추적에서 카운터만 멈추는 패치로 확대하는 것은 받아들일 수 없습니다. 릴리스 게이트에는 소유권 정확성, 기능 연속성, 장시간 실행이 함께 포함되어야 합니다. 또한 실패 신호가 조치 가능해야 합니다. 일반적인 샌드박스 충돌만으로는 야간 운영자가 패치와 단방향 정책 중 무엇을 롤백해야 하는지 알 수 없습니다. 디스크립터 드리프트, 중복 close 탐지, 검은 프레임 지속 시간에 대해 별도의 경보를 정의해 주세요."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision, owners, and deadlines",
+      "title_ko": "결정, 담당자와 기한",
+      "turns": [
+        {
+          "speaker": "Yuna Park",
+          "en": "Here is the proposed decision. We will keep cohort expansion paused and apply the one-way resolution policy to the existing ten percent by 10:30 KST today. I own the framework patch that closes the pending duplicate before generation lookup, with buffer delivery still guarded by the active-generation check. I will upload the change and unit tests by 13:00 KST. The patch will not alter driver calls, session limits, or restart behavior. If review finds any path where the pending record does not own the duplicate, I will stop and redesign rather than adding a conditional close.",
+          "ko": "제안하는 결정은 다음과 같습니다. 사용자군 확대는 중단된 상태로 유지하고 오늘 오전 10시 30분 KST까지 기존 10퍼센트에 단방향 해상도 정책을 적용합니다. 활성 세대 확인으로 버퍼 전달은 계속 보호하면서 세대 조회 전에 보류 복제본을 닫는 프레임워크 패치는 제가 담당합니다. 오후 1시 KST까지 변경 사항과 단위 테스트를 올리겠습니다. 패치는 드라이버 호출, 세션 한도, 재시작 동작을 바꾸지 않습니다. 검토 중 보류 레코드가 복제본을 소유하지 않는 경로가 하나라도 발견되면 조건부 close를 덧붙이지 않고 중단한 뒤 다시 설계하겠습니다."
+        },
+        {
+          "speaker": "Daniel Ortiz",
+          "en": "I will review the patch against the queue contract by 14:00 KST and add the ownership table plus debug assertion in a separate change by 16:00. I will also instrument the driver test image to emit the internal fence cookie at duplication and close, without exposing that instrumentation in production. My acceptance criterion is simple: for every successful queue, the driver-owned copy closes on signal; for every rejected queue, no driver copy exists; and the service-owned bookkeeping copy has one terminal close regardless of generation status.",
+          "ko": "오후 2시 KST까지 큐 계약에 비추어 패치를 검토하고, 오후 4시까지 별도 변경으로 소유권 표와 디버그 단언을 추가하겠습니다. 또한 프로덕션에는 계측을 노출하지 않으면서 드라이버 테스트 이미지가 내부 fence 쿠키를 복제 및 close 시점에 출력하도록 하겠습니다. 제 수용 기준은 단순합니다. 성공한 모든 큐에서 드라이버 소유 복사본은 신호 시 닫히고, 거부된 모든 큐에는 드라이버 복사본이 없으며, 서비스 소유 장부 복사본은 세대 상태와 관계없이 최종 close가 정확히 한 번 있어야 합니다."
+        },
+        {
+          "speaker": "Mei Chen",
+          "en": "Performance Quality will start the fault-injection matrix as soon as the reviewed build lands, no later than 15:00 KST. I own the two-kernel 1,000-transition run, the mid-transition recording cancellation cases, and a six-hour mixed-call soak. Preliminary results are due at 20:00 KST, with the soak completing by 02:00 KST tomorrow. The build passes only if descriptor drift stays within eight of baseline, duplicate-close and use-after-close detectors remain zero, retired-generation delivery remains zero, and black preview never exceeds the unpatched control by more than 100 milliseconds.",
+          "ko": "성능 품질 팀은 검토된 빌드가 도착하는 즉시, 늦어도 오후 3시 KST까지 장애 주입 매트릭스를 시작합니다. 두 커널에서의 1,000회 전환 실행, 전환 중 녹화 취소 사례, 6시간 혼합 통화 장시간 시험을 제가 담당합니다. 예비 결과는 오후 8시 KST까지, 장시간 시험은 내일 오전 2시까지 완료합니다. 디스크립터 드리프트가 기준선의 8개 이내이고, 중복 close 및 닫힌 후 사용 탐지가 0이며, 폐기 세대 전달이 0이고, 검은색 미리보기가 패치 전 대조군보다 100밀리초 이상 길어지지 않아야 빌드가 통과합니다."
+        },
+        {
+          "speaker": "Oliver Grant",
+          "en": "Release Management will verify the one-way policy at 10:45 KST and keep the next cohort locked. I will prepare two rollout paths before the evening review. If all preliminary gates pass, we will move the patched client to a five-percent engineering ring while retaining the policy. If any ownership or memory-safety detector fires, we will reject the patch, leave the policy in place, and open a redesign review. We will not use a codec restart as routine mitigation. The 750-descriptor abort remains laboratory-only and cannot be enabled by production configuration.",
+          "ko": "릴리스 관리 팀은 오전 10시 45분 KST에 단방향 정책을 확인하고 다음 사용자군은 잠긴 상태로 유지합니다. 저녁 검토 전까지 두 가지 배포 경로를 준비하겠습니다. 모든 예비 게이트가 통과하면 정책을 유지한 채 패치된 클라이언트를 5퍼센트 엔지니어링 링으로 이동합니다. 소유권 또는 메모리 안전 탐지가 하나라도 발생하면 패치를 거부하고 정책을 유지하며 재설계 검토를 엽니다. 코덱 재시작은 일상적인 완화책으로 사용하지 않습니다. 디스크립터 750개 중단은 실험실 전용으로 유지하며 프로덕션 설정으로 활성화할 수 없습니다."
+        },
+        {
+          "speaker": "Yuna Park",
+          "en": "For completeness, I will add a metric that separates stale completions cleaned successfully from stale completions with missing ownership metadata. The first should rise during forced switching and is expected; the second must remain zero. That distinction will help overnight triage without treating every retired generation as a fault. I will also write the rollback note: reverting the framework patch does not remove the server-side one-way policy, and lifting the policy requires a separate Release approval. This prevents one rollback command from silently restoring the original exposure.",
+          "ko": "완전성을 위해 정상적으로 정리된 오래된 완료와 소유권 메타데이터가 누락된 오래된 완료를 구분하는 지표를 추가하겠습니다. 첫 번째는 강제 전환 중 증가하는 것이 예상되지만 두 번째는 반드시 0이어야 합니다. 이 구분은 모든 폐기 세대를 결함으로 취급하지 않으면서 야간 분류에 도움을 줍니다. 롤백 메모도 작성하겠습니다. 프레임워크 패치를 되돌려도 서버 측 단방향 정책은 제거되지 않으며, 정책 해제에는 별도의 릴리스 승인이 필요합니다. 이렇게 하면 하나의 롤백 명령이 원래 노출을 조용히 복원하는 일을 막을 수 있습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Risk review and next meeting",
+      "title_ko": "위험 검토와 다음 회의",
+      "turns": [
+        {
+          "speaker": "Daniel Ortiz",
+          "en": "One residual risk is descriptor-number reuse during tracing. A number can be closed and reassigned quickly, making an untagged log look like a double close. The cookie-based lineage is therefore the source of truth; raw descriptor numbers are supporting context only. Another risk is that moving cleanup earlier changes callback latency. The close itself should be cheap, but Mei's black-preview gate will catch an unexpected lock interaction. I will review lock ordering in the pending-record destructor and flag any close performed while the configuration mutex is held.",
+          "ko": "잔여 위험 하나는 추적 중 디스크립터 번호 재사용입니다. 번호가 닫힌 뒤 빠르게 재할당될 수 있어 태그 없는 로그가 이중 close처럼 보일 수 있습니다. 따라서 쿠키 기반 계보를 기준으로 삼고 원시 디스크립터 번호는 보조 맥락으로만 사용합니다. 또 다른 위험은 정리를 앞당기면 콜백 지연 시간이 달라질 수 있다는 점입니다. close 자체는 저렴해야 하지만 메이의 검은색 미리보기 게이트가 예기치 않은 잠금 상호작용을 잡아낼 것입니다. 보류 레코드 소멸자의 잠금 순서를 검토하고 설정 뮤텍스를 잡은 상태에서 수행되는 close가 있으면 표시하겠습니다."
+        },
+        {
+          "speaker": "Mei Chen",
+          "en": "I will preserve the unpatched traces and test scripts as the comparison baseline, including thermal and non-thermal runs. To avoid a false pass, the harness will count resolution generations from the service event stream rather than assuming the requested switch was accepted. The report will show descriptors per accepted supersession, not just descriptors per minute. I will attach the cookie terminal-state table and the worst five callback timelines, so reviewers can inspect evidence instead of relying on a single aggregate graph.",
+          "ko": "패치 전 추적과 테스트 스크립트를 열 제한 및 비열 제한 실행을 포함한 비교 기준선으로 보존하겠습니다. 잘못된 통과를 막기 위해 하네스는 요청한 전환이 수락됐다고 가정하지 않고 서비스 이벤트 스트림에서 해상도 세대를 셉니다. 보고서는 분당 디스크립터만이 아니라 수락된 세대 교체당 디스크립터를 표시합니다. 쿠키 최종 상태 표와 가장 나쁜 콜백 타임라인 다섯 개를 첨부해 검토자가 하나의 집계 그래프에 의존하지 않고 증거를 살필 수 있게 하겠습니다."
+        },
+        {
+          "speaker": "Oliver Grant",
+          "en": "The next decision meeting is tomorrow, October 30, at 09:30 KST. We will review the completed six-hour soak, the ownership table, patch review status, and overnight alerts. Expansion beyond the current ten percent requires unanimous sign-off from Media Framework, Codec Driver, Performance Quality, and Release Management. If the soak is incomplete or any gate lacks evidence, the default is no expansion. I will send the agenda and dashboard links by 17:00 KST today and assign an overnight operator before 18:00.",
+          "ko": "다음 의사결정 회의는 내일 10월 30일 오전 9시 30분 KST입니다. 완료된 6시간 장시간 시험, 소유권 표, 패치 검토 상태, 야간 경보를 검토합니다. 현재 10퍼센트를 넘는 확대에는 미디어 프레임워크, 코덱 드라이버, 성능 품질, 릴리스 관리의 만장일치 승인이 필요합니다. 장시간 시험이 끝나지 않았거나 어떤 게이트든 증거가 없으면 기본 결정은 확대하지 않는 것입니다. 오늘 오후 5시 KST까지 안건과 대시보드 링크를 보내고 오후 6시 전에 야간 운영자를 지정하겠습니다."
+        },
+        {
+          "speaker": "Yuna Park",
+          "en": "Let me read back the decision so there is no ambiguity. Existing users move to one-way adaptive resolution; expansion stays paused. The primary fix closes the service-owned pending duplicate before generation lookup, and the driver contract receives explicit ownership states. Quality validates exact-once closure, retired-generation isolation, visual continuity, and soak stability. A laboratory abort protects stress devices, but production will neither restart sessions nor lift policy automatically. Tomorrow's meeting decides whether a five-percent patched engineering ring can begin, not whether general rollout resumes.",
+          "ko": "모호함이 없도록 결정을 다시 읽겠습니다. 기존 사용자는 단방향 적응형 해상도로 이동하고 확대는 계속 중단합니다. 주 수정안은 세대 조회 전에 서비스 소유 보류 복제본을 닫으며 드라이버 계약에는 명시적 소유권 상태를 추가합니다. 품질 팀은 정확히 한 번의 close, 폐기 세대 격리, 시각적 연속성, 장시간 안정성을 검증합니다. 실험실 중단 장치는 스트레스 단말을 보호하지만 프로덕션에서는 세션을 재시작하거나 정책을 자동 해제하지 않습니다. 내일 회의에서는 5퍼센트 패치 엔지니어링 링을 시작할 수 있는지 결정하며 일반 배포 재개 여부를 결정하지 않습니다."
+        },
+        {
+          "speaker": "Oliver Grant",
+          "en": "That summary matches my notes. I will publish the decision record with each owner, deadline, and gate immediately after this call. Until the evidence is reviewed, operators should treat the one-way policy as containment and the framework change as a candidate fix. Any black preview longer than three seconds, descriptor count above 700, or ownership-metadata error pages the on-call engineer and freezes testing on that device. Appreciate it. We have a bounded exposure, a testable root cause, and a clear decision point tomorrow.",
+          "ko": "그 요약은 제 기록과 일치합니다. 통화 직후 각 담당자, 기한, 게이트가 포함된 결정 기록을 게시하겠습니다. 증거가 검토될 때까지 운영자는 단방향 정책을 억제책으로, 프레임워크 변경을 후보 수정안으로 취급해야 합니다. 3초보다 긴 검은색 미리보기, 700개를 넘는 디스크립터, 소유권 메타데이터 오류가 발생하면 당직 엔지니어를 호출하고 해당 단말의 테스트를 동결합니다. 감사합니다. 노출은 제한됐고 근본 원인은 검증 가능하며 내일의 명확한 결정 시점도 정해졌습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "keep the scope tight",
+      "meaning_ko": "범위를 좁게 유지하다",
+      "usage_ko": "논의가 산만해지지 않도록 핵심 문제를 제한할 때 쓴다.",
+      "example": "Let us keep the scope tight and make the ownership transition observable.",
+      "practice": "Let us keep the scope tight and defer unrelated telemetry work."
+    },
+    {
+      "phrase": "make the ownership transition observable",
+      "meaning_ko": "소유권 전환을 관찰 가능하게 만들다",
+      "usage_ko": "자원 소유권의 이동을 로그나 계측으로 확인할 수 있게 할 때 쓴다.",
+      "example": "Let us keep the scope tight and make the ownership transition observable.",
+      "practice": "The new tracepoints make the ownership transition observable during cancellation."
+    },
+    {
+      "phrase": "follows superseded generations",
+      "meaning_ko": "대체된 세대의 수를 따라가다",
+      "usage_ko": "현상이 특정 사건 수와 상관관계를 보인다고 설명할 때 쓴다.",
+      "example": "The leak rate therefore follows superseded generations, not frame count, elapsed time, or encoder load.",
+      "practice": "The counter follows superseded generations rather than total requests."
+    },
+    {
+      "phrase": "a concrete control-flow defect",
+      "meaning_ko": "구체적인 제어 흐름 결함",
+      "usage_ko": "추상적 의심이 아니라 확인된 코드 경로 문제를 지칭할 때 쓴다.",
+      "example": "That is a concrete control-flow defect.",
+      "practice": "The early return is a concrete control-flow defect that we can test directly."
+    },
+    {
+      "phrase": "weigh a known restart against",
+      "meaning_ko": "알려진 재시작 비용과 비교하다",
+      "usage_ko": "두 대안의 명확한 비용과 위험을 비교할 때 쓴다.",
+      "example": "Is that a credible short-term guard, or would users see a larger interruption than the current black preview? We need to weigh a known restart against a narrowly reasoned code change.",
+      "practice": "We should weigh a known restart against the uncertainty of a larger patch."
+    },
+    {
+      "phrase": "trade a latent resource risk for a guaranteed interruption",
+      "meaning_ko": "잠재 자원 위험을 확정적 중단과 맞바꾸다",
+      "usage_ko": "완화책이 다른 확실한 부작용을 만든다고 지적할 때 쓴다.",
+      "example": "A threshold restart would trade a latent resource risk for a guaranteed interruption.",
+      "practice": "A forced reconnect would trade a latent resource risk for a guaranteed interruption."
+    },
+    {
+      "phrase": "two lanes",
+      "meaning_ko": "두 개의 경로",
+      "usage_ko": "사용자 노출 경로와 실험 경로를 분리할 때 쓴다.",
+      "example": "I propose two lanes.",
+      "practice": "We will use two lanes so customer containment does not reduce laboratory coverage."
+    },
+    {
+      "phrase": "fault-injection matrix",
+      "meaning_ko": "장애 주입 매트릭스",
+      "usage_ko": "여러 지연과 취소 조건을 체계적으로 시험할 때 쓴다.",
+      "example": "Performance Quality will start the fault-injection matrix as soon as the reviewed build lands, no later than 15:00 KST.",
+      "practice": "The fault-injection matrix includes delays, cancellations, and duplicate callbacks."
+    },
+    {
+      "phrase": "make the failure signal actionable",
+      "meaning_ko": "실패 신호를 조치 가능하게 만들다",
+      "usage_ko": "경보만으로 적절한 운영 행동을 선택할 수 있게 할 때 쓴다.",
+      "example": "Also, make the failure signal actionable: a generic sandbox crash will not tell the overnight operator whether to roll back the patch or the one-way policy.",
+      "practice": "Separate error codes make the failure signal actionable for the on-call team."
+    },
+    {
+      "phrase": "keep cohort expansion paused",
+      "meaning_ko": "사용자군 확대를 중단 상태로 유지하다",
+      "usage_ko": "검증이 끝날 때까지 배포 범위를 넓히지 않겠다고 결정할 때 쓴다.",
+      "example": "We will keep cohort expansion paused and apply the one-way resolution policy to the existing ten percent by 10:30 KST today.",
+      "practice": "We will keep cohort expansion paused until the stability report is complete."
+    },
+    {
+      "phrase": "one terminal close",
+      "meaning_ko": "최종 close가 정확히 한 번",
+      "usage_ko": "자원 수명 종료가 중복 없이 한 번만 일어나야 함을 표현할 때 쓴다.",
+      "example": "We will verify three invariants: the open-descriptor count returns within eight of baseline after each burst, every cookie has exactly one terminal close, and no delivered buffer belongs to a retired generation.",
+      "practice": "Every retained handle must have one terminal close in the lineage report."
+    },
+    {
+      "phrase": "two rollout paths",
+      "meaning_ko": "두 가지 배포 경로",
+      "usage_ko": "검증 결과에 따른 서로 다른 출시 절차를 준비할 때 쓴다.",
+      "example": "I will prepare two rollout paths before the evening review.",
+      "practice": "Release Engineering prepared two rollout paths for passing and failing results."
+    },
+    {
+      "phrase": "source of truth",
+      "meaning_ko": "판단의 기준이 되는 원천",
+      "usage_ko": "충돌하는 데이터 가운데 권위 있는 근거를 지정할 때 쓴다.",
+      "example": "The cookie-based lineage is therefore the source of truth; raw descriptor numbers are supporting context only.",
+      "practice": "The signed event stream is the source of truth for accepted transitions."
+    },
+    {
+      "phrase": "default is no expansion",
+      "meaning_ko": "기본 결정은 확대하지 않는 것",
+      "usage_ko": "증거가 부족할 때 보수적인 기본 행동을 명시할 때 쓴다.",
+      "example": "If the soak is incomplete or any gate lacks evidence, the default is no expansion.",
+      "practice": "If the evidence is incomplete, the default is no expansion."
+    },
+    {
+      "phrase": "a bounded exposure",
+      "meaning_ko": "제한된 노출",
+      "usage_ko": "문제의 사용자 영향 범위가 통제되고 있음을 나타낼 때 쓴다.",
+      "example": "We have a bounded exposure, a testable root cause, and a clear decision point tomorrow.",
+      "practice": "The policy gives us a bounded exposure while the patch is evaluated."
+    }
+  ]
+}
