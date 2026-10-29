@@ -1,0 +1,290 @@
+{
+  "date": "2026-10-30",
+  "category": "business",
+  "topic": "sw-launch",
+  "subject": "Blocking a Launch over USB Audio Route Restoration after Dock Reconnection",
+  "title_ko": "USB-C 도크 재연결 후 오디오 경로 복원 오류에 대한 출시 차단 검토",
+  "summary_ko": "USB-C 회의용 도크를 통화 중 재연결한 뒤 화면에는 도크가 선택됐지만 실제 수신 음성이 단말 스피커로 나오는 문제를 오디오 프레임워크, Audio HAL·BSP, 시스템 검증, 출시 관리 팀이 분석하고 억제책·수정안·출시 게이트를 결정하는 회의다. 모든 인물·조직·제품·액세서리·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Sora Kim",
+      "team": "Audio Framework"
+    },
+    {
+      "name": "Mateo Ruiz",
+      "team": "Audio HAL and BSP"
+    },
+    {
+      "name": "Priya Nair",
+      "team": "System Validation"
+    },
+    {
+      "name": "Ethan Brooks",
+      "team": "Launch Management"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and launch question",
+      "title_ko": "참석 확인과 출시 판단",
+      "turns": [
+        {
+          "speaker": "Ethan Brooks",
+          "en": "We have Audio Framework, Audio HAL and BSP, System Validation, and Launch Management present. The factory image closes tomorrow at 18:00 KST, so this meeting must produce a launch decision, not merely another investigation list. On the current candidate, a voice call can return to the phone speaker after a USB-C conference dock is unplugged and reconnected. The user selected the dock, the interface still displays the dock, but speech is audible from the handset. We need to establish exposure, identify the state boundary that fails, choose containment, and assign evidence-based exit gates.",
+          "ko": "오디오 프레임워크, 오디오 HAL 및 BSP, 시스템 검증, 출시 관리 팀이 참석했습니다. 공장 이미지가 내일 오후 6시 KST에 마감되므로 이번 회의에서는 조사 목록만 더 만드는 것이 아니라 출시 결정을 내려야 합니다. 현재 후보 빌드에서는 USB-C 회의용 도크를 뺐다가 다시 연결하면 음성 통화가 휴대폰 스피커로 돌아갈 수 있습니다. 사용자는 도크를 선택했고 화면에도 도크가 표시되지만 통화 음성은 단말에서 들립니다. 노출 범위를 확정하고 실패하는 상태 경계를 찾으며 억제책과 증거 기반 종료 게이트를 정해야 합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "Validation found the issue in 17 of 240 dock-reconnect cycles on two hardware revisions. It requires an active cellular call, removal of the dock while the microphone is muted, and reconnection within roughly six seconds. A music stream does not reproduce it, and reconnecting after ten seconds is clean. The interface route label follows the user's selection, while a loopback capture proves that the receive path uses the built-in speaker. No audio is lost, but private speech can become audible in a shared room. We therefore classify this as a launch-blocking privacy exposure rather than a cosmetic routing defect.",
+          "ko": "검증팀은 두 하드웨어 리비전에서 도크 재연결 240회 중 17회 문제를 발견했습니다. 셀룰러 통화가 진행 중이고, 마이크가 음소거된 상태에서 도크를 제거한 뒤 약 6초 안에 다시 연결해야 발생합니다. 음악 스트림에서는 재현되지 않으며 10초 뒤 재연결하면 정상입니다. 화면의 경로 라벨은 사용자 선택을 따르지만 루프백 캡처는 수신 경로가 내장 스피커를 사용함을 증명합니다. 오디오가 유실되지는 않지만 공유 공간에서 비공개 통화가 밖으로 들릴 수 있습니다. 따라서 단순 표시 결함이 아니라 출시를 막는 개인정보 노출로 분류합니다."
+        },
+        {
+          "speaker": "Sora Kim",
+          "en": "The framework event log shows a new USB device with the same logical address as the removed dock. Audio Policy restores the previous preferred-device record because its address matches, then asks the HAL to create a fresh output patch. The request returns success in 4 milliseconds. Two hundred milliseconds later, the call service receives a route callback that still names the dock. From the framework view, every contract succeeds. However, our log records only the logical device and patch identifier; it does not record the HAL port generation, so success may refer to an object that is already being retired.",
+          "ko": "프레임워크 이벤트 로그에는 제거된 도크와 동일한 논리 주소를 가진 새 USB 장치가 나타납니다. Audio Policy는 주소가 일치하므로 이전 선호 장치 레코드를 복원한 뒤 HAL에 새 출력 패치를 만들도록 요청합니다. 요청은 4밀리초 만에 성공을 반환합니다. 200밀리초 뒤 통화 서비스는 여전히 도크를 가리키는 경로 콜백을 받습니다. 프레임워크 관점에서는 모든 계약이 성공합니다. 하지만 로그에는 논리 장치와 패치 식별자만 있고 HAL 포트 세대는 기록되지 않으므로 성공이 이미 폐기 중인 객체를 가리킬 수 있습니다."
+        },
+        {
+          "speaker": "Mateo Ruiz",
+          "en": "The HAL trace adds one clue. During the six-second window, USB removal starts an asynchronous drain of the old output stream. Reconnection creates a new port, but the allocator can reuse the numeric port ID before the drain completion runs. The late completion then clears the route entry by ID alone. The patch request succeeds before that cleanup, and the cleanup silently removes its destination afterward. The mixer falls back to the speaker because the voice stream has no valid external sink. I agree that ID reuse is involved, but I do not yet agree that the allocator is solely at fault; the framework accepts success without waiting for route activation.",
+          "ko": "HAL 추적은 한 가지 단서를 더합니다. 6초 구간 동안 USB 제거는 이전 출력 스트림의 비동기 drain을 시작합니다. 재연결은 새 포트를 만들지만 drain 완료가 실행되기 전에 할당기가 숫자 포트 ID를 재사용할 수 있습니다. 늦은 완료가 ID만으로 경로 항목을 지웁니다. 패치 요청은 그 정리 전에 성공하고, 이후 정리가 목적지를 조용히 제거합니다. 음성 스트림에 유효한 외부 출력이 없어 믹서는 스피커로 폴백합니다. ID 재사용이 관련된 데는 동의하지만 할당기만의 잘못이라고는 아직 동의하지 않습니다. 프레임워크가 경로 활성화를 기다리지 않고 성공을 받아들이기 때문입니다."
+        },
+        {
+          "speaker": "Ethan Brooks",
+          "en": "Let us separate root cause from contractual weakness. A launch fix must stop private audio from reaching the speaker, and a durable design must prevent a stale completion from mutating a new port. We can accept two changes only if their responsibilities are explicit and their combined regression risk is measured. We also need a reversible configuration for the factory image. Please compare at least three options: delay reconnection, block speaker fallback during an explicit external-device choice, and make cleanup generation-aware. The recommendation must cover user experience, safety, and the schedule.",
+          "ko": "근본 원인과 계약상의 약점을 분리합시다. 출시 수정은 비공개 통화 음성이 스피커로 나오는 것을 막아야 하고, 지속 가능한 설계는 오래된 완료가 새 포트를 변경하지 못하게 해야 합니다. 두 변경의 책임이 명확하고 결합된 회귀 위험이 측정될 때만 함께 수용할 수 있습니다. 공장 이미지에는 되돌릴 수 있는 설정도 필요합니다. 재연결 지연, 명시적으로 외부 장치를 선택했을 때 스피커 폴백 차단, 정리를 세대 인식 방식으로 만드는 세 가지 이상을 비교해 주세요. 권고안은 사용자 경험, 안전, 일정을 모두 다뤄야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and competing interpretations",
+      "title_ko": "증거와 상충하는 해석",
+      "turns": [
+        {
+          "speaker": "Priya Nair",
+          "en": "We instrumented the port lifecycle with a monotonically increasing generation. All 17 failures have the same sequence: generation 41 begins draining, generation 42 reuses port ID 7, the framework creates patch 93 for generation 42, and the completion tagged only with port ID 7 deletes the entry. In 223 passing cycles, either the drain completes before reuse or the new port receives a different ID. Holding the numeric ID for eight seconds eliminates reproduction, but it increases allocator pressure when users switch among multiple docks and headsets. The evidence points to missing identity, not simply insufficient delay.",
+          "ko": "포트 수명 주기에 단조 증가 세대를 계측했습니다. 실패 17건은 모두 같은 순서입니다. 세대 41이 drain을 시작하고, 세대 42가 포트 ID 7을 재사용하며, 프레임워크가 세대 42용 패치 93을 만들고, 포트 ID 7만 태그된 완료가 항목을 삭제합니다. 통과한 223회에서는 drain이 재사용 전에 끝나거나 새 포트가 다른 ID를 받았습니다. 숫자 ID를 8초 동안 보류하면 재현이 사라지지만 사용자가 여러 도크와 헤드셋을 전환할 때 할당기 압력이 증가합니다. 증거는 단순한 지연 부족이 아니라 식별 정보 누락을 가리킵니다."
+        },
+        {
+          "speaker": "Mateo Ruiz",
+          "en": "I changed the cleanup key from port ID to the pair of port ID and generation in a local HAL build. The stale completion then logs a generation mismatch and leaves the new route intact. Five thousand rapid reconnects produced no misroute and no leaked stream object. That is the smallest root-cause correction. I oppose an eight-second quarantine because it hides the race and can exhaust the fixed port table during accessory certification tests. I also oppose making patch creation synchronous with physical activation; several transports require hundreds of milliseconds, and blocking the policy thread would delay unrelated alarm and accessibility sounds.",
+          "ko": "로컬 HAL 빌드에서 정리 키를 포트 ID에서 포트 ID와 세대의 쌍으로 바꿨습니다. 그러자 오래된 완료는 세대 불일치를 기록하고 새 경로를 그대로 둡니다. 빠른 재연결 5,000회에서 잘못된 경로도 스트림 객체 누수도 없었습니다. 이것이 가장 작은 근본 원인 수정입니다. 8초 격리는 경합을 숨기고 액세서리 인증 시험 중 고정 포트 테이블을 소진할 수 있어 반대합니다. 패치 생성을 물리 활성화와 동기화하는 것도 반대합니다. 일부 전송은 수백 밀리초가 필요하고 정책 스레드를 막으면 관련 없는 알람과 접근성 소리까지 지연됩니다."
+        },
+        {
+          "speaker": "Sora Kim",
+          "en": "The generation-aware cleanup is necessary, but it does not close the privacy gap by itself. Patch creation can return success while activation later fails for legitimate reasons, such as a powered dock losing its upstream link. Today the voice strategy falls back to the speaker without reconciling the user's explicit external-device selection. I propose a framework guard: while a call has an explicit external preference, loss of that sink moves receive audio to a silent holding route for up to 1.5 seconds. If the route activates, audio resumes externally. If it does not, the interface asks the user before enabling the speaker.",
+          "ko": "세대 인식 정리는 필요하지만 그것만으로 개인정보 노출을 완전히 막지는 못합니다. 전원 공급형 도크가 업스트림 링크를 잃는 경우처럼 정당한 이유로 활성화가 나중에 실패해도 패치 생성은 성공을 반환할 수 있습니다. 현재 음성 전략은 사용자의 명시적 외부 장치 선택을 조정하지 않고 스피커로 폴백합니다. 프레임워크 가드를 제안합니다. 통화가 명시적 외부 장치 선호를 갖는 동안 해당 출력이 사라지면 수신 오디오를 최대 1.5초 동안 무음 대기 경로로 옮깁니다. 경로가 활성화되면 외부 장치에서 오디오를 재개하고, 그렇지 않으면 스피커를 켜기 전에 사용자에게 묻습니다."
+        },
+        {
+          "speaker": "Ethan Brooks",
+          "en": "A silent holding route protects privacy, but 1.5 seconds of silence may look like a dropped call. What evidence supports that duration, and what happens to emergency calls? We cannot introduce a confirmation dialog that obstructs an emergency conversation. We also need to know whether mute state matters to the fix or only to the reproduction window. A launch guard with hidden exceptions is harder to validate than the original race.",
+          "ko": "무음 대기 경로는 개인정보를 보호하지만 1.5초의 무음은 통화 끊김처럼 보일 수 있습니다. 그 시간의 근거는 무엇이며 긴급 통화에서는 어떻게 됩니까? 긴급 대화를 방해하는 확인 대화상자를 도입할 수는 없습니다. 음소거 상태가 수정에 중요한지 단지 재현 시간 창에만 영향을 주는지도 알아야 합니다. 숨은 예외가 있는 출시 가드는 원래 경합보다 검증하기 어렵습니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "Our accessory timing survey covers 12 docks and 6 USB headsets. Ninety-nine point nine percent of successful reactivations finish within 620 milliseconds; the worst valid sample is 910 milliseconds during dock firmware wake. A one-second hold therefore covers measured recovery with margin, while a 1.5-second hold adds little. For emergency calls, the existing policy intentionally allows immediate handset fallback, so the new guard should be bypassed and the interface must show the actual route. Mute extends the drain because the capture stream pauses its shared clock, but it is not a prerequisite for the stale cleanup. Fault injection reproduces the race without mute.",
+          "ko": "액세서리 타이밍 조사는 도크 12종과 USB 헤드셋 6종을 포함합니다. 성공적인 재활성화의 99.9퍼센트가 620밀리초 안에 끝났고, 도크 펌웨어가 깨어나는 동안의 최악 정상 샘플은 910밀리초입니다. 따라서 1초 대기는 여유를 두고 측정된 복구를 포함하지만 1.5초는 이득이 적습니다. 긴급 통화에서는 기존 정책이 즉시 단말 폴백을 의도적으로 허용하므로 새 가드를 우회하고 화면에 실제 경로를 보여야 합니다. 음소거는 캡처 스트림이 공유 클록을 멈춰 drain을 늘리지만 오래된 정리의 필수 조건은 아닙니다. 장애 주입은 음소거 없이도 경합을 재현합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Design disagreement and test plan",
+      "title_ko": "설계 이견과 시험 계획",
+      "turns": [
+        {
+          "speaker": "Mateo Ruiz",
+          "en": "I accept the one-second privacy hold as a separate safety rule, provided the framework does not infer activation from patch creation. The HAL can publish an asynchronous route-active event carrying port ID, generation, and patch ID. It already knows when the mixer binds the sink. A route-inactive event will carry a reason code for disconnect, activation timeout, or transport error. This avoids polling and lets the framework distinguish a pending route from a failed one. The event schema must be versioned because the factory branch and maintenance branch use different audio interface minor versions.",
+          "ko": "프레임워크가 패치 생성으로 활성화를 추론하지 않는다는 조건으로 1초 개인정보 보호 대기를 별도 안전 규칙으로 수용합니다. HAL은 포트 ID, 세대, 패치 ID를 담은 비동기 route-active 이벤트를 게시할 수 있습니다. 믹서가 출력에 연결되는 시점을 이미 알고 있습니다. route-inactive 이벤트에는 연결 해제, 활성화 시간 초과, 전송 오류의 원인 코드를 담겠습니다. 그러면 폴링 없이 프레임워크가 대기 중 경로와 실패한 경로를 구분할 수 있습니다. 공장 브랜치와 유지보수 브랜치가 서로 다른 오디오 인터페이스 마이너 버전을 쓰므로 이벤트 스키마는 버전 관리해야 합니다."
+        },
+        {
+          "speaker": "Sora Kim",
+          "en": "I support the event, but I do not want the launch patch to depend on a new interface method that older vendor images cannot parse. For the factory candidate, we can carry generation and activation through an existing vendor parameter callback with a namespaced key. The framework feature-detects that key; if absent, it uses the current behavior except that an explicit external preference still blocks non-emergency speaker fallback for one second. The durable interface method can land on the development branch after launch. This keeps the candidate change narrow and preserves backward compatibility.",
+          "ko": "이벤트를 지지하지만 출시 패치가 이전 벤더 이미지가 해석할 수 없는 새 인터페이스 메서드에 의존하는 것은 원치 않습니다. 공장 후보에서는 네임스페이스 키가 있는 기존 vendor parameter 콜백으로 세대와 활성화 정보를 전달할 수 있습니다. 프레임워크는 그 키를 기능 탐지하고, 없으면 현재 동작을 사용하되 명시적 외부 장치 선호가 있을 때 긴급 통화가 아닌 스피커 폴백을 1초 동안 막습니다. 지속 가능한 인터페이스 메서드는 출시 후 개발 브랜치에 반영할 수 있습니다. 이렇게 하면 후보 변경 범위를 좁히고 하위 호환성을 유지합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "The compatibility path needs explicit negative tests. We will pair the new framework with the old HAL, the old framework with the new HAL, and both new components together. In every pairing, music, alarms, accessibility prompts, cellular calls, and application calls must route correctly. For the privacy case, the oracle is the physical receive sink measured by loopback, not the interface label. We will inject late drain completions at 0, 200, 600, and 1,200 milliseconds, reuse and avoid reuse of the numeric ID, and disconnect again while the activation event is in flight.",
+          "ko": "호환성 경로에는 명시적인 부정 시험이 필요합니다. 새 프레임워크와 이전 HAL, 이전 프레임워크와 새 HAL, 두 새 구성요소를 함께 조합하겠습니다. 모든 조합에서 음악, 알람, 접근성 안내, 셀룰러 통화, 애플리케이션 통화가 올바르게 경로 설정돼야 합니다. 개인정보 사례의 판정 기준은 화면 라벨이 아니라 루프백으로 측정한 실제 수신 출력입니다. 늦은 drain 완료를 0, 200, 600, 1,200밀리초로 주입하고, 숫자 ID를 재사용하는 경우와 하지 않는 경우, 활성화 이벤트가 전달 중일 때 다시 연결을 끊는 경우를 시험합니다."
+        },
+        {
+          "speaker": "Ethan Brooks",
+          "en": "I need a containment that can ship even if the combined patch misses tomorrow's cutoff. Could we disable rapid automatic route restoration and require the user to select the reconnected dock again? That adds friction but has a predictable privacy posture. Compare it with freezing the factory image and taking a late patch. The business decision depends on whether the issue is limited to conference docks or includes common passive adapters.",
+          "ko": "결합 패치가 내일 마감을 놓치더라도 출시할 수 있는 억제책이 필요합니다. 빠른 자동 경로 복원을 끄고 사용자가 재연결된 도크를 다시 선택하게 할 수 있습니까? 불편은 늘지만 개인정보 측면의 동작은 예측 가능합니다. 공장 이미지를 동결하고 늦은 패치를 받는 선택과 비교해 주세요. 이 문제가 회의용 도크에만 제한되는지 일반 수동 어댑터도 포함하는지에 따라 사업 결정이 달라집니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "Passive adapters do not reproduce the race because they have no delayed upstream teardown. Powered docks from four suppliers reproduce under injected timing, although only two reproduce naturally. A server-controlled policy can disable automatic restoration for powered USB audio devices while leaving passive adapters unchanged. The user would see the handset route after reconnect and could deliberately choose the dock. That containment removes silent mismatch between label and sink. It does not fix the stale cleanup, but it bounds exposure without changing the factory binary and gives us a rollback if the patch creates a new routing regression.",
+          "ko": "수동 어댑터는 지연된 업스트림 해제가 없어 경합을 재현하지 않습니다. 네 공급사의 전원형 도크는 주입된 타이밍에서 재현되며 그중 두 종은 자연 재현됩니다. 서버 제어 정책으로 전원형 USB 오디오 장치의 자동 복원을 끄고 수동 어댑터는 그대로 둘 수 있습니다. 재연결 후 사용자는 단말 경로를 보게 되고 도크를 의도적으로 다시 선택할 수 있습니다. 이 억제책은 라벨과 출력의 조용한 불일치를 제거합니다. 오래된 정리를 수정하지는 않지만 공장 바이너리를 바꾸지 않고 노출을 제한하며 패치가 새 경로 회귀를 만들 경우 롤백 수단이 됩니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision, ownership, and deadlines",
+      "title_ko": "결정, 담당과 기한",
+      "turns": [
+        {
+          "speaker": "Ethan Brooks",
+          "en": "The decision is to enable the powered-dock containment for the existing internal cohort at 08:30 KST today and keep external shipment approval on hold. Automatic restoration remains available for passive adapters. We will accept the generation-aware HAL fix and the one-second framework privacy hold as two reviewed changes, not one opaque bundle. The factory image cutoff remains tomorrow at 18:00 KST, but both changes must clear their independent gates by 13:00. If either misses, the containment stays enabled and Launch Management requests a controlled late-patch window rather than waiving the privacy blocker.",
+          "ko": "결정은 오늘 오전 8시 30분 KST에 기존 내부 사용자군에 전원형 도크 억제책을 활성화하고 외부 출하 승인은 보류하는 것입니다. 수동 어댑터에는 자동 복원을 유지합니다. 세대 인식 HAL 수정과 1초 프레임워크 개인정보 보호 대기를 하나의 불투명한 묶음이 아니라 검토된 두 변경으로 수용합니다. 공장 이미지 마감은 내일 오후 6시 KST로 유지하지만 두 변경은 각각 오후 1시까지 독립 게이트를 통과해야 합니다. 하나라도 놓치면 억제책을 유지하고 개인정보 차단을 면제하는 대신 출시 관리가 통제된 지연 패치 시간을 요청합니다."
+        },
+        {
+          "speaker": "Mateo Ruiz",
+          "en": "I own the HAL change. By 09:45 KST I will upload generation-aware cleanup, stale-completion metrics, and tests that prove a mismatched completion cannot erase a current route. By 11:00 I will provide factory and maintenance builds using the existing namespaced callback. The change will not quarantine IDs, block the policy thread, or alter mixer fallback. My gate is 10,000 reconnects with zero current-generation deletion, zero leaked stream objects, and identical alarm latency to the baseline within five milliseconds. I will deliver the versioned interface proposal separately by November 4.",
+          "ko": "HAL 변경은 제가 담당합니다. 오전 9시 45분 KST까지 세대 인식 정리, 오래된 완료 지표, 불일치 완료가 현재 경로를 지울 수 없음을 증명하는 테스트를 올리겠습니다. 오전 11시까지 기존 네임스페이스 콜백을 사용하는 공장 및 유지보수 빌드를 제공하겠습니다. 이 변경은 ID를 격리하거나 정책 스레드를 막거나 믹서 폴백을 바꾸지 않습니다. 제 게이트는 재연결 10,000회에서 현재 세대 삭제 0건, 스트림 객체 누수 0건, 기준선 대비 알람 지연 차이 5밀리초 이내입니다. 버전 관리 인터페이스 제안은 11월 4일까지 별도로 제출합니다."
+        },
+        {
+          "speaker": "Sora Kim",
+          "en": "I own the framework guard and route reconciliation. The patch and unit tests are due at 10:15 KST, with an integration build at 11:15. During a non-emergency call with an explicit external preference, an inactive sink enters a silent hold for at most one second. Activation resumes audio on that sink; timeout changes the interface to the handset and requires an intentional selection before speaker output. Emergency calls preserve immediate fallback and show the handset honestly. My gate includes old-HAL compatibility, no policy-thread blocking, and no confirmation prompt on emergency or accessibility audio.",
+          "ko": "프레임워크 가드와 경로 조정은 제가 담당합니다. 패치와 단위 테스트는 오전 10시 15분까지, 통합 빌드는 오전 11시 15분까지입니다. 명시적 외부 장치 선호가 있는 비긴급 통화에서 출력이 비활성화되면 최대 1초 동안 무음 대기에 들어갑니다. 활성화되면 해당 출력에서 오디오를 재개하고, 시간 초과 시 화면을 단말로 바꾸며 스피커 출력 전에 의도적인 선택을 요구합니다. 긴급 통화는 즉시 폴백을 유지하고 단말 경로를 정직하게 표시합니다. 제 게이트에는 이전 HAL 호환성, 정책 스레드 비차단, 긴급 또는 접근성 오디오에서 확인 대화상자 없음이 포함됩니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "System Validation starts the paired-component matrix at 11:30 KST. I own 1,500 natural reconnects, 4,000 injected sequences, the 18-accessory compatibility sweep, and a three-hour mixed-audio soak. Preliminary privacy and compatibility results are due at 14:00, and the soak finishes at 17:30. Passing requires zero mismatch between displayed and physical route, zero unintended speaker output in non-emergency calls, 100 percent immediate emergency fallback, no missing alarm or accessibility prompt, no leaked stream, and reconnect recovery at or below one second for 99.9 percent of successful activations.",
+          "ko": "시스템 검증은 오전 11시 30분에 구성요소 조합 매트릭스를 시작합니다. 자연 재연결 1,500회, 주입 시퀀스 4,000회, 액세서리 18종 호환성 점검, 3시간 혼합 오디오 장시간 시험을 제가 담당합니다. 개인정보 및 호환성 예비 결과는 오후 2시까지, 장시간 시험은 오후 5시 30분에 끝납니다. 화면과 실제 경로 불일치 0건, 비긴급 통화에서 의도하지 않은 스피커 출력 0건, 긴급 통화 즉시 폴백 100퍼센트, 알람 또는 접근성 안내 누락 0건, 스트림 누수 0건, 성공한 활성화의 99.9퍼센트가 1초 이내 복구돼야 통과합니다."
+        },
+        {
+          "speaker": "Ethan Brooks",
+          "en": "Launch Management owns configuration and decision records. I will verify containment at 08:45 KST, freeze cohort expansion, and prepare separate rollback switches for automatic restoration and the framework hold. At 14:15 we will review preliminary gates. A failed generation test rejects the HAL patch; a privacy or compatibility failure rejects the framework patch; either failure keeps shipment blocked. We will not relabel a physical speaker route as a dock to satisfy the interface test, and we will not raise the one-second limit without new accessory evidence. The launch waiver path is closed for unintended speaker exposure.",
+          "ko": "출시 관리는 설정과 결정 기록을 담당합니다. 오전 8시 45분에 억제책을 확인하고 사용자군 확대를 동결하며 자동 복원과 프레임워크 대기에 대해 별도의 롤백 스위치를 준비하겠습니다. 오후 2시 15분에 예비 게이트를 검토합니다. 세대 테스트 실패는 HAL 패치를 거부하고, 개인정보 또는 호환성 실패는 프레임워크 패치를 거부하며, 어느 쪽이든 실패하면 출하는 계속 차단됩니다. 화면 시험을 통과하려고 실제 스피커 경로를 도크로 표시하지 않으며, 새 액세서리 증거 없이 1초 한도를 늘리지 않습니다. 의도하지 않은 스피커 노출에 대한 출시 면제 경로는 닫혀 있습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Residual risks and follow-up",
+      "title_ko": "잔여 위험과 후속 회의",
+      "turns": [
+        {
+          "speaker": "Mateo Ruiz",
+          "en": "One residual risk is a port generation wrapping after a very long uptime. We will use a 64-bit counter and treat zero as invalid, making practical wrap unreachable. A more immediate risk is a vendor callback arriving after the audio service restarts. The callback includes the service epoch; the framework discards an event from an older epoch before matching port generation. I will add restart fault injection and verify that a discarded event cannot acknowledge activation or clear a route. Raw port ID alone will no longer authorize any destructive cleanup.",
+          "ko": "잔여 위험 하나는 매우 긴 가동 후 포트 세대가 순환하는 것입니다. 64비트 카운터를 사용하고 0을 무효로 취급해 실제 순환이 불가능하도록 하겠습니다. 더 즉각적인 위험은 오디오 서비스가 재시작된 뒤 벤더 콜백이 도착하는 경우입니다. 콜백에는 서비스 epoch가 포함되고 프레임워크는 포트 세대를 맞추기 전에 이전 epoch 이벤트를 폐기합니다. 재시작 장애 주입을 추가해 폐기된 이벤트가 활성화를 승인하거나 경로를 지울 수 없음을 확인하겠습니다. 원시 포트 ID만으로는 더 이상 파괴적 정리를 허가하지 않습니다."
+        },
+        {
+          "speaker": "Sora Kim",
+          "en": "A second risk is user intent changing during the silent hold. If the user selects the handset while the dock activation is pending, that selection must cancel the pending external preference and win permanently for that transaction. A late route-active event may update telemetry but cannot move audio back to the dock. I will encode an intent sequence in the pending record and require the activation event to match it. We will also ensure volume keys target the visible pending device only after activation, avoiding a confusing change to handset volume during silence.",
+          "ko": "두 번째 위험은 무음 대기 중 사용자 의도가 바뀌는 것입니다. 도크 활성화가 대기 중일 때 사용자가 단말을 선택하면 그 선택이 대기 중 외부 장치 선호를 취소하고 해당 트랜잭션에서 최종적으로 우선해야 합니다. 늦은 route-active 이벤트는 텔레메트리를 갱신할 수 있지만 오디오를 도크로 되돌릴 수는 없습니다. 보류 레코드에 의도 시퀀스를 넣고 활성화 이벤트가 일치하도록 요구하겠습니다. 또한 활성화된 뒤에만 볼륨 키가 화면에 보이는 대기 장치를 대상으로 하게 해 무음 중 단말 볼륨이 혼란스럽게 바뀌는 것을 피하겠습니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "A third risk is assuming every dock exposes the powered-device property consistently. Two older docks report themselves as generic USB audio even though they have delayed teardown. The containment classifier will therefore use both the power attribute and observed teardown capability from the USB descriptor. Validation will include spoofed and missing attributes. If classification is uncertain, the privacy-preserving default disables automatic restoration. We will report false containment separately from routing failures so Release can judge inconvenience without weakening the safety rule.",
+          "ko": "세 번째 위험은 모든 도크가 전원형 장치 속성을 일관되게 노출한다고 가정하는 것입니다. 오래된 도크 두 종은 지연 해제를 사용하면서도 일반 USB 오디오로 보고합니다. 따라서 억제책 분류기는 전원 속성과 USB 디스크립터에서 관찰한 해제 기능을 함께 사용합니다. 검증에는 위조되거나 누락된 속성도 포함합니다. 분류가 불확실하면 개인정보 보호 기본값으로 자동 복원을 끕니다. 출시 팀이 안전 규칙을 약화하지 않고 불편을 판단할 수 있도록 잘못 적용된 억제책을 경로 실패와 별도로 보고하겠습니다."
+        },
+        {
+          "speaker": "Ethan Brooks",
+          "en": "The final decision meeting is today, October 30, at 18:00 KST. We will review the completed soak, every component pairing, emergency behavior, accessibility and alarm results, accessory classification, and rollback readiness. If all hard gates pass, the factory candidate receives both patches while the powered-dock containment remains enabled through the first internal ring. The containment can be lifted only after 48 hours with zero physical-route mismatch. If any hard gate lacks evidence, shipment approval remains blocked and tomorrow's cutoff moves through the formal late-patch process.",
+          "ko": "최종 의사결정 회의는 오늘 10월 30일 오후 6시 KST입니다. 완료된 장시간 시험, 모든 구성요소 조합, 긴급 통화 동작, 접근성 및 알람 결과, 액세서리 분류, 롤백 준비 상태를 검토합니다. 모든 필수 게이트가 통과하면 공장 후보에 두 패치를 모두 반영하되 전원형 도크 억제책은 첫 내부 링까지 유지합니다. 실제 경로 불일치가 48시간 동안 0건일 때만 억제책을 해제할 수 있습니다. 필수 게이트에 증거가 하나라도 없으면 출하 승인은 계속 차단되고 내일 마감은 공식 지연 패치 절차로 이동합니다."
+        },
+        {
+          "speaker": "Ethan Brooks",
+          "en": "I will circulate the decision record by 07:45 KST and update factory, support, and certification teams after each gate review. The record will distinguish containment from correction, and it will list the exact owner and rollback for both patches. We have not solved this by trusting a label or adding an arbitrary delay. We have tied destructive cleanup to durable identity, tied user-visible routing to physical activation, and preserved a conservative fallback when classification is uncertain. That gives us a testable launch path without treating private audio exposure as an acceptable inconvenience.",
+          "ko": "오전 7시 45분 KST까지 결정 기록을 배포하고 각 게이트 검토 후 공장, 지원, 인증 팀을 갱신하겠습니다. 기록은 억제책과 수정안을 구분하고 두 패치 각각의 정확한 담당자와 롤백을 나열합니다. 화면 라벨을 믿거나 임의의 지연을 추가하는 방식으로 해결하지 않았습니다. 파괴적 정리를 지속 가능한 식별 정보에 연결하고, 사용자에게 보이는 경로를 물리적 활성화에 연결했으며, 분류가 불확실할 때 보수적 폴백을 유지했습니다. 비공개 오디오 노출을 허용 가능한 불편으로 취급하지 않으면서 검증 가능한 출시 경로를 확보했습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "produce a launch decision",
+      "meaning_ko": "출시 결정을 도출하다",
+      "usage_ko": "조사에 그치지 않고 회의에서 실제 출시 판단을 내려야 할 때 쓴다.",
+      "example": "The factory image closes tomorrow at 18:00 KST, so this meeting must produce a launch decision, not merely another investigation list.",
+      "practice": "The review must produce a launch decision before the factory cutoff."
+    },
+    {
+      "phrase": "evidence-based exit gates",
+      "meaning_ko": "증거 기반 종료 게이트",
+      "usage_ko": "문제를 종료하거나 배포를 재개하기 위한 측정 가능한 기준을 말할 때 쓴다.",
+      "example": "We need to establish exposure, identify the state boundary that fails, choose containment, and assign evidence-based exit gates.",
+      "practice": "We defined evidence-based exit gates for latency, safety, and rollback."
+    },
+    {
+      "phrase": "classify this as a launch-blocking privacy exposure",
+      "meaning_ko": "이를 출시 차단 수준의 개인정보 노출로 분류하다",
+      "usage_ko": "문제의 심각도와 출시 영향을 명확히 규정할 때 쓴다.",
+      "example": "We therefore classify this as a launch-blocking privacy exposure rather than a cosmetic routing defect.",
+      "practice": "We classify this as a launch-blocking privacy exposure until physical routing is verified."
+    },
+    {
+      "phrase": "separate root cause from contractual weakness",
+      "meaning_ko": "근본 원인과 계약상의 약점을 분리하다",
+      "usage_ko": "직접 결함과 설계 계약의 허점을 구분해 논의할 때 쓴다.",
+      "example": "Let us separate root cause from contractual weakness.",
+      "practice": "The design review should separate root cause from contractual weakness."
+    },
+    {
+      "phrase": "missing identity",
+      "meaning_ko": "식별 정보 누락",
+      "usage_ko": "비동기 자원의 세대나 소유자를 구분할 정보가 부족함을 설명할 때 쓴다.",
+      "example": "The evidence points to missing identity, not simply insufficient delay.",
+      "practice": "The trace suggests missing identity rather than a slow callback."
+    },
+    {
+      "phrase": "smallest root-cause correction",
+      "meaning_ko": "가장 작은 근본 원인 수정",
+      "usage_ko": "위험을 제한하면서 직접 원인을 고치는 최소 변경을 제안할 때 쓴다.",
+      "example": "That is the smallest root-cause correction.",
+      "practice": "Generation matching is the smallest root-cause correction we can validate today."
+    },
+    {
+      "phrase": "does not close the privacy gap",
+      "meaning_ko": "개인정보 보호 공백을 완전히 막지 못하다",
+      "usage_ko": "한 수정만으로 모든 안전 위험이 해결되지 않음을 지적할 때 쓴다.",
+      "example": "The generation-aware cleanup is necessary, but it does not close the privacy gap by itself.",
+      "practice": "A cleaner log does not close the privacy gap for users."
+    },
+    {
+      "phrase": "covers measured recovery with margin",
+      "meaning_ko": "측정된 복구 시간을 여유 있게 포함하다",
+      "usage_ko": "시간 제한이 실측 데이터에 근거했음을 설명할 때 쓴다.",
+      "example": "A one-second hold therefore covers measured recovery with margin, while a 1.5-second hold adds little.",
+      "practice": "The timeout covers measured recovery with margin across all tested docks."
+    },
+    {
+      "phrase": "preserves backward compatibility",
+      "meaning_ko": "하위 호환성을 유지하다",
+      "usage_ko": "새 변경이 이전 구현과 함께 동작함을 강조할 때 쓴다.",
+      "example": "This keeps the candidate change narrow and preserves backward compatibility.",
+      "practice": "The feature-detection path preserves backward compatibility with older images."
+    },
+    {
+      "phrase": "needs explicit negative tests",
+      "meaning_ko": "명시적인 부정 시험이 필요하다",
+      "usage_ko": "호환되지 않거나 잘못된 조건도 반드시 시험해야 할 때 쓴다.",
+      "example": "The compatibility path needs explicit negative tests.",
+      "practice": "The fallback path needs explicit negative tests before release."
+    },
+    {
+      "phrase": "bounds exposure without changing the factory binary",
+      "meaning_ko": "공장 바이너리를 바꾸지 않고 노출을 제한하다",
+      "usage_ko": "원격 정책으로 즉시 위험 범위를 줄일 때 쓴다.",
+      "example": "It does not fix the stale cleanup, but it bounds exposure without changing the factory binary and gives us a rollback if the patch creates a new routing regression.",
+      "practice": "The server policy bounds exposure without changing the factory binary."
+    },
+    {
+      "phrase": "two reviewed changes",
+      "meaning_ko": "검토된 두 개의 변경",
+      "usage_ko": "결합 패치를 책임이 분리된 변경으로 관리할 때 쓴다.",
+      "example": "We will accept the generation-aware HAL fix and the one-second framework privacy hold as two reviewed changes, not one opaque bundle.",
+      "practice": "Release will track the work as two reviewed changes with separate rollbacks."
+    },
+    {
+      "phrase": "privacy-preserving default",
+      "meaning_ko": "개인정보 보호 기본값",
+      "usage_ko": "불확실할 때 안전한 기본 동작을 선택한다고 설명할 때 쓴다.",
+      "example": "If classification is uncertain, the privacy-preserving default disables automatic restoration.",
+      "practice": "An unknown accessory receives the privacy-preserving default."
+    },
+    {
+      "phrase": "formal late-patch process",
+      "meaning_ko": "공식 지연 패치 절차",
+      "usage_ko": "정규 마감 이후 변경을 통제된 절차로 처리할 때 쓴다.",
+      "example": "If any hard gate lacks evidence, shipment approval remains blocked and tomorrow's cutoff moves through the formal late-patch process.",
+      "practice": "A missed hard gate moves the build into the formal late-patch process."
+    },
+    {
+      "phrase": "distinguish containment from correction",
+      "meaning_ko": "억제책과 근본 수정을 구분하다",
+      "usage_ko": "임시 위험 완화와 영구 해결을 명확히 나눌 때 쓴다.",
+      "example": "The record will distinguish containment from correction, and it will list the exact owner and rollback for both patches.",
+      "practice": "The status report must distinguish containment from correction."
+    }
+  ]
+}
