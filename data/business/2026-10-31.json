@@ -1,0 +1,295 @@
+{
+  "date": "2026-10-31",
+  "category": "business",
+  "topic": "sw-kickoff",
+  "subject": "Kicking Off a Rust Parser PoC for a Privileged Android Vendor Daemon",
+  "title_ko": "권한 Android 벤더 데몬의 Rust 파서 PoC 킥오프",
+  "summary_ko": "권한이 높은 Android 벤더 네이티브 데몬의 메시지 파서 일부를 Rust로 전환할 가치가 있는지 네이티브 플랫폼, 제품 보안, 빌드·툴체인, 프로그램·검증 팀이 제한된 6주 PoC의 범위·증거·중단 조건으로 합의하는 회의다. 모든 인물·조직·제품·프로토콜·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Hana Lee",
+      "team": "Native Platform"
+    },
+    {
+      "name": "Victor Alvarez",
+      "team": "Product Security"
+    },
+    {
+      "name": "Nadia Petrov",
+      "team": "Build and Toolchain"
+    },
+    {
+      "name": "Caleb Morgan",
+      "team": "Program and Validation"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and PoC boundary",
+      "title_ko": "참석 확인과 PoC 범위",
+      "turns": [
+        {
+          "speaker": "Caleb Morgan",
+          "en": "Native Platform, Product Security, Build and Toolchain, and Program and Validation are represented. Today we are not approving a broad language migration. We are deciding whether to run a six-week proof of concept on the Atlas device-event daemon, which parses vendor messages before forwarding normalized events to Android services. The daemon is privileged, has a compact protocol surface, and still receives frequent feature changes. We need a bounded hypothesis, a comparison baseline, explicit stop conditions, and owners for engineering, security, tooling, and validation. If the evidence is weak, the correct outcome is to end the experiment rather than force adoption.",
+          "ko": "네이티브 플랫폼, 제품 보안, 빌드 및 툴체인, 프로그램 및 검증 팀이 참석했습니다. 오늘은 광범위한 언어 전환을 승인하는 자리가 아닙니다. 벤더 메시지를 파싱한 뒤 정규화된 이벤트를 Android 서비스로 전달하는 Atlas 장치 이벤트 데몬을 대상으로 6주간 개념 증명을 진행할지 결정합니다. 이 데몬은 권한이 높고 프로토콜 표면이 작으며 기능 변경도 잦습니다. 범위가 제한된 가설, 비교 기준선, 명시적인 중단 조건, 엔지니어링·보안·도구·검증 담당자가 필요합니다. 증거가 약하면 도입을 강행하는 대신 실험을 끝내는 것이 올바른 결론입니다."
+        },
+        {
+          "speaker": "Hana Lee",
+          "en": "The current daemon contains 38,000 lines of C++ and talks to three vendor endpoints through one socket abstraction. I am proposing only a new Rust parser and validation library behind the existing C ABI. Process lifecycle, binder integration, SELinux domain, logging, and the three endpoint drivers remain unchanged. The candidate boundary is 4,600 lines of message decoding and field validation. We will run the C++ and Rust implementations against the same recorded and generated inputs, but only one implementation will produce live output at a time. That lets us compare behavior without creating two authorities inside the process.",
+          "ko": "현재 데몬은 C++ 3만 8천 줄로 구성되며 하나의 소켓 추상화를 통해 세 벤더 엔드포인트와 통신합니다. 기존 C ABI 뒤에 새로운 Rust 파서와 검증 라이브러리만 두는 것을 제안합니다. 프로세스 수명 주기, binder 통합, SELinux 도메인, 로깅, 세 엔드포인트 드라이버는 변경하지 않습니다. 후보 경계는 메시지 디코딩과 필드 검증 4,600줄입니다. 같은 기록 및 생성 입력에 C++와 Rust 구현을 실행하지만 한 번에 하나의 구현만 실제 출력을 생성합니다. 그러면 프로세스 안에 두 개의 권한 주체를 만들지 않고 동작을 비교할 수 있습니다."
+        },
+        {
+          "speaker": "Victor Alvarez",
+          "en": "Security supports exploration because 11 of the last 19 defects in this component involved length calculation, integer conversion, or lifetime assumptions near the parser. None became a field vulnerability, but six were found only by fuzzing after code review. Rust can remove some classes of memory error, yet it does not prevent incorrect authorization, resource exhaustion, or a faithfully implemented bad protocol rule. Our hypothesis should therefore be narrower than 'Rust is safer.' We should test whether a constrained parser boundary reduces memory-safety findings without increasing semantic divergence, binary attack surface, or operational complexity.",
+          "ko": "최근 이 구성요소의 결함 19건 중 11건이 파서 주변의 길이 계산, 정수 변환, 수명 가정과 관련됐기 때문에 보안 팀은 탐색을 지지합니다. 시장 취약점으로 이어진 것은 없지만 여섯 건은 코드 검토 뒤 퍼징으로만 발견됐습니다. Rust는 일부 메모리 오류 유형을 제거할 수 있지만 잘못된 권한 판단, 자원 고갈, 잘못된 프로토콜 규칙을 충실히 구현하는 문제는 막지 못합니다. 따라서 가설은 'Rust가 더 안전하다'보다 좁아야 합니다. 제한된 파서 경계가 의미적 차이, 바이너리 공격 표면, 운영 복잡성을 늘리지 않으면서 메모리 안전 결함을 줄이는지 시험해야 합니다."
+        },
+        {
+          "speaker": "Nadia Petrov",
+          "en": "The toolchain can build Rust for this target, but reproducibility is not automatic. The factory branch uses a pinned compiler, while the development branch advances monthly. Crate resolution, generated bindings, panic strategy, and link-time optimization all affect the artifact. I will not accept an experiment that downloads dependencies during a build or relies on a developer workstation cache. We need vendored source, checksummed dependency metadata, an offline build, and identical results in clean containers. We must also decide whether the C ABI bindings are generated or hand-maintained, because that choice changes review ownership.",
+          "ko": "툴체인은 이 타깃용 Rust를 빌드할 수 있지만 재현성이 자동으로 확보되는 것은 아닙니다. 공장 브랜치는 고정 컴파일러를 사용하고 개발 브랜치는 매달 전진합니다. crate 해석, 생성된 바인딩, panic 전략, 링크 타임 최적화가 모두 산출물에 영향을 줍니다. 빌드 중 의존성을 다운로드하거나 개발자 워크스테이션 캐시에 의존하는 실험은 수용하지 않겠습니다. 저장소에 포함된 소스, 체크섬된 의존성 메타데이터, 오프라인 빌드, 깨끗한 컨테이너에서 동일한 결과가 필요합니다. C ABI 바인딩을 생성할지 수동 유지할지도 결정해야 합니다. 그 선택이 검토 책임을 바꾸기 때문입니다."
+        },
+        {
+          "speaker": "Caleb Morgan",
+          "en": "The decision question is now precise: can a Rust parser behind an unchanged C ABI match current behavior, improve defect resistance, and fit our deterministic build and device budgets? We will not measure success by lines rewritten or by enthusiasm. Before committing people, I want the baseline, the disputed design choices, the validation matrix, and what evidence would make each team say no. Let us start with observed costs in the existing implementation, then challenge the proposed boundary.",
+          "ko": "이제 결정 질문이 명확합니다. 변경되지 않은 C ABI 뒤의 Rust 파서가 현재 동작과 일치하고 결함 저항성을 높이며 결정적 빌드와 단말 예산에 들어갈 수 있습니까? 다시 쓴 코드 줄 수나 열정으로 성공을 측정하지 않습니다. 인력을 투입하기 전에 기준선, 논쟁 중인 설계 선택, 검증 매트릭스, 각 팀이 거절하게 만드는 증거를 정하고 싶습니다. 기존 구현에서 관찰된 비용부터 확인한 뒤 제안된 경계를 검토합시다."
+        }
+      ]
+    },
+    {
+      "title_en": "Baseline evidence and disagreement",
+      "title_ko": "기준선 증거와 이견",
+      "turns": [
+        {
+          "speaker": "Hana Lee",
+          "en": "Over the last four releases, parser changes required a median of 3.5 review days and produced seven rollback candidates. Three were buffer-boundary bugs, two interpreted optional fields differently across endpoints, and two rejected forward-compatible messages. The daemon uses 5.8 megabytes of private memory at idle and processes the ninety-ninth percentile message in 1.7 milliseconds. Startup adds 14 milliseconds to the boot critical path. Those are our functional and performance baselines. The PoC must preserve every accepted wire format and must not silently normalize an input that the current implementation rejects for a security reason.",
+          "ko": "지난 네 번의 릴리스에서 파서 변경의 검토 기간 중앙값은 3.5일이었고 롤백 후보가 일곱 건 나왔습니다. 세 건은 버퍼 경계 오류, 두 건은 엔드포인트별 선택 필드 해석 차이, 두 건은 순방향 호환 메시지 거부였습니다. 데몬은 유휴 시 전용 메모리 5.8MB를 사용하고 99백분위 메시지를 1.7밀리초에 처리합니다. 시작 시 부팅 핵심 경로에 14밀리초를 추가합니다. 이것이 기능과 성능 기준선입니다. PoC는 허용되는 모든 wire format을 보존해야 하며 현재 구현이 보안상 거부하는 입력을 조용히 정규화해서는 안 됩니다."
+        },
+        {
+          "speaker": "Victor Alvarez",
+          "en": "I disagree with using the current implementation as the sole behavioral oracle. It contains historical quirks that may be defects. For example, endpoint B accepts a duplicated privilege field and keeps the last value, while endpoint C rejects the same structure. A byte-for-byte match would preserve inconsistency. We need three categories: required protocol behavior, intentionally retained compatibility, and suspected legacy behavior. Security and Native Platform must jointly classify each mismatch. Until classification is complete, the shadow result can be recorded but cannot change device behavior.",
+          "ko": "현재 구현을 유일한 동작 판정 기준으로 사용하는 데 반대합니다. 과거의 특이 동작 중 일부는 결함일 수 있습니다. 예를 들어 엔드포인트 B는 중복된 권한 필드를 받아 마지막 값을 유지하지만 엔드포인트 C는 같은 구조를 거부합니다. 바이트 단위 일치는 불일치를 보존합니다. 필수 프로토콜 동작, 의도적으로 유지할 호환성, 의심되는 레거시 동작의 세 범주가 필요합니다. 각 불일치는 보안과 네이티브 플랫폼이 공동 분류해야 합니다. 분류가 끝나기 전에는 shadow 결과를 기록할 수 있지만 단말 동작을 바꿀 수 없습니다."
+        },
+        {
+          "speaker": "Hana Lee",
+          "en": "That is fair, but classification cannot become an excuse to redesign the protocol inside the PoC. I propose a versioned behavior manifest stored beside the test corpus. Each case names the endpoint, message version, expected status, normalized fields, and rationale. Existing behavior remains the default unless Security identifies a concrete policy violation and Program approves a compatibility break. The Rust parser reads no manifest at runtime; it is only the test oracle. This keeps production code independent from the experiment's documentation while making disagreements reviewable.",
+          "ko": "타당하지만 분류가 PoC 안에서 프로토콜을 재설계하는 구실이 되어서는 안 됩니다. 테스트 코퍼스 옆에 버전 관리된 동작 매니페스트를 두자고 제안합니다. 각 사례에는 엔드포인트, 메시지 버전, 예상 상태, 정규화 필드, 근거를 기록합니다. 보안 팀이 구체적인 정책 위반을 찾고 프로그램 팀이 호환성 중단을 승인하지 않는 한 기존 동작을 기본으로 유지합니다. Rust 파서는 런타임에 매니페스트를 읽지 않으며 매니페스트는 테스트 판정 기준일 뿐입니다. 그러면 프로덕션 코드는 실험 문서와 독립적이면서 이견은 검토 가능해집니다."
+        },
+        {
+          "speaker": "Nadia Petrov",
+          "en": "My concern is the boundary itself. A C ABI with heap-owned output structures can reintroduce lifetime ambiguity at the language crossing. If Rust allocates a result and C++ frees it, allocator pairing and version skew become new risks. I recommend caller-provided buffers for fixed fields and an opaque Rust-owned handle for variable fields, released through one exported function. Generated bindings should be checked into the repository with the generator version and source hash. CI will regenerate and compare them, but production builds will consume the reviewed files rather than run a generator.",
+          "ko": "제 우려는 경계 자체입니다. 힙 소유 출력 구조를 가진 C ABI는 언어 경계에서 수명 모호성을 다시 만들 수 있습니다. Rust가 결과를 할당하고 C++가 해제하면 할당기 짝과 버전 차이가 새 위험이 됩니다. 고정 필드에는 호출자 제공 버퍼를 쓰고, 가변 필드에는 하나의 내보낸 함수로 해제하는 Rust 소유 불투명 핸들을 권고합니다. 생성된 바인딩은 생성기 버전과 소스 해시와 함께 저장소에 체크인해야 합니다. CI는 다시 생성해 비교하지만 프로덕션 빌드는 생성기를 실행하지 않고 검토된 파일을 사용합니다."
+        },
+        {
+          "speaker": "Victor Alvarez",
+          "en": "I support the single-owner handle, with two additional rules. The handle must be non-cloneable across the ABI, and every error path must consume or return ownership explicitly. We should instrument outstanding handles in debug builds and fail a test if the count is nonzero after each message. For malformed lengths, the parser must reject before allocation. A memory-safe parser that allocates gigabytes from an attacker-controlled length is still unsafe. Fuzzing therefore needs allocation and execution budgets, not only crash detection.",
+          "ko": "단일 소유자 핸들을 지지하며 두 가지 규칙을 추가하겠습니다. 핸들은 ABI를 넘어 복제할 수 없어야 하고 모든 오류 경로가 소유권을 소비하거나 반환하는 것을 명시해야 합니다. 디버그 빌드에서 미회수 핸들을 계측하고 각 메시지 후 개수가 0이 아니면 테스트를 실패시켜야 합니다. 잘못된 길이는 할당 전에 거부해야 합니다. 메모리 안전 파서라도 공격자가 제어하는 길이로 수 GB를 할당하면 여전히 안전하지 않습니다. 따라서 퍼징에는 충돌 탐지만이 아니라 할당 및 실행 예산이 필요합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "PoC design and measurable challenges",
+      "title_ko": "PoC 설계와 측정 가능한 과제",
+      "turns": [
+        {
+          "speaker": "Caleb Morgan",
+          "en": "We have one design candidate: unchanged process and drivers, a Rust-owned parser library, caller buffers for fixed output, opaque handles for variable output, and a reviewed behavior manifest. Now define the experiment so it can fail honestly. I want work packages rather than a single end date. Include functional parity, deliberately changed behavior, fuzz effectiveness, build reproducibility, binary size, memory, latency, startup, diagnostics, and engineer effort. Also account for the maintenance burden after the original authors rotate off the project.",
+          "ko": "설계 후보가 하나 정리됐습니다. 프로세스와 드라이버는 그대로 두고 Rust 소유 파서 라이브러리, 고정 출력용 호출자 버퍼, 가변 출력용 불투명 핸들, 검토된 동작 매니페스트를 사용합니다. 이제 실험이 정직하게 실패할 수 있도록 설계합시다. 하나의 종료일이 아니라 작업 패키지가 필요합니다. 기능 동등성, 의도적 동작 변경, 퍼징 효과, 빌드 재현성, 바이너리 크기, 메모리, 지연 시간, 시작 시간, 진단 가능성, 엔지니어 투입을 포함하세요. 원래 작성자가 프로젝트를 떠난 뒤의 유지보수 부담도 고려해야 합니다."
+        },
+        {
+          "speaker": "Hana Lee",
+          "en": "Native Platform will implement two protocol families first, representing fixed-layout and nested variable-length messages. Week one establishes the ABI and 600-case behavior manifest. Week two implements decoding without endpoint-specific policy. Week three adds policy adapters and shadow comparison. We stop before the third family unless the first two reach 100 percent agreement on required behavior and every intentional difference has an approved manifest entry. The code review requires one C++ owner and one Rust-capable reviewer. I will track review time separately so learning cost is visible rather than hidden inside the schedule.",
+          "ko": "네이티브 플랫폼은 고정 레이아웃과 중첩 가변 길이 메시지를 대표하는 두 프로토콜 계열부터 구현합니다. 1주 차에는 ABI와 600개 사례 동작 매니페스트를 만들고, 2주 차에는 엔드포인트별 정책 없이 디코딩을 구현하며, 3주 차에는 정책 어댑터와 shadow 비교를 추가합니다. 첫 두 계열이 필수 동작에서 100퍼센트 일치하고 모든 의도적 차이에 승인된 매니페스트 항목이 생기기 전에는 세 번째 계열로 넘어가지 않습니다. 코드 검토에는 C++ 담당자 한 명과 Rust 검토 가능자 한 명이 필요합니다. 학습 비용이 일정 안에 숨지 않도록 검토 시간을 별도로 추적하겠습니다."
+        },
+        {
+          "speaker": "Nadia Petrov",
+          "en": "Build and Toolchain will create an offline dependency bundle and pin the compiler, standard library, linker, generator, and analysis tools by digest. We will build the same revision ten times across two clean worker pools and compare section hashes after removing signed timestamps. A mismatch blocks the PoC from device integration. I will measure incremental and clean build time, cache size, symbol quality, and crash-dump decoding. If engineers need a special local environment to obtain useful symbols, the experiment fails the operational test even if the binary works.",
+          "ko": "빌드 및 툴체인은 오프라인 의존성 번들을 만들고 컴파일러, 표준 라이브러리, 링커, 생성기, 분석 도구를 digest로 고정합니다. 두 개의 깨끗한 작업자 풀에서 같은 리비전을 열 번 빌드하고 서명 타임스탬프를 제거한 뒤 섹션 해시를 비교합니다. 불일치가 있으면 단말 통합을 막습니다. 증분 및 클린 빌드 시간, 캐시 크기, 심볼 품질, 크래시 덤프 해석을 측정합니다. 유용한 심볼을 얻기 위해 엔지니어에게 특별한 로컬 환경이 필요하다면 바이너리가 동작해도 운영 시험은 실패입니다."
+        },
+        {
+          "speaker": "Victor Alvarez",
+          "en": "Security will seed the corpus with the 19 historical defects and create structural mutations for length, nesting, duplicate fields, integer boundaries, unknown versions, and truncated framing. We will give each implementation equal CPU time and identical dictionaries. Success is not fewer crashes in Rust; expected memory-safety crashes should disappear there. The meaningful comparison is unique policy violations, excessive allocation, hangs, inconsistent error codes, and time to triage. Any unsafe block must have a written invariant and a focused test. If unsafe code spreads beyond the ABI shim, Security will recommend stopping the migration boundary.",
+          "ko": "보안 팀은 과거 결함 19건을 코퍼스에 넣고 길이, 중첩, 중복 필드, 정수 경계, 알 수 없는 버전, 잘린 프레이밍에 대한 구조적 변이를 만듭니다. 각 구현에 같은 CPU 시간과 동일한 사전을 제공합니다. Rust에서 충돌이 적은 것 자체가 성공은 아닙니다. 예상되는 메모리 안전 충돌은 Rust에서 사라져야 합니다. 의미 있는 비교는 고유한 정책 위반, 과도한 할당, 멈춤, 일관되지 않은 오류 코드, 분류 시간입니다. 모든 unsafe 블록에는 문서화된 불변 조건과 집중 테스트가 있어야 합니다. unsafe 코드가 ABI shim 밖으로 퍼지면 보안 팀은 전환 경계 중단을 권고합니다."
+        },
+        {
+          "speaker": "Caleb Morgan",
+          "en": "Validation will run shadow comparison on engineering devices only; no customer or employee daily-use cohort will receive the experimental output. The production C++ parser remains authoritative. We will replay 48 hours of sanitized protocol traffic, then run 20,000 generated sessions across cold boot, service restart, endpoint reconnect, low-memory pressure, and malformed bursts. The shadow library gets the same input but cannot open device nodes, send binder calls, or write persistent state. Its only output is a bounded comparison record. This containment is mandatory, not an optimization we can remove for schedule.",
+          "ko": "검증은 엔지니어링 단말에서만 shadow 비교를 실행하며 고객이나 임직원 일상 사용 사용자군에는 실험 출력을 제공하지 않습니다. 프로덕션 C++ 파서가 계속 권한 주체입니다. 정제된 프로토콜 트래픽 48시간분을 재생한 뒤 콜드 부팅, 서비스 재시작, 엔드포인트 재연결, 메모리 부족 압력, 잘못된 메시지 버스트에서 생성 세션 2만 회를 실행합니다. shadow 라이브러리는 같은 입력을 받지만 장치 노드를 열거나 binder 호출을 보내거나 영구 상태를 쓸 수 없습니다. 유일한 출력은 크기가 제한된 비교 레코드입니다. 이 억제는 필수이며 일정을 위해 제거할 수 있는 최적화가 아닙니다."
+        },
+        {
+          "speaker": "Hana Lee",
+          "en": "For device budgets, I propose hard ceilings rather than relative impressions. The combined daemon may add no more than 350 kilobytes compressed to the system image, 600 kilobytes private memory at steady state, 0.2 milliseconds at the ninety-ninth percentile, and 3 milliseconds to boot startup. The shadow build can exceed runtime memory because it carries both parsers, but the projected Rust-only configuration must meet those ceilings. We will measure stripped and symbol builds separately. A smaller source file is irrelevant if the shipped artifact or diagnostic package becomes materially larger.",
+          "ko": "단말 예산에는 상대적 인상이 아니라 명확한 상한을 제안합니다. 결합된 데몬은 시스템 이미지 압축 크기 350KB, 정상 상태 전용 메모리 600KB, 99백분위 지연 0.2밀리초, 부팅 시작 3밀리초를 넘게 추가할 수 없습니다. shadow 빌드는 두 파서를 포함하므로 런타임 메모리 한도를 넘을 수 있지만 예상 Rust 단독 구성은 이 상한을 충족해야 합니다. strip 빌드와 심볼 빌드를 별도로 측정합니다. 배포 산출물이나 진단 패키지가 실질적으로 커진다면 소스 파일이 작아지는 것은 의미가 없습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision, owners, and stop conditions",
+      "title_ko": "결정, 담당자와 중단 조건",
+      "turns": [
+        {
+          "speaker": "Caleb Morgan",
+          "en": "We will run the six-week PoC with three gated phases. Phase one is ABI, manifest, and deterministic build. Phase two is two protocol families, fuzzing, and host comparison. Phase three is engineering-device shadow execution and maintainability review. Advancement is not automatic. Each phase requires written sign-off from all four teams. The experiment does not authorize production replacement, additional daemon migrations, or a new organization-wide language rule. At the end, we may recommend adoption, another focused experiment, or no migration. Those outcomes are equally valid if supported by evidence.",
+          "ko": "세 개의 게이트 단계로 6주 PoC를 진행합니다. 1단계는 ABI, 매니페스트, 결정적 빌드입니다. 2단계는 두 프로토콜 계열, 퍼징, 호스트 비교입니다. 3단계는 엔지니어링 단말 shadow 실행과 유지보수성 검토입니다. 다음 단계로 자동 진입하지 않습니다. 각 단계에는 네 팀 모두의 서면 승인이 필요합니다. 이 실험은 프로덕션 교체, 다른 데몬 전환, 조직 전체 언어 규칙을 승인하지 않습니다. 종료 시 도입, 추가 집중 실험, 전환하지 않음을 권고할 수 있습니다. 증거가 뒷받침되면 세 결과 모두 동등하게 유효합니다."
+        },
+        {
+          "speaker": "Hana Lee",
+          "en": "I own the ABI design, parser implementation, behavior manifest, and Native Platform reviews. The ABI proposal and first 200 manifest cases are due November 3 at 16:00 KST. The full 600-case manifest and fixed-layout parser are due November 10. Nested messages and policy adapters are due November 17. I will publish weekly diffs showing required matches, approved differences, unresolved differences, unsafe blocks, review hours, and code ownership. A required-behavior mismatch surviving more than two working days pauses new feature work until it is classified.",
+          "ko": "ABI 설계, 파서 구현, 동작 매니페스트, 네이티브 플랫폼 검토는 제가 담당합니다. ABI 제안과 첫 매니페스트 사례 200개는 11월 3일 오후 4시 KST까지입니다. 전체 600개 매니페스트와 고정 레이아웃 파서는 11월 10일까지, 중첩 메시지와 정책 어댑터는 11월 17일까지입니다. 필수 일치, 승인된 차이, 미해결 차이, unsafe 블록, 검토 시간, 코드 소유권을 보여 주는 주간 차이를 게시하겠습니다. 필수 동작 불일치가 근무일 이틀 이상 남으면 분류가 끝날 때까지 새 기능 작업을 중단합니다."
+        },
+        {
+          "speaker": "Nadia Petrov",
+          "en": "I own compiler and dependency pinning, offline builds, generated-binding verification, CI integration, and debug-symbol workflow. The hermetic toolchain image is due November 4 at noon KST, and the ten-build reproducibility report is due November 6 at 17:00. My stop conditions are any undeclared network access, unresolved artifact hash difference, an unreviewed generated file, or a crash that cannot be symbolized in the standard service environment. I will also publish clean-build and incremental-build deltas so management can price the ongoing CI cost.",
+          "ko": "컴파일러 및 의존성 고정, 오프라인 빌드, 생성 바인딩 검증, CI 통합, 디버그 심볼 흐름은 제가 담당합니다. 밀폐형 툴체인 이미지는 11월 4일 정오 KST까지, 열 번 빌드 재현성 보고서는 11월 6일 오후 5시까지입니다. 선언되지 않은 네트워크 접근, 해결되지 않은 산출물 해시 차이, 검토되지 않은 생성 파일, 표준 서비스 환경에서 심볼화할 수 없는 충돌이 제 중단 조건입니다. 지속적인 CI 비용을 관리자가 산정할 수 있도록 클린 빌드와 증분 빌드 차이도 게시하겠습니다."
+        },
+        {
+          "speaker": "Victor Alvarez",
+          "en": "I own threat modeling, historical defect seeds, fuzz campaigns, unsafe-code review, and allocation budgets. The boundary threat model is due November 5 at 15:00 KST. Initial 24-hour differential fuzzing completes November 12, with a second campaign after policy adapters land. I will stop the PoC if the Rust boundary accepts a prohibited message, permits unbounded allocation, exposes a cloneable handle, or requires undocumented unsafe behavior. A crash in the C++ baseline does not excuse semantic failure in the Rust candidate; each implementation is judged against the approved manifest and security invariants.",
+          "ko": "위협 모델링, 과거 결함 seed, 퍼징 캠페인, unsafe 코드 검토, 할당 예산은 제가 담당합니다. 경계 위협 모델은 11월 5일 오후 3시 KST까지입니다. 초기 24시간 차등 퍼징은 11월 12일에 완료하고 정책 어댑터 반영 뒤 두 번째 캠페인을 진행합니다. Rust 경계가 금지된 메시지를 허용하거나, 무제한 할당을 가능하게 하거나, 복제 가능한 핸들을 노출하거나, 문서화되지 않은 unsafe 동작을 요구하면 PoC를 중단하겠습니다. C++ 기준선의 충돌은 Rust 후보의 의미적 실패를 면제하지 않습니다. 각 구현은 승인된 매니페스트와 보안 불변 조건에 따라 평가합니다."
+        },
+        {
+          "speaker": "Caleb Morgan",
+          "en": "I own validation containment, performance measurement, skills coverage, and the final recommendation. The shadow harness design is due November 6, engineering-device execution starts November 20 only after phase-two approval, and the final review is December 11 at 10:00 KST. Immediate stop conditions are any shadow side effect, persistent data write, device-node access, boot instability, or customer data entering the corpus. I will recruit two maintainers who did not write the code and measure whether they can diagnose seeded failures using normal documentation and tools. Adoption fails if expertise remains concentrated in one author.",
+          "ko": "검증 억제, 성능 측정, 기술 역량 범위, 최종 권고는 제가 담당합니다. shadow 하네스 설계는 11월 6일까지이고, 엔지니어링 단말 실행은 2단계 승인 뒤인 11월 20일에만 시작하며, 최종 검토는 12월 11일 오전 10시 KST입니다. shadow 부작용, 영구 데이터 쓰기, 장치 노드 접근, 부팅 불안정, 고객 데이터의 코퍼스 유입은 즉시 중단 조건입니다. 코드를 작성하지 않은 유지보수자 두 명을 모집해 일반 문서와 도구로 주입된 실패를 진단할 수 있는지 측정하겠습니다. 전문성이 한 작성자에게 집중돼 있으면 도입은 실패입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Risks and next checkpoint",
+      "title_ko": "위험과 다음 점검",
+      "turns": [
+        {
+          "speaker": "Nadia Petrov",
+          "en": "One risk is toolchain support diverging between the long-lived factory branch and main development. Pinning solves today's build but can turn security updates into expensive rebases. I will simulate one compiler minor upgrade and one dependency security patch during the PoC. We will measure code changes, rebuilt artifacts, test reruns, and engineer hours. If a routine security update requires bypassing reproducibility or carrying a private compiler fork, the maintenance model is not acceptable. The experiment must evaluate change over time, not only one frozen success.",
+          "ko": "위험 하나는 장기 유지 공장 브랜치와 주 개발 브랜치 사이에서 툴체인 지원이 갈라지는 것입니다. 고정은 오늘의 빌드를 해결하지만 보안 업데이트를 비싼 리베이스로 만들 수 있습니다. PoC 중 컴파일러 마이너 업그레이드 한 번과 의존성 보안 패치 한 번을 모의하겠습니다. 코드 변경, 재빌드 산출물, 테스트 재실행, 엔지니어 시간을 측정합니다. 일상적인 보안 업데이트에 재현성을 우회하거나 사설 컴파일러 포크를 유지해야 한다면 유지보수 모델은 수용할 수 없습니다. 실험은 한 번의 고정된 성공이 아니라 시간에 따른 변경을 평가해야 합니다."
+        },
+        {
+          "speaker": "Victor Alvarez",
+          "en": "Another risk is overstating memory safety while moving parsing mistakes into policy adapters written in C++. The manifest will tag which layer owns every rejection and normalization. Fuzz coverage must cross the ABI and exercise the adapter, not stop at the Rust function. We will compare control-flow coverage and mutation survival on both sides of the boundary. If the Rust core becomes safe but the adapter accumulates unchecked conversions, we have displaced risk rather than reduced it. The final report will count boundary defects separately from parser defects.",
+          "ko": "또 다른 위험은 파싱 실수를 C++로 작성된 정책 어댑터로 옮기면서 메모리 안전성을 과장하는 것입니다. 매니페스트는 모든 거부와 정규화를 어느 계층이 담당하는지 태그합니다. 퍼징 커버리지는 ABI를 넘어 어댑터까지 실행해야 하며 Rust 함수에서 멈추면 안 됩니다. 경계 양쪽의 제어 흐름 커버리지와 변이 생존율을 비교합니다. Rust 코어는 안전해졌지만 어댑터에 검사되지 않은 변환이 누적되면 위험을 줄인 것이 아니라 옮긴 것입니다. 최종 보고서는 경계 결함과 파서 결함을 별도로 셉니다."
+        },
+        {
+          "speaker": "Hana Lee",
+          "en": "A third risk is performance measurement that ignores burst behavior. Average traffic is light, but boot and endpoint recovery can deliver hundreds of buffered messages at once. We will test single-message latency, 500-message bursts, and concurrent reconnects from all three endpoints. The parser must apply backpressure without holding the daemon's global state lock. We will record maximum queue depth, allocation high-water mark, and time until normal service resumes. A low ninety-ninth percentile during steady state cannot compensate for a recovery burst that delays device readiness.",
+          "ko": "세 번째 위험은 버스트 동작을 무시하는 성능 측정입니다. 평균 트래픽은 적지만 부팅과 엔드포인트 복구 시 버퍼링된 메시지 수백 개가 한꺼번에 올 수 있습니다. 단일 메시지 지연, 500개 메시지 버스트, 세 엔드포인트의 동시 재연결을 시험합니다. 파서는 데몬의 전역 상태 잠금을 잡지 않고 backpressure를 적용해야 합니다. 최대 큐 깊이, 할당 최고점, 정상 서비스 복귀 시간을 기록합니다. 정상 상태에서 낮은 99백분위는 단말 준비를 늦추는 복구 버스트를 상쇄하지 못합니다."
+        },
+        {
+          "speaker": "Caleb Morgan",
+          "en": "The first checkpoint is Friday, November 6, at 16:30 KST. We will review the approved ABI, the first behavior classifications, the hermetic build, reproducibility results, the shadow containment design, and open security invariants. Phase one passes only with unanimous written approval. Missing evidence does not roll into phase two as technical debt; it keeps the gate closed. I will distribute minutes and the risk register by 18:00 today, and every artifact will link to an owner, due date, review status, and stop condition.",
+          "ko": "첫 점검은 11월 6일 금요일 오후 4시 30분 KST입니다. 승인된 ABI, 첫 동작 분류, 밀폐형 빌드, 재현성 결과, shadow 억제 설계, 미해결 보안 불변 조건을 검토합니다. 1단계는 만장일치 서면 승인으로만 통과합니다. 누락된 증거를 기술 부채로 2단계에 넘기지 않고 게이트를 닫아 둡니다. 오늘 오후 6시까지 회의록과 위험 등록부를 배포하며 모든 산출물은 담당자, 기한, 검토 상태, 중단 조건에 연결됩니다."
+        },
+        {
+          "speaker": "Caleb Morgan",
+          "en": "To close, the approved action is a limited experiment, not a migration commitment. The current parser remains authoritative, the Rust library has no external side effects, and advancement depends on functional, security, build, performance, and maintainability evidence. We have defined what we expect to learn and what would make us stop. That discipline matters more than the language choice. If the PoC succeeds, we will know why this boundary is suitable; if it fails, we will have prevented a costly organization-wide assumption from becoming policy.",
+          "ko": "마무리하겠습니다. 승인된 조치는 전환 약속이 아니라 제한된 실험입니다. 현재 파서가 계속 권한 주체이며 Rust 라이브러리는 외부 부작용이 없고, 기능·보안·빌드·성능·유지보수성 증거에 따라 다음 단계로 진행합니다. 무엇을 배우려는지와 무엇이 중단하게 만드는지 정의했습니다. 그 규율이 언어 선택보다 중요합니다. PoC가 성공하면 이 경계가 적합한 이유를 알게 되고, 실패하면 비용이 큰 조직 전체의 가정이 정책이 되는 것을 막게 됩니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "bounded hypothesis",
+      "meaning_ko": "범위가 제한된 가설",
+      "usage_ko": "실험에서 검증할 주장을 좁고 측정 가능하게 정의할 때 쓴다.",
+      "example": "We need a bounded hypothesis, a comparison baseline, explicit stop conditions, and owners for engineering, security, tooling, and validation.",
+      "practice": "The pilot needs a bounded hypothesis before engineering begins."
+    },
+    {
+      "phrase": "rather than force adoption",
+      "meaning_ko": "도입을 강행하는 대신",
+      "usage_ko": "증거가 약할 때 중단도 유효한 결과임을 강조할 때 쓴다.",
+      "example": "If the evidence is weak, the correct outcome is to end the experiment rather than force adoption.",
+      "practice": "We should end the trial rather than force adoption without evidence."
+    },
+    {
+      "phrase": "comparison baseline",
+      "meaning_ko": "비교 기준선",
+      "usage_ko": "새 구현을 평가할 기존 성능과 품질 수치를 말할 때 쓴다.",
+      "example": "We need a bounded hypothesis, a comparison baseline, explicit stop conditions, and owners for engineering, security, tooling, and validation.",
+      "practice": "The existing release provides the comparison baseline for latency and memory."
+    },
+    {
+      "phrase": "sole behavioral oracle",
+      "meaning_ko": "유일한 동작 판정 기준",
+      "usage_ko": "기존 구현만을 정답으로 삼는 접근에 이의를 제기할 때 쓴다.",
+      "example": "I disagree with using the current implementation as the sole behavioral oracle.",
+      "practice": "The legacy service cannot be the sole behavioral oracle for disputed cases."
+    },
+    {
+      "phrase": "reviewable",
+      "meaning_ko": "검토 가능한",
+      "usage_ko": "의견 차이나 결정 근거를 기록으로 확인할 수 있게 할 때 쓴다.",
+      "example": "This keeps production code independent from the experiment's documentation while making disagreements reviewable.",
+      "practice": "Record every exception so the final decision remains reviewable."
+    },
+    {
+      "phrase": "single-owner handle",
+      "meaning_ko": "단일 소유자 핸들",
+      "usage_ko": "언어 경계에서 자원 소유권을 하나로 제한할 때 쓴다.",
+      "example": "I support the single-owner handle, with two additional rules.",
+      "practice": "A single-owner handle prevents ambiguous cleanup across the ABI."
+    },
+    {
+      "phrase": "fail honestly",
+      "meaning_ko": "정직하게 실패하다",
+      "usage_ko": "실험이 불리한 결과도 숨기지 않고 드러내도록 설계할 때 쓴다.",
+      "example": "Now define the experiment so it can fail honestly.",
+      "practice": "The benchmark must be designed to fail honestly under an unfavorable result."
+    },
+    {
+      "phrase": "work packages",
+      "meaning_ko": "작업 패키지",
+      "usage_ko": "큰 실험을 책임과 산출물이 분명한 단위로 나눌 때 쓴다.",
+      "example": "I want work packages rather than a single end date.",
+      "practice": "We divided the migration study into four work packages with separate owners."
+    },
+    {
+      "phrase": "shadow comparison",
+      "meaning_ko": "shadow 비교",
+      "usage_ko": "실제 출력은 바꾸지 않고 새 구현 결과를 병렬 비교할 때 쓴다.",
+      "example": "Week three adds policy adapters and shadow comparison.",
+      "practice": "Shadow comparison reveals differences without changing production output."
+    },
+    {
+      "phrase": "hard ceilings",
+      "meaning_ko": "명확한 상한",
+      "usage_ko": "성능과 자원 사용에 넘을 수 없는 기준을 둘 때 쓴다.",
+      "example": "For device budgets, I propose hard ceilings rather than relative impressions.",
+      "practice": "The proposal includes hard ceilings for image size and startup time."
+    },
+    {
+      "phrase": "Advancement is not automatic",
+      "meaning_ko": "다음 단계 진행은 자동이 아니다",
+      "usage_ko": "게이트 승인 없이 후속 단계로 넘어가지 않음을 강조할 때 쓴다.",
+      "example": "Advancement is not automatic.",
+      "practice": "Advancement is not automatic when a required artifact is missing."
+    },
+    {
+      "phrase": "stop conditions",
+      "meaning_ko": "중단 조건",
+      "usage_ko": "실험이나 출시를 즉시 멈추게 할 기준을 말할 때 쓴다.",
+      "example": "We need a bounded hypothesis, a comparison baseline, explicit stop conditions, and owners for engineering, security, tooling, and validation.",
+      "practice": "Each team documented stop conditions before the first implementation phase."
+    },
+    {
+      "phrase": "displaced risk rather than reduced it",
+      "meaning_ko": "위험을 줄이지 않고 옮기다",
+      "usage_ko": "결함이 다른 계층으로 이동했을 뿐임을 지적할 때 쓴다.",
+      "example": "If the Rust core becomes safe but the adapter accumulates unchecked conversions, we have displaced risk rather than reduced it.",
+      "practice": "Unchecked adapter code would mean we displaced risk rather than reduced it."
+    },
+    {
+      "phrase": "keeps the gate closed",
+      "meaning_ko": "게이트를 닫아 둔다",
+      "usage_ko": "증거가 부족하면 진행 승인을 보류한다고 표현할 때 쓴다.",
+      "example": "Missing evidence does not roll into phase two as technical debt; it keeps the gate closed.",
+      "practice": "An unresolved security invariant keeps the gate closed."
+    },
+    {
+      "phrase": "limited experiment",
+      "meaning_ko": "제한된 실험",
+      "usage_ko": "광범위한 정책이나 도입 약속과 구분되는 작은 검증을 말할 때 쓴다.",
+      "example": "To close, the approved action is a limited experiment, not a migration commitment.",
+      "practice": "Management approved a limited experiment instead of a platform-wide mandate."
+    }
+  ]
+}
