@@ -1,0 +1,275 @@
+{
+  "date": "2026-11-03",
+  "category": "business",
+  "topic": "sw-debug",
+  "subject": "Tracing VSync Phase Drift after Variable Refresh Idle Exit",
+  "title_ko": "가변 주사율 저전력 복귀 후 VSync 위상 드리프트 추적",
+  "summary_ko": "가상의 Android 디스플레이 디버깅 회의에서 패널이 1Hz 유휴 상태에서 120Hz로 복귀한 직후 VSync 위상이 흔들려 프레임이 반복되는 문제를 분석한다. 팀들은 전환 generation·stable-train 신호·클록 재보정·보수적 스케줄링을 결합한 수정과 온도별 검증 게이트를 결정한다. 모든 인물·조직·단말·패널·펌웨어·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Sora Lim",
+      "team": "Display Framework"
+    },
+    {
+      "name": "Adrian Cole",
+      "team": "Composer HAL and BSP"
+    },
+    {
+      "name": "Mei Tan",
+      "team": "Panel Firmware"
+    },
+    {
+      "name": "Ethan Park",
+      "team": "System Performance"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and failure boundary",
+      "title_ko": "참석 확인과 실패 경계",
+      "turns": [
+        {
+          "speaker": "Ethan Park",
+          "en": "Display Framework, Composer HAL and BSP, Panel Firmware, and System Performance are represented. We are investigating a burst of visible jank after the Atlas display exits its one-hertz idle state and returns to 120 hertz. The issue lasts less than two seconds, but it affects unlock, notification expansion, and the first scroll. We need to identify which clock transition creates the phase error, decide whether the current candidate can continue, define experiments that separate panel timing from framework scheduling, assign fixes, and set a follow-up meeting. We are not lowering the product's smoothness target or disabling low-power idle as a permanent solution.",
+          "ko": "Display Framework, Composer HAL and BSP, Panel Firmware, System Performance 팀이 참석했습니다. Atlas 디스플레이가 1Hz 유휴 상태에서 빠져나와 120Hz로 돌아온 뒤 눈에 띄는 jank가 연속으로 발생하는 문제를 조사합니다. 문제는 2초 미만이지만 잠금 해제, 알림 확장, 첫 스크롤에 영향을 줍니다. 어떤 클록 전환이 위상 오류를 만드는지 식별하고, 현재 후보의 진행 여부를 결정하며, 패널 타이밍과 프레임워크 스케줄링을 분리하는 실험을 정의하고, 수정 담당과 후속 회의를 정해야 합니다. 제품의 부드러움 목표를 낮추거나 저전력 유휴를 영구 비활성화하지는 않습니다."
+        },
+        {
+          "speaker": "Sora Lim",
+          "en": "SurfaceFlinger sees the first new refresh-period event 34 milliseconds after touch wake. It updates the scheduler model immediately, but the next three hardware VSync timestamps arrive with intervals of 8.3, 16.7, and 8.3 milliseconds. The scheduler predicts a stable 8.3-millisecond cadence and advances application deadlines accordingly. Two frames then miss present, one frame repeats, and the layer history temporarily marks the foreground app as unreliable. The model recovers after eight samples. If we ignore the first pulses, the visible burst disappears in our prototype, but I do not want to hide a real panel or HAL ordering defect behind a framework filter.",
+          "ko": "SurfaceFlinger는 터치 깨우기 34밀리초 뒤 첫 새 refresh-period 이벤트를 봅니다. 스케줄러 모델을 즉시 갱신하지만 다음 세 개의 hardware VSync 타임스탬프 간격은 8.3, 16.7, 8.3밀리초입니다. 스케줄러는 안정적인 8.3밀리초 주기를 예측해 애플리케이션 마감 시간을 앞당깁니다. 그 뒤 두 프레임이 present를 놓치고 한 프레임이 반복되며 레이어 이력이 일시적으로 포그라운드 앱을 불안정하다고 표시합니다. 모델은 8개 표본 뒤 회복합니다. 첫 pulse들을 무시하면 시제품에서 눈에 띄는 burst가 사라지지만 실제 패널이나 HAL 순서 결함을 프레임워크 필터 뒤에 숨기고 싶지는 않습니다."
+        },
+        {
+          "speaker": "Adrian Cole",
+          "en": "Composer reports the mode change only after the display driver receives a completed command from the panel bridge. However, our trace has two timestamp domains. The kernel DRM event uses the system monotonic clock, while the panel bridge records transition markers from its local counter. The HAL converts that counter using a calibration captured before deep idle. During the first 40 milliseconds after resume, the conversion offset is stale by about 5.6 milliseconds. That can make a correct panel pulse look late or early. I suspect timestamp conversion, not an actual missing VSync. We should refresh the correlation before blaming the panel sequence.",
+          "ko": "Composer는 디스플레이 드라이버가 패널 브리지에서 완료된 명령을 받은 뒤에만 모드 변경을 보고합니다. 그러나 추적에는 두 개의 타임스탬프 도메인이 있습니다. 커널 DRM 이벤트는 시스템 monotonic clock을 쓰고 패널 브리지는 로컬 counter의 전환 marker를 기록합니다. HAL은 deep idle 전에 캡처한 보정을 사용해 그 counter를 변환합니다. 복귀 후 첫 40밀리초 동안 변환 offset이 약 5.6밀리초 오래돼 있습니다. 그러면 올바른 패널 pulse가 늦거나 빠르게 보일 수 있습니다. 실제 VSync 누락이 아니라 타임스탬프 변환을 의심합니다. 패널 순서를 탓하기 전에 상관관계를 새로 맞춰야 합니다."
+        },
+        {
+          "speaker": "Mei Tan",
+          "en": "The panel does intentionally produce one long interval during the transition. It exits self-refresh, waits for the source timing to lock, sends a confirmation pulse at the old phase, and then starts the 120-hertz train at the programmed phase. The interface specification permits that confirmation pulse, but the firmware release note did not explain it. On the previous panel revision, the confirmation pulse was suppressed, so this path is new to the candidate. I disagree that calibration explains everything: the raw oscilloscope trace also shows an interval close to 16.7 milliseconds. The system must either understand the transition pulse or request a different sequence.",
+          "ko": "패널은 전환 중 의도적으로 긴 간격 하나를 만듭니다. self-refresh에서 빠져나와 source timing이 lock되기를 기다리고, 이전 위상으로 확인 pulse를 보낸 다음 프로그램된 위상에서 120Hz train을 시작합니다. 인터페이스 사양은 그 확인 pulse를 허용하지만 펌웨어 릴리스 노트에는 설명되지 않았습니다. 이전 패널 리비전은 확인 pulse를 억제했으므로 이 경로는 후보에서 새로 생겼습니다. 보정이 모든 것을 설명한다는 데 동의하지 않습니다. 원시 오실로스코프 추적에도 16.7밀리초에 가까운 간격이 보입니다. 시스템이 전환 pulse를 이해하거나 다른 시퀀스를 요청해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and competing models",
+      "title_ko": "증거와 상충하는 모델",
+      "turns": [
+        {
+          "speaker": "Ethan Park",
+          "en": "We reproduced the burst on 84 of 100 candidate panels and zero of 40 previous-revision panels. It appears after at least six seconds at one hertz, not after a direct 60-to-120-hertz switch. Touch wake, power-button wake, and notification wake all trigger it, although touch makes it easier to see because content moves immediately. CPU frequency, GPU load, binder latency, and memory reclaim remain normal. FrameTimeline classifies between two and five frames as late. High-speed camera confirms a repeated image, so this is not only a trace interpretation problem. The question is whether the repeated image originates before composition, at present, or in panel scanout.",
+          "ko": "후보 패널 100개 중 84개에서 burst를 재현했고 이전 리비전 패널 40개에서는 한 건도 없었습니다. 1Hz에서 최소 6초 머문 뒤 나타나며 60Hz에서 120Hz로 직접 전환할 때는 나타나지 않습니다. 터치 깨우기, 전원 버튼 깨우기, 알림 깨우기 모두 유발하지만 터치는 콘텐츠가 즉시 움직여 더 쉽게 보입니다. CPU 주파수, GPU 부하, binder 지연, 메모리 reclaim은 정상입니다. FrameTimeline은 2개에서 5개 프레임을 late로 분류합니다. 고속 카메라는 반복 이미지를 확인하므로 단순한 추적 해석 문제는 아닙니다. 반복 이미지가 composition 전, present 시점, 패널 scanout 중 어디서 시작되는지가 질문입니다."
+        },
+        {
+          "speaker": "Sora Lim",
+          "en": "Application and RenderEngine traces show that new buffers are ready before the predicted latch deadlines. SurfaceFlinger skips one buffer because the present fence for the previous frame signals after the newly predicted deadline. If we retain the old 60-hertz deadline model until the cadence stabilizes, no buffer is skipped, but input-to-photon latency increases by up to eleven milliseconds. That may be acceptable for three frames, yet a fixed delay is not a principled contract. Framework needs a transition generation and an explicit statement of when timestamps become authoritative. Without those, every vendor sequence requires another heuristic.",
+          "ko": "애플리케이션과 RenderEngine 추적을 보면 새 buffer가 예측된 latch deadline 전에 준비됩니다. SurfaceFlinger는 이전 프레임의 present fence가 새로 예측된 deadline 뒤에 signal되므로 buffer 하나를 건너뜁니다. 주기가 안정될 때까지 기존 60Hz deadline 모델을 유지하면 buffer를 건너뛰지 않지만 input-to-photon 지연이 최대 11밀리초 늘어납니다. 세 프레임 동안은 허용할 수 있지만 고정 지연은 원칙적인 계약이 아닙니다. Framework에는 전환 generation과 타임스탬프가 권위 있게 되는 시점에 대한 명시적 선언이 필요합니다. 그것이 없으면 벤더 시퀀스마다 또 다른 heuristic이 필요합니다."
+        },
+        {
+          "speaker": "Adrian Cole",
+          "en": "The driver can expose a transition sequence number and tag every VSync event as transitional or stable. It already knows when the mode command starts, when the bridge acknowledges it, and when three consecutive target-period pulses have arrived. My concern is waiting for three pulses: that adds 25 milliseconds before Framework uses 120-hertz deadlines. We could instead mark the confirmation pulse as transitional and declare stability on the first subsequent target-period pair. The HAL would also recalculate clock correlation on resume using two samples rather than reusing the pre-idle offset. This gives Framework a semantic signal and correct timestamps without a hard-coded panel model.",
+          "ko": "드라이버는 전환 sequence number를 노출하고 모든 VSync 이벤트를 transitional 또는 stable로 태그할 수 있습니다. 모드 명령 시작, 브리지 확인, 목표 주기 pulse 세 개 연속 도착 시점을 이미 알고 있습니다. 제 우려는 pulse 세 개를 기다리는 것입니다. Framework가 120Hz deadline을 사용하기 전 25밀리초가 추가됩니다. 대신 확인 pulse를 transitional로 표시하고 그 다음 목표 주기 pair에서 안정 상태를 선언할 수 있습니다. HAL도 복귀 시 pre-idle offset을 재사용하지 않고 두 표본으로 클록 상관관계를 다시 계산합니다. 이렇게 하면 하드코딩된 패널 모델 없이 Framework에 의미 신호와 올바른 타임스탬프를 제공합니다."
+        },
+        {
+          "speaker": "Mei Tan",
+          "en": "A first target-period pair is not sufficient under temperature corners. At minus ten degrees Celsius, the source lock can settle, slip once, and settle again. We observed that in six of 300 chamber transitions. If the driver declares stability after the first pair, it can still expose a later double interval as normal. Firmware can add a stable-train bit after its internal phase detector sees four edges within tolerance. That bit arrives roughly 22 milliseconds after the first 120-hertz edge at room temperature and 31 milliseconds in the cold case. I prefer a real stability signal over inferring stability from host timestamps.",
+          "ko": "첫 목표 주기 pair만으로는 온도 corner에서 충분하지 않습니다. 영하 10도에서는 source lock이 안정됐다가 한 번 slip한 뒤 다시 안정될 수 있습니다. 챔버 전환 300회 중 6회에서 이를 관찰했습니다. 드라이버가 첫 pair 뒤 안정 상태를 선언하면 이후 double interval을 정상으로 노출할 수 있습니다. 펌웨어는 내부 phase detector가 허용 범위 안의 edge 네 개를 본 뒤 stable-train bit를 추가할 수 있습니다. 그 bit는 실온에서 첫 120Hz edge 뒤 약 22밀리초, 저온 사례에서 31밀리초에 도착합니다. 호스트 타임스탬프로 안정성을 추론하기보다 실제 안정 신호를 선호합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Experiment and compatibility design",
+      "title_ko": "실험과 호환성 설계",
+      "turns": [
+        {
+          "speaker": "Ethan Park",
+          "en": "We need to compare three designs without mixing their effects. Cell A refreshes clock correlation only. Cell B adds transition tagging based on host-observed pulses. Cell C adds the panel stable-train bit, clock refresh, and generation tagging. Each cell runs one-hertz idle exits at minus ten, twenty-five, and forty-five degrees; touch, power, and notification wake; 60-, 90-, and 120-hertz targets; and both static and scrolling content. We will execute 500 transitions per condition on candidate and previous panels. The gate is zero repeated image after the first target edge, no more than one late frame, and input-to-photon p99 below 75 milliseconds.",
+          "ko": "효과를 섞지 않고 세 설계를 비교해야 합니다. Cell A는 클록 상관관계만 갱신합니다. Cell B는 호스트가 관찰한 pulse 기반 전환 tagging을 추가합니다. Cell C는 패널 stable-train bit, 클록 갱신, generation tagging을 추가합니다. 각 셀은 영하 10도, 25도, 45도에서 1Hz 유휴 복귀, 터치·전원·알림 깨우기, 60·90·120Hz 목표, 정적·스크롤 콘텐츠를 실행합니다. 후보와 이전 패널에서 조건별 500회 전환을 수행합니다. 게이트는 첫 목표 edge 뒤 반복 이미지 0건, late frame 1개 이하, input-to-photon p99 75밀리초 미만입니다."
+        },
+        {
+          "speaker": "Sora Lim",
+          "en": "Framework will treat all transitional timestamps as observations, not scheduling anchors. It keeps the pre-transition deadline policy, latches the newest ready buffer, and avoids changing layer reliability scores. When a stable event arrives with the same generation, the scheduler resets phase using that timestamp and the declared period. If a new generation starts before stability, the older transition is abandoned. A 50-millisecond timeout enters a conservative 60-hertz policy and records an error; it does not guess 120 hertz. This behavior is panel-independent and keeps content moving, but we must verify that the temporary policy does not create touch latency or extra power cost.",
+          "ko": "Framework는 모든 transitional 타임스탬프를 scheduling anchor가 아니라 관찰값으로 취급합니다. 전환 전 deadline 정책을 유지하고 준비된 최신 buffer를 latch하며 레이어 reliability score를 바꾸지 않습니다. 같은 generation의 stable 이벤트가 오면 그 타임스탬프와 선언 주기로 스케줄러 위상을 재설정합니다. 안정 전에 새 generation이 시작되면 이전 전환은 폐기합니다. 50밀리초 timeout은 보수적인 60Hz 정책에 들어가 오류를 기록하며 120Hz를 추측하지 않습니다. 이 동작은 패널과 독립적이고 콘텐츠를 계속 움직이게 하지만 임시 정책이 터치 지연이나 추가 전력 비용을 만드는지 검증해야 합니다."
+        },
+        {
+          "speaker": "Adrian Cole",
+          "en": "HAL will define the event contract precisely. Every event contains generation, requested period, measured period, phase timestamp in monotonic time, and state. TRANSITIONAL means the timestamp is valid for diagnostics but not for deadline prediction. STABLE means the panel and bridge have confirmed the target train and clock correlation is refreshed. FAILED means the transition exceeded 50 milliseconds or correlation residual exceeded 700 microseconds. For old panel firmware without the stable bit, the driver uses four in-tolerance edges and marks the source as inferred. Framework handles both sources identically, while Validation can require stronger evidence for the new candidate.",
+          "ko": "HAL은 이벤트 계약을 정확히 정의합니다. 모든 이벤트는 generation, 요청 주기, 측정 주기, monotonic time의 위상 타임스탬프, state를 포함합니다. TRANSITIONAL은 타임스탬프가 진단에는 유효하지만 deadline 예측에는 쓸 수 없음을 뜻합니다. STABLE은 패널과 브리지가 목표 train을 확인했고 클록 상관관계가 갱신됐음을 뜻합니다. FAILED는 전환이 50밀리초를 넘었거나 상관관계 residual이 700마이크로초를 넘었음을 뜻합니다. stable bit가 없는 구형 패널 펌웨어에서는 드라이버가 허용 범위 edge 네 개를 사용하고 source를 inferred로 표시합니다. Framework는 두 source를 동일하게 처리하고 Validation은 새 후보에 더 강한 증거를 요구할 수 있습니다."
+        },
+        {
+          "speaker": "Mei Tan",
+          "en": "Panel Firmware will expose the stable-train bit and a one-byte transition reason. The bit clears before self-refresh exit begins and sets only after four accepted phase-detector edges. It cannot remain set across reset or a new mode request. The reason distinguishes normal wake, thermal retiming, link recovery, and failed lock. We will not expose raw analog values or tune thresholds from Android. Thresholds stay firmware-owned and versioned with the panel characterization package. I will provide a debug counter for rejected edges so chamber testing can explain a longer transition without changing the production interface.",
+          "ko": "Panel Firmware는 stable-train bit와 1바이트 전환 reason을 노출합니다. bit는 self-refresh exit 시작 전에 clear되고 phase detector edge 네 개를 수락한 뒤에만 set됩니다. reset이나 새 모드 요청을 넘어 set 상태로 남을 수 없습니다. reason은 정상 깨우기, 열 retiming, link recovery, lock 실패를 구분합니다. 원시 analog 값을 노출하거나 Android에서 임계값을 조정하지 않습니다. 임계값은 펌웨어 소유로 남고 패널 characterization package와 함께 버전 관리됩니다. 챔버 시험이 프로덕션 인터페이스를 바꾸지 않고 긴 전환을 설명할 수 있도록 거부된 edge의 debug counter를 제공합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision, owners, and release gate",
+      "title_ko": "결정, 담당과 릴리스 게이트",
+      "turns": [
+        {
+          "speaker": "Ethan Park",
+          "en": "The current display pair is blocked from release qualification. We will implement generation-tagged transition events, refresh clock correlation after idle, and use the panel stable-train bit on candidate firmware. Framework will not schedule from transitional pulses and will enter a conservative policy on timeout. Previous panels remain supported through inferred four-edge stability. Shipping requires Cell C to pass all conditions, the old-panel path to show no regression, and Cells A and B to confirm why partial fixes are insufficient. We will not waive repeated images as cosmetic, disable one-hertz idle globally, or rely on a fixed number of ignored pulses.",
+          "ko": "현재 디스플레이 조합은 릴리스 검증에서 차단합니다. generation이 태그된 전환 이벤트를 구현하고 유휴 뒤 클록 상관관계를 갱신하며 후보 펌웨어에서는 패널 stable-train bit를 사용합니다. Framework는 transitional pulse로 scheduling하지 않고 timeout 시 보수적 정책에 들어갑니다. 이전 패널은 inferred 4-edge stability로 계속 지원합니다. 출시하려면 Cell C가 모든 조건을 통과하고 구형 패널 경로에 회귀가 없으며 Cell A와 B가 부분 수정이 불충분한 이유를 확인해야 합니다. 반복 이미지를 단순 외관 문제로 면제하거나 1Hz 유휴를 전역 비활성화하거나 고정 개수 pulse 무시에 의존하지 않습니다."
+        },
+        {
+          "speaker": "Sora Lim",
+          "en": "I own scheduler transition handling, generation reset, timeout policy, and Framework tests. The patch is due November 3 at 17:00 KST, with review complete November 4 at noon. Tests cover overlapping mode requests, missing stable events, stale generations, app buffer bursts, power-button wake, and compositor restart. I will publish input-to-latch and input-to-photon deltas for the conservative window. My stop conditions are any layer-score penalty from transitional pulses, scheduling on a stale generation, or more than one repeated image in 5,000 simulated transitions.",
+          "ko": "스케줄러 전환 처리, generation reset, timeout 정책, Framework 시험은 제가 담당합니다. 패치는 11월 3일 오후 5시 KST까지이고 검토는 11월 4일 정오까지 완료합니다. 시험은 겹치는 모드 요청, 누락된 stable 이벤트, 오래된 generation, 앱 buffer burst, 전원 버튼 깨우기, compositor 재시작을 다룹니다. 보수적 구간의 input-to-latch와 input-to-photon 차이를 게시하겠습니다. transitional pulse로 인한 layer-score penalty, 오래된 generation 기반 scheduling, 시뮬레이션 전환 5천 회에서 반복 이미지 1개 초과가 중단 조건입니다."
+        },
+        {
+          "speaker": "Adrian Cole",
+          "en": "I own the kernel event fields, clock recalibration, inferred fallback, HAL translation, and trace tooling. Driver code is due November 4 at 11:00 KST, and integrated images are due at 18:00. Correlation uses two post-resume samples and rejects the result when residual exceeds 700 microseconds. A rejected correlation emits FAILED rather than a fabricated timestamp. I will verify suspend, panel reset, hotplug simulation, and rapid 1-to-120-to-60 transitions. My stop conditions are a generation reused after reset, STABLE emitted before correlation succeeds, or disagreement between kernel and HAL state.",
+          "ko": "커널 이벤트 필드, 클록 재보정, inferred fallback, HAL 변환, 추적 도구는 제가 담당합니다. 드라이버 코드는 11월 4일 오전 11시까지이고 통합 이미지는 오후 6시까지입니다. 상관관계는 복귀 후 표본 두 개를 사용하고 residual이 700마이크로초를 넘으면 결과를 거부합니다. 거부된 상관관계는 조작된 타임스탬프 대신 FAILED를 내보냅니다. suspend, 패널 reset, hotplug simulation, 빠른 1→120→60 전환을 검증합니다. reset 뒤 generation 재사용, 상관관계 성공 전 STABLE 방출, 커널과 HAL state 불일치가 중단 조건입니다."
+        },
+        {
+          "speaker": "Mei Tan",
+          "en": "I own the stable-train bit, transition reasons, edge counter, and chamber characterization. Prototype firmware is due November 4 at 09:00 KST, and the signed candidate is due November 5 at 13:00 after electrical review. We will run 10,000 transitions across temperature and voltage corners, including link recovery during phase lock. The bit must clear within one panel command interval and never set without four accepted edges. My stop conditions are a false stable indication, a reason code that changes without a new generation, or any threshold change not accompanied by characterization evidence.",
+          "ko": "stable-train bit, 전환 reason, edge counter, 챔버 characterization은 제가 담당합니다. 시제품 펌웨어는 11월 4일 오전 9시까지이고 서명 후보는 전기 검토 뒤 11월 5일 오후 1시까지입니다. 온도와 전압 corner에서 link recovery 중 phase lock을 포함해 전환 1만 회를 실행합니다. bit는 패널 명령 한 구간 안에 clear돼야 하고 수락된 edge 네 개 없이 set되면 안 됩니다. 잘못된 stable 표시, 새 generation 없이 바뀌는 reason code, characterization 증거 없는 임계값 변경이 중단 조건입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Residual risks and next checkpoint",
+      "title_ko": "잔여 위험과 다음 점검",
+      "turns": [
+        {
+          "speaker": "Sora Lim",
+          "en": "One residual risk is animation timing during the conservative window. Keeping the previous policy can make a 120-hertz animation advance on 60-hertz deadlines, producing uneven velocity even without repeated frames. Framework will freeze the animation phase origin at transition start and resume it from the first stable timestamp, while still accepting the newest buffer. We will compare scroll distance and choreographer callback spacing before and after the window. The fix must not replay callbacks or compress missed animation time into one frame. Accessibility animations disabled and reduced-motion settings also need separate coverage.",
+          "ko": "잔여 위험 하나는 보수적 구간의 애니메이션 타이밍입니다. 이전 정책을 유지하면 120Hz 애니메이션이 60Hz deadline으로 진행돼 반복 프레임 없이도 속도가 고르지 않을 수 있습니다. Framework는 전환 시작에 애니메이션 위상 origin을 고정하고 최신 buffer는 계속 받으면서 첫 stable 타임스탬프에서 재개합니다. 구간 전후의 스크롤 거리와 choreographer callback 간격을 비교합니다. 수정이 callback을 재생하거나 놓친 애니메이션 시간을 한 프레임에 압축하면 안 됩니다. 접근성 애니메이션 비활성화와 reduced-motion 설정도 별도 검증해야 합니다."
+        },
+        {
+          "speaker": "Adrian Cole",
+          "en": "Another risk is event loss if the compositor reconnects while a transition is active. The driver will keep the latest generation state and return it on registration. A new client receives TRANSITIONAL, STABLE, or FAILED plus the original phase timestamp; it does not wait for another physical edge to learn the state. HAL deduplicates by generation and state, not timestamp alone. We will kill and restart Composer at four points around the mode command. A reconnect must not transform a transitional pulse into stable or cause Framework to apply the same phase reset twice.",
+          "ko": "또 다른 위험은 전환 중 compositor가 다시 연결될 때의 이벤트 손실입니다. 드라이버는 최신 generation state를 유지하고 등록 시 반환합니다. 새 클라이언트는 원래 위상 타임스탬프와 함께 TRANSITIONAL, STABLE, FAILED 중 하나를 받으며 상태를 알기 위해 또 다른 물리 edge를 기다리지 않습니다. HAL은 타임스탬프만이 아니라 generation과 state로 중복 제거합니다. 모드 명령 전후 네 지점에서 Composer를 종료하고 재시작합니다. 재연결이 transitional pulse를 stable로 바꾸거나 Framework가 같은 위상 reset을 두 번 적용하게 하면 안 됩니다."
+        },
+        {
+          "speaker": "Ethan Park",
+          "en": "System Performance owns the cell matrix, high-speed camera correlation, power measurement, and final recommendation. Baseline capture finishes today at 19:00 KST. Integrated testing starts November 4 at 20:00 and completes November 6 at noon. Every failure retains panel revision, firmware digest, temperature, wake source, target rate, generation events, fences, and video frame numbers. We will report distributions and the worst ten traces. A device is excluded only for a documented hardware fault unrelated to display timing; slow or inconvenient results remain in the denominator.",
+          "ko": "System Performance는 셀 매트릭스, 고속 카메라 상관관계, 전력 측정, 최종 권고를 담당합니다. 기준선 캡처는 오늘 오후 7시 KST에 끝납니다. 통합 시험은 11월 4일 오후 8시에 시작해 11월 6일 정오에 완료합니다. 모든 실패는 패널 리비전, 펌웨어 digest, 온도, 깨우기 source, 목표 주사율, generation 이벤트, fence, 비디오 frame number를 보존합니다. 분포와 최악 추적 10개를 보고합니다. 디스플레이 타이밍과 무관한 문서화된 하드웨어 결함만 단말 제외 사유이며 느리거나 불편한 결과는 분모에 남깁니다."
+        },
+        {
+          "speaker": "Ethan Park",
+          "en": "The follow-up meeting is Friday, November 6, at 15:30 KST. We will review all three cells, chamber evidence, clock residuals, animation continuity, compositor restart, latency, and idle power. Approval requires all four teams. Missing stable events, unexplained repeated images, or a p99 above the target keeps the gate closed and triggers a corrected full-cell rerun. We will not cherry-pick room-temperature results or treat a trace-only improvement as visual proof. I will distribute today's decision record and test identifiers by 18:00 KST.",
+          "ko": "후속 회의는 11월 6일 금요일 오후 3시 30분 KST입니다. 세 셀 전체, 챔버 증거, 클록 residual, 애니메이션 연속성, compositor 재시작, 지연, 유휴 전력을 검토합니다. 승인에는 네 팀 모두가 필요합니다. stable 이벤트 누락, 설명되지 않은 반복 이미지, 목표 초과 p99는 게이트를 닫아 두고 수정된 전체 셀 재실행을 유발합니다. 실온 결과만 골라내거나 trace 개선만을 시각적 증거로 취급하지 않습니다. 오늘 오후 6시 KST까지 결정 기록과 시험 식별자를 배포하겠습니다."
+        },
+        {
+          "speaker": "Mei Tan",
+          "en": "Panel Firmware will also verify suspend interruption and rapid user interaction, because a second wake request may arrive while the first phase lock is incomplete. We will inject a new brightness command, a color-mode change, and a brief link reset at every edge of the transition state machine. The generation must advance only for a new refresh transition; unrelated commands must preserve the active generation and cannot clear a failure. For each injected event, the panel log will include the accepted edge count, lock confidence, stable-train bit, reason code, and bridge acknowledgment. If those records disagree with the electrical capture, we will stop the run and diagnose instrumentation before drawing a product conclusion. This protects us from approving a protocol whose apparent success depends on missing telemetry.",
+          "ko": "Panel Firmware는 첫 위상 lock이 완료되기 전에 두 번째 깨우기 요청이 올 수 있으므로 suspend 중단과 빠른 사용자 상호작용도 검증합니다. 전환 상태 머신의 모든 edge에서 새 밝기 명령, 색상 모드 변경, 짧은 link reset을 주입합니다. generation은 새 주사율 전환에만 증가해야 하며 관련 없는 명령은 활성 generation을 보존하고 실패를 지울 수 없습니다. 주입 이벤트마다 패널 로그에 수락된 edge 수, lock confidence, stable-train bit, reason code, bridge 확인을 포함합니다. 이 기록이 전기적 캡처와 다르면 제품 결론을 내리기 전에 실행을 중단하고 계측을 진단합니다. 이는 누락된 telemetry에 기대어 성공한 것처럼 보이는 프로토콜을 승인하지 않도록 보호합니다."
+        },
+        {
+          "speaker": "Sora Lim",
+          "en": "Framework will add two negative tests to keep the new contract honest. First, a synthetic producer will deliver valid buffers while stable is delayed for 49 milliseconds; the compositor must continue presenting without changing phase early. Second, the test HAL will send a stale STABLE event from the previous generation after a new transition begins; SurfaceFlinger must reject it, retain the current conservative policy, and emit one structured diagnostic rather than flooding the log. We will run both tests with screen recording, picture-in-picture, and a secure layer active, since those paths use different fence patterns. Success means no skipped ready buffer, no duplicate phase reset, bounded diagnostics, and identical recovery after the correct stable event arrives. These tests become presubmit requirements for any later change to the transition contract.",
+          "ko": "Framework는 새 계약이 정확히 지켜지도록 두 가지 부정 테스트를 추가합니다. 첫째, 합성 producer가 stable이 49밀리초 지연되는 동안 유효한 buffer를 전달하며 compositor는 위상을 일찍 바꾸지 않고 계속 present해야 합니다. 둘째, 테스트 HAL이 새 전환 시작 뒤 이전 generation의 오래된 STABLE 이벤트를 보내며 SurfaceFlinger는 이를 거부하고 현재의 보수적 정책을 유지하며 로그를 범람시키지 않고 구조화된 진단 하나를 내야 합니다. fence 패턴이 다른 경로이므로 화면 녹화, picture-in-picture, secure layer가 활성화된 상태에서 두 테스트를 모두 실행합니다. 성공 조건은 준비된 buffer 누락 없음, 중복 위상 reset 없음, 제한된 진단, 올바른 stable 이벤트 도착 뒤 동일한 회복입니다. 이 테스트들은 이후 전환 계약 변경의 presubmit 요구 사항이 됩니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "identify which clock transition",
+      "meaning_ko": "어떤 클록 전환인지 식별하다",
+      "usage_ko": "여러 타이밍 변화 중 원인을 좁힐 때 쓴다.",
+      "example": "We need to identify which clock transition creates the phase error, decide whether the current candidate can continue, define experiments that separate panel timing from framework scheduling, assign fixes, and set a follow-up meeting.",
+      "practice": "The trace must identify which clock transition shifts the audio timestamp."
+    },
+    {
+      "phrase": "hide a real panel or HAL ordering defect behind",
+      "meaning_ko": "실제 패널 또는 HAL 순서 결함을 뒤에 숨기다",
+      "usage_ko": "완화책이 근본 문제를 가리는 것을 경계할 때 쓴다.",
+      "example": "If we ignore the first pulses, the visible burst disappears in our prototype, but I do not want to hide a real panel or HAL ordering defect behind a framework filter.",
+      "practice": "A retry can hide a real panel or HAL ordering defect behind a successful final response."
+    },
+    {
+      "phrase": "timestamp conversion",
+      "meaning_ko": "타임스탬프 변환",
+      "usage_ko": "클록 도메인 사이 시간 값을 바꿀 때 쓴다.",
+      "example": "I suspect timestamp conversion, not an actual missing VSync.",
+      "practice": "We verified timestamp conversion against the shared monotonic clock."
+    },
+    {
+      "phrase": "raw oscilloscope trace",
+      "meaning_ko": "원시 오실로스코프 추적",
+      "usage_ko": "측정 해석의 기준 자료를 말할 때 쓴다.",
+      "example": "I disagree that calibration explains everything: the raw oscilloscope trace also shows an interval close to 16.7 milliseconds.",
+      "practice": "The oscilloscope capture provides raw oscilloscope trace for the interrupt sequence."
+    },
+    {
+      "phrase": "a principled contract",
+      "meaning_ko": "원칙에 기반한 계약",
+      "usage_ko": "임시 heuristic 대신 명확한 규칙을 요구할 때 쓴다.",
+      "example": "That may be acceptable for three frames, yet a fixed delay is not a principled contract.",
+      "practice": "The new API gives both teams a principled contract instead of a delay constant."
+    },
+    {
+      "phrase": "declare stability",
+      "meaning_ko": "안정 상태를 선언하다",
+      "usage_ko": "전환이 끝나 정상 주기로 들어갔음을 알릴 때 쓴다.",
+      "example": "We could instead mark the confirmation pulse as transitional and declare stability on the first subsequent target-period pair.",
+      "practice": "The controller must not declare stability until the link check completes."
+    },
+    {
+      "phrase": "a real stability signal",
+      "meaning_ko": "실제 안정 신호",
+      "usage_ko": "추론이 아닌 하드웨어 확인값을 말할 때 쓴다.",
+      "example": "I prefer a real stability signal over inferring stability from host timestamps.",
+      "practice": "The driver needs a real stability signal before releasing buffered work."
+    },
+    {
+      "phrase": "without mixing their effects",
+      "meaning_ko": "효과를 섞지 않고",
+      "usage_ko": "여러 수정의 효과를 독립 비교할 때 쓴다.",
+      "example": "We need to compare three designs without mixing their effects.",
+      "practice": "Run the two patches separately without mixing their effects."
+    },
+    {
+      "phrase": "scheduling anchors",
+      "meaning_ko": "스케줄링 기준점",
+      "usage_ko": "deadline 예측의 기준 타임스탬프를 말할 때 쓴다.",
+      "example": "Framework will treat all transitional timestamps as observations, not scheduling anchors.",
+      "practice": "Transitional events are diagnostics, not scheduling anchors."
+    },
+    {
+      "phrase": "fabricated timestamp",
+      "meaning_ko": "조작된 타임스탬프",
+      "usage_ko": "근거 없이 만들어낸 시간 값을 경계할 때 쓴다.",
+      "example": "A rejected correlation emits FAILED rather than a fabricated timestamp.",
+      "practice": "Return an error rather than a fabricated timestamp."
+    },
+    {
+      "phrase": "blocked from release qualification",
+      "meaning_ko": "릴리스 검증에서 차단되다",
+      "usage_ko": "문제가 해결될 때까지 후보 진행을 막을 때 쓴다.",
+      "example": "The current display pair is blocked from release qualification.",
+      "practice": "The candidate is blocked from release qualification until the cold test passes."
+    },
+    {
+      "phrase": "partial fixes are insufficient",
+      "meaning_ko": "부분 수정은 불충분하다",
+      "usage_ko": "한 계층 변경만으로 해결되지 않음을 말할 때 쓴다.",
+      "example": "Shipping requires Cell C to pass all conditions, the old-panel path to show no regression, and Cells A and B to confirm why partial fixes are insufficient.",
+      "practice": "The comparison shows why partial fixes are insufficient for supported devices."
+    },
+    {
+      "phrase": "residual risk",
+      "meaning_ko": "잔여 위험",
+      "usage_ko": "주요 수정 뒤에도 남은 위험을 말할 때 쓴다.",
+      "example": "One residual risk is animation timing during the conservative window.",
+      "practice": "Reconnect ordering remains a residual risk after the main correction."
+    },
+    {
+      "phrase": "remain in the denominator",
+      "meaning_ko": "분모에 남다",
+      "usage_ko": "불리한 결과도 통계에서 제외하지 않을 때 쓴다.",
+      "example": "A device is excluded only for a documented hardware fault unrelated to display timing; slow or inconvenient results remain in the denominator.",
+      "practice": "Every supported device must remain in the denominator unless hardware is defective."
+    },
+    {
+      "phrase": "keeps the gate closed",
+      "meaning_ko": "게이트를 닫아 둔다",
+      "usage_ko": "통과 조건 미충족 시 진행을 막을 때 쓴다.",
+      "example": "Missing stable events, unexplained repeated images, or a p99 above the target keeps the gate closed and triggers a corrected full-cell rerun.",
+      "practice": "An unexplained frame repeat keeps the gate closed."
+    }
+  ]
+}
