@@ -1,0 +1,270 @@
+{
+  "date": "2026-11-04",
+  "category": "business",
+  "topic": "sw-tech",
+  "subject": "Designing Bounded Crash Telemetry for an Always On Sensor Hub",
+  "title_ko": "항상 켜진 센서 허브를 위한 제한형 장애 텔레메트리 설계",
+  "summary_ko": "가상의 Android 시스템 SW 설계 회의에서 간헐적으로 센서 이벤트 전달이 멈추는 문제를 추적하기 위해 제한된 failure capsule을 설계한다. 팀들은 end-to-end sequence, freeze predicate, 개인정보 최소화, 전력·지연 게이트와 내부 pilot 조건을 합의한다. 모든 인물·조직·단말·센서·펌웨어·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Nina Cho",
+      "team": "Sensor Framework"
+    },
+    {
+      "name": "Marcus Reed",
+      "team": "Sensor Hub BSP"
+    },
+    {
+      "name": "Priya Nair",
+      "team": "Privacy and Product Security"
+    },
+    {
+      "name": "Daniel Wu",
+      "team": "System Validation and Power"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and diagnostic objective",
+      "title_ko": "참석 확인과 진단 목표",
+      "turns": [
+        {
+          "speaker": "Nina Cho",
+          "en": "Sensor Framework, Sensor Hub BSP, Privacy and Product Security, and System Validation and Power are represented. We are here because the Atlas motion hub occasionally stops delivering significant-motion and lift-to-wake events after several days of mixed use. The application processor remains healthy, and restarting the sensor service restores delivery, but the current logs cannot distinguish a firmware queue stall, a broken shared-memory doorbell, or an incorrect framework subscription. Our objective is to design diagnostic telemetry that captures the failure without recording sensitive motion history, draining the battery, or changing timing enough to hide the fault. We also need owners, quantitative gates, and a specific review date.",
+          "ko": "Sensor Framework, Sensor Hub BSP, Privacy and Product Security, System Validation and Power 팀이 참석했습니다. Atlas 모션 허브가 며칠간 혼합 사용된 뒤 significant-motion과 lift-to-wake 이벤트 전달을 간헐적으로 중단하는 문제 때문에 모였습니다. 애플리케이션 프로세서는 정상이며 센서 서비스를 재시작하면 전달이 복원되지만 현재 로그로는 펌웨어 큐 정지, 공유 메모리 doorbell 단절, 프레임워크 구독 오류를 구분할 수 없습니다. 민감한 동작 이력을 기록하거나 배터리를 소모하거나 결함을 숨길 만큼 타이밍을 바꾸지 않으면서 실패를 포착하는 진단 telemetry를 설계하는 것이 목표입니다. 담당자, 정량 게이트, 구체적인 검토 날짜도 정해야 합니다."
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "Validation has reproduced 17 failures in 1,920 device-days, mostly after repeated transitions among pocket detection, navigation, exercise tracking, and overnight idle. The median time to failure is 83 hours, so a laboratory loop that resets the device every shift misses it. In every captured case, the application processor receives no wake interrupt for at least 90 seconds, while hub current stays near the normal idle level. A service restart recovers 12 cases; five require a hub reset. We need evidence from before the symptom, not merely a snapshot after recovery. However, adding verbose tracing continuously could alter queue pressure and make the rare failure disappear.",
+          "ko": "Validation은 1,920 device-day 동안 실패 17건을 재현했으며 대부분 pocket detection, navigation, exercise tracking, overnight idle 사이를 반복 전환한 뒤 발생했습니다. 실패까지 걸린 시간 중앙값이 83시간이라 교대마다 단말을 초기화하는 실험실 루프는 문제를 놓칩니다. 포착된 모든 사례에서 애플리케이션 프로세서는 최소 90초 동안 wake interrupt를 받지 못했지만 허브 전류는 정상 유휴 수준 근처였습니다. 서비스 재시작으로 12건이 복구됐고 5건은 허브 reset이 필요했습니다. 복구 뒤 snapshot뿐 아니라 증상 이전의 증거가 필요합니다. 그러나 상세 tracing을 계속 추가하면 큐 압력을 바꿔 희귀 실패가 사라질 수 있습니다."
+        },
+        {
+          "speaker": "Marcus Reed",
+          "en": "The hub already keeps counters for produced events, consumed events, mailbox notifications, dropped records, watchdog passes, and task heartbeats. Today those counters are lost on reset, and their names differ across firmware branches. I propose a compact circular record containing typed state transitions and monotonic deltas. It would preserve the last 256 records in retention SRAM and expose them only after a signed diagnostic request. The record must not contain raw accelerometer samples. My concern is that framework-only logging cannot prove whether an event existed before the shared-memory boundary. We need one sequence identifier that follows an event from the firmware producer through the kernel transport to the framework dispatcher.",
+          "ko": "허브에는 생성 이벤트, 소비 이벤트, mailbox 알림, 폐기 record, watchdog 통과, task heartbeat counter가 이미 있습니다. 현재 이 counter들은 reset 시 사라지고 펌웨어 branch마다 이름이 다릅니다. typed 상태 전환과 monotonic delta를 담는 compact circular record를 제안합니다. retention SRAM에 마지막 256개 record를 보존하고 서명된 진단 요청 뒤에만 노출합니다. record에는 원시 accelerometer sample을 넣으면 안 됩니다. 제 우려는 프레임워크 로그만으로 이벤트가 공유 메모리 경계 전에 존재했는지 입증할 수 없다는 점입니다. 펌웨어 producer에서 kernel transport를 거쳐 framework dispatcher까지 이벤트를 따라가는 하나의 sequence identifier가 필요합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "A sequence identifier is acceptable only if its lifetime is bounded and it cannot correlate a person's activity across reboots or applications. Even typed transitions can reveal routines if they name gestures, exercise modes, or sleep periods with precise timestamps. We should start from the minimum evidence required to separate the three failure classes. Security also needs a threat model for who can arm collection, who can read it, how long it survives, and whether an attacker can use the diagnostic path to keep the hub awake. I oppose a general-purpose trace pipe. A narrowly defined failure capsule with coarse time, enumerated states, access control, and automatic expiry is easier to audit and safer to maintain.",
+          "ko": "sequence identifier는 수명이 제한되고 재부팅이나 애플리케이션을 넘어 개인 활동을 연계할 수 없을 때만 허용할 수 있습니다. gesture, exercise mode, sleep period를 정확한 timestamp와 함께 이름 붙이면 typed 전환도 생활 패턴을 드러낼 수 있습니다. 세 가지 실패 유형을 구분하는 데 필요한 최소 증거부터 시작해야 합니다. Security는 누가 수집을 arm하고 읽을 수 있는지, 얼마나 오래 유지되는지, 공격자가 진단 경로를 이용해 허브를 계속 깨울 수 있는지에 대한 threat model도 필요합니다. 범용 trace pipe에는 반대합니다. 거친 시간, 열거된 상태, 접근 제어, 자동 만료를 가진 좁게 정의된 failure capsule이 감사하기 쉽고 유지하기 더 안전합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and competing proposals",
+      "title_ko": "증거와 상충하는 제안",
+      "turns": [
+        {
+          "speaker": "Nina Cho",
+          "en": "Framework evidence narrows the problem but does not close it. Subscription generation increments correctly when clients register and unregister. In six failures, the framework still held an active significant-motion request, yet the kernel's delivered-event counter stopped. In four other cases, the kernel counter advanced once without a corresponding dispatcher record. Those cases suggest at least two paths. A single end-to-end identifier would let us separate transport loss from an idle producer, but we do not need persistent client identity. We can generate a random boot-scoped epoch, combine it with a 16-bit event sequence, and discard the epoch on reboot. The framework capsule would store only generation changes, queue depth bands, and delivery outcomes.",
+          "ko": "Framework 증거는 문제 범위를 좁히지만 결론을 내리지는 못합니다. client 등록과 해제 시 subscription generation은 올바르게 증가합니다. 실패 6건에서 framework는 active significant-motion 요청을 유지했지만 kernel의 delivered-event counter가 멈췄습니다. 다른 4건에서는 대응하는 dispatcher record 없이 kernel counter가 한 번 증가했습니다. 최소 두 경로가 있음을 시사합니다. end-to-end identifier 하나면 transport loss와 idle producer를 구분할 수 있지만 지속적인 client identity는 필요 없습니다. 무작위 boot-scoped epoch를 만들고 16-bit event sequence와 결합하며 reboot 때 epoch를 폐기할 수 있습니다. framework capsule은 generation 변경, queue depth band, delivery outcome만 저장합니다."
+        },
+        {
+          "speaker": "Marcus Reed",
+          "en": "Firmware can emit six event types: subscription accepted, sensor task awake, record enqueued, doorbell written, consumer acknowledged, and recovery started. Each uses a relative tick bucket rather than wall-clock time. Queue depth is encoded as empty, low, medium, high, or full. Task identity is limited to motion acquisition, classifier, and transport; no customer feature name appears. A 256-entry buffer costs 4,096 bytes and one record write takes 1.8 microseconds in our prototype. The buffer overwrites oldest entries and freezes only when a failure predicate fires. I want the predicate in firmware because waiting for Android to notice a 90-second gap may overwrite the causal window.",
+          "ko": "Firmware는 subscription accepted, sensor task awake, record enqueued, doorbell written, consumer acknowledged, recovery started 여섯 event type을 내보낼 수 있습니다. 각 항목은 wall-clock time 대신 상대 tick bucket을 사용합니다. queue depth는 empty, low, medium, high, full로 인코딩합니다. task identity는 motion acquisition, classifier, transport로 제한하며 고객 feature 이름은 나타나지 않습니다. 256-entry buffer는 4,096바이트를 사용하고 시제품에서 record write 하나는 1.8마이크로초 걸립니다. buffer는 가장 오래된 항목을 덮어쓰고 failure predicate가 발동할 때만 freeze합니다. Android가 90초 gap을 알아차릴 때까지 기다리면 원인 구간을 덮어쓸 수 있으므로 predicate를 firmware에 두고 싶습니다."
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "A firmware predicate based only on missing events can create false captures because significant motion may legitimately remain quiet for hours. The reliable symptom is disagreement among obligations and progress signals. When an active subscription exists, the classifier heartbeat advances, and no consumer acknowledgment follows a produced record within two seconds, that is suspicious. A second predicate should detect a transport heartbeat that stops for five intervals while acquisition remains active. Validation can inject each failure independently: stop the classifier, suppress the doorbell, corrupt an acknowledgment, and remove a framework subscription during delivery. If the capsule cannot identify which injection occurred, it is collecting activity rather than diagnostic evidence.",
+          "ko": "이벤트 부재만을 근거로 한 firmware predicate는 significant motion이 정상적으로 몇 시간 조용할 수 있어 잘못된 캡처를 만들 수 있습니다. 신뢰할 수 있는 증상은 obligation과 progress signal 사이의 불일치입니다. active subscription이 있고 classifier heartbeat가 진행되며 생성 record 뒤 2초 안에 consumer acknowledgment가 없으면 의심스럽습니다. 두 번째 predicate는 acquisition이 active인 동안 transport heartbeat가 다섯 interval 동안 멈추는 것을 감지해야 합니다. Validation은 classifier 중단, doorbell 억제, acknowledgment 손상, 전달 중 framework subscription 제거를 각각 독립적으로 주입할 수 있습니다. capsule이 어떤 주입이 발생했는지 식별하지 못한다면 진단 증거가 아니라 활동을 수집하는 것입니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "That criterion gives us a defensible boundary. I also require that capture remain on device until an authorized engineering build retrieves it, with no automatic production upload in the first phase. The capsule should be encrypted under a device diagnostic key, bound to the firmware measurement, and erased after seven days or three successful reads, whichever comes first. Production builds may retain only aggregate trigger counts unless a separately reviewed field program is approved. We should test abuse cases: repeated arming, malformed read commands, rollback to older firmware, and attempts by an unprivileged process to infer whether a capsule exists. A secure design must fail closed without turning a diagnostic fault into a sensor outage.",
+          "ko": "그 기준이면 방어 가능한 경계가 됩니다. 첫 단계에서는 승인된 engineering build가 가져갈 때까지 capture가 단말에 남고 자동 production upload가 없어야 합니다. capsule은 device diagnostic key로 암호화하고 firmware measurement에 bind하며 7일 또는 성공적인 읽기 3회 중 먼저 도달하는 시점에 삭제해야 합니다. 별도 검토된 field program이 승인되지 않으면 production build는 aggregate trigger count만 유지할 수 있습니다. 반복 arming, malformed read command, 구형 firmware rollback, 비권한 process가 capsule 존재 여부를 추론하려는 시도를 시험해야 합니다. 안전한 설계는 진단 fault를 센서 outage로 바꾸지 않으면서 fail closed해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Contract and experiment design",
+      "title_ko": "계약과 실험 설계",
+      "turns": [
+        {
+          "speaker": "Nina Cho",
+          "en": "I propose a three-layer contract. Firmware owns local progress states and freezes its buffer. The kernel transport attaches boot epoch, sequence, and acknowledgment result without interpreting gestures. Framework records subscription generation, delivery result, and recovery action. A capsule assembler reads all layers only after the kernel verifies the signed request, then emits a versioned schema. Missing data is explicit; the assembler must never invent continuity across a reset. We will compare four cells: no telemetry, counters only, typed records without freeze, and the complete capsule. The comparison must prove that diagnosis improves while reproduction rate, interrupt latency, and idle power remain statistically equivalent.",
+          "ko": "세 계층 계약을 제안합니다. Firmware는 local progress state를 소유하고 buffer를 freeze합니다. Kernel transport는 gesture를 해석하지 않고 boot epoch, sequence, acknowledgment result를 붙입니다. Framework는 subscription generation, delivery result, recovery action을 기록합니다. capsule assembler는 kernel이 signed request를 검증한 뒤에만 모든 계층을 읽고 versioned schema를 생성합니다. 누락 데이터는 명시적으로 표시하며 assembler는 reset을 넘어 연속성을 만들어내면 안 됩니다. telemetry 없음, counter만, freeze 없는 typed record, 완전한 capsule 네 cell을 비교합니다. 진단 능력은 향상되고 재현율, interrupt latency, idle power는 통계적으로 동일함을 입증해야 합니다."
+        },
+        {
+          "speaker": "Marcus Reed",
+          "en": "The firmware schema will start at version one and reserve fields rather than reuse meanings. Every record carries schema version, boot epoch hash, sequence, relative tick bucket, event type, state code, queue band, and result. Unknown event types are skipped by length, not treated as fatal. The hub freezes at most one capsule per boot and refuses another arm request until the prior capsule expires or is read. If retention SRAM integrity fails, firmware reports unavailable and continues normal sensing. Diagnostic storage is never on the real-time path for event delivery. I will provide a decoder and golden byte vectors so the kernel and offline tools can test compatibility without running the hub.",
+          "ko": "firmware schema는 version 1에서 시작하고 의미를 재사용하지 않고 field를 예약합니다. 모든 record는 schema version, boot epoch hash, sequence, relative tick bucket, event type, state code, queue band, result를 담습니다. 알 수 없는 event type은 치명 오류로 처리하지 않고 길이에 따라 건너뜁니다. 허브는 boot당 capsule 하나만 freeze하며 이전 capsule이 만료되거나 읽히기 전에는 다른 arm 요청을 거부합니다. retention SRAM integrity가 실패하면 firmware는 unavailable을 보고하고 정상 sensing을 계속합니다. diagnostic storage는 event 전달의 real-time path에 절대 놓이지 않습니다. kernel과 offline tool이 허브를 실행하지 않고 호환성을 시험하도록 decoder와 golden byte vector를 제공하겠습니다."
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "Validation will run 2,000 hours per cell across four devices, then a 30,000-cycle accelerated state-transition suite. We will measure failure incidence with confidence intervals, hub current at 1-hertz sampling, application-processor wakeups, event latency p50 and p99, capsule precision for six injected faults, and false-trigger rate during ordinary quiet periods. The gate is at least 95 percent correct fault classification, zero raw sample fields, less than 0.3 percent idle-power increase, less than 200 microseconds p99 delivery overhead, and fewer than one false capsule per 1,000 device-hours. Any cell that changes the natural failure rate by more than the agreed interval is inconclusive, not successful.",
+          "ko": "Validation은 cell당 4개 단말에서 2,000시간을 실행한 뒤 30,000-cycle accelerated state-transition suite를 수행합니다. confidence interval을 포함한 실패 발생률, 1Hz sampling에서 허브 전류, application-processor wakeup, event latency p50과 p99, 주입 fault 여섯 개에 대한 capsule precision, 정상적인 quiet period의 false-trigger rate를 측정합니다. 게이트는 fault 분류 정확도 최소 95%, raw sample field 0개, idle-power 증가 0.3% 미만, delivery overhead p99 200마이크로초 미만, 1,000 device-hour당 false capsule 1개 미만입니다. 자연 실패율을 합의된 interval보다 크게 바꾸는 cell은 성공이 아니라 inconclusive로 판단합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "Security will review the schema field by field and run a data minimization test before code review closes. We will reject exact wall-clock timestamps, raw vectors, application package names, account identifiers, free-form strings, and stable cross-boot identifiers. The read API requires a hardware-backed diagnostic authorization, verified boot state, rate limiting, and an audit event that contains no capsule payload. Decryption occurs only in the approved analysis environment. We will fuzz every length and enum, simulate power loss during freeze and erase, and verify that rollback cannot resurrect an expired capsule. The privacy gate is binary: a prohibited field blocks integration even if the engineering value is high.",
+          "ko": "Security는 schema를 field별로 검토하고 code review 종료 전에 data minimization test를 실행합니다. 정확한 wall-clock timestamp, raw vector, application package name, account identifier, free-form string, 안정적인 cross-boot identifier를 거부합니다. read API는 hardware-backed diagnostic authorization, verified boot state, rate limiting, payload를 포함하지 않는 audit event를 요구합니다. 복호화는 승인된 분석 환경에서만 일어납니다. 모든 length와 enum을 fuzz하고 freeze 및 erase 중 power loss를 시뮬레이션하며 rollback이 만료된 capsule을 되살리지 못함을 검증합니다. privacy gate는 이분법적입니다. 금지 field 하나면 engineering 가치가 높아도 integration을 차단합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision owners and delivery dates",
+      "title_ko": "결정, 담당자와 납기",
+      "turns": [
+        {
+          "speaker": "Nina Cho",
+          "en": "The decision is to build the bounded failure capsule, not a continuous trace service. Framework will implement boot-scoped correlation, subscription-generation records, explicit missing-layer markers, and recovery annotations. I own that work. The interface draft is due November 5 at 16:00 KST, the prototype is due November 7 at noon, and framework tests are due November 8 at 18:00. My tests cover subscription churn, service restart, user switch, direct boot, hub reset, and simultaneous clients. I will stop integration if an identifier survives reboot, if missing records appear contiguous, or if telemetry changes client-visible event ordering.",
+          "ko": "결정은 continuous trace service가 아니라 bounded failure capsule을 만드는 것입니다. Framework는 boot-scoped correlation, subscription-generation record, 명시적 missing-layer marker, recovery annotation을 구현합니다. 제가 이 작업을 담당합니다. interface draft는 11월 5일 오후 4시 KST, prototype은 11월 7일 정오, framework test는 11월 8일 오후 6시까지입니다. 시험은 subscription churn, service restart, user switch, direct boot, hub reset, simultaneous client를 다룹니다. identifier가 reboot 뒤에도 남거나 누락 record가 연속인 것처럼 보이거나 telemetry가 client-visible event ordering을 바꾸면 integration을 중단합니다."
+        },
+        {
+          "speaker": "Marcus Reed",
+          "en": "I own firmware records, freeze predicates, retention integrity, schema decoder, and the kernel transport fields. Firmware prototype version one is due November 6 at 11:00 KST, and the integrated BSP image is due November 8 at 14:00. I will publish cycle cost and memory use for every record type. Stop conditions are a raw sample entering the capsule, more than one frozen capsule per boot, an interrupt delayed by a record write, or sensing that fails because retention is corrupt. The decoder must parse both complete and deliberately truncated vectors, and the old firmware path must return unsupported without generating synthetic records.",
+          "ko": "firmware record, freeze predicate, retention integrity, schema decoder, kernel transport field는 제가 담당합니다. firmware prototype version 1은 11월 6일 오전 11시, integrated BSP image는 11월 8일 오후 2시까지입니다. record type별 cycle cost와 memory use를 게시합니다. raw sample의 capsule 유입, boot당 하나를 넘는 frozen capsule, record write로 인한 interrupt 지연, retention 손상 때문에 sensing이 실패하는 것이 중단 조건입니다. decoder는 완전한 vector와 의도적으로 잘린 vector를 모두 parse해야 하고 구형 firmware path는 synthetic record를 만들지 않고 unsupported를 반환해야 합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "I own the threat model, field allowlist, authorization review, key lifecycle, expiry verification, and production-policy recommendation. The first threat-model review is November 6 at 15:00 KST, and final security sign-off is due November 9 at noon. No field may be added through a decoder-only change; schema additions require the same privacy review as the initial version. I will also confirm that aggregate production counters cannot be combined into a behavioral timeline. A release candidate without documented erase behavior, rollback tests, and access-rate limits remains blocked regardless of functional test results.",
+          "ko": "threat model, field allowlist, authorization review, key lifecycle, expiry verification, production-policy recommendation은 제가 담당합니다. 첫 threat-model review는 11월 6일 오후 3시 KST이고 최종 security sign-off는 11월 9일 정오까지입니다. decoder만 바꾸는 방식으로 field를 추가할 수 없으며 schema 추가는 초기 version과 동일한 privacy review가 필요합니다. aggregate production counter가 결합되어 behavioral timeline이 될 수 없는지도 확인합니다. erase 동작, rollback test, access-rate limit가 문서화되지 않은 release candidate는 기능 시험 결과와 관계없이 차단 상태를 유지합니다."
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "I own the four-cell experiment, fault injection, power instrumentation, statistical analysis, and final evidence package. Baseline begins today at 13:00 KST. Accelerated runs start after the integrated image arrives and finish November 10 at 10:00. Every exclusion needs a hardware diagnosis recorded before results are opened; inconvenient or high-power devices remain in the dataset. I will publish raw aggregate counts, confidence intervals, and the mapping from each injected fault to expected capsule markers. We will not tune predicates against the final evaluation set. If classification misses the framework-unsubscribe injection, we revise the contract and rerun all cells rather than adding a special-case label.",
+          "ko": "four-cell experiment, fault injection, power instrumentation, statistical analysis, final evidence package는 제가 담당합니다. baseline은 오늘 오후 1시 KST에 시작합니다. accelerated run은 integrated image 도착 뒤 시작해 11월 10일 오전 10시에 끝납니다. 모든 제외는 결과를 열기 전에 기록된 hardware diagnosis가 필요하며 불편하거나 전력 사용이 높은 단말도 dataset에 남습니다. raw aggregate count, confidence interval, 주입 fault별 예상 capsule marker mapping을 게시합니다. 최종 evaluation set에 맞춰 predicate를 조정하지 않습니다. framework-unsubscribe injection 분류를 놓치면 special-case label을 추가하지 않고 계약을 수정해 모든 cell을 다시 실행합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Residual risks and next review",
+      "title_ko": "잔여 위험과 다음 검토",
+      "turns": [
+        {
+          "speaker": "Nina Cho",
+          "en": "One residual risk is observer effect at the shared-memory boundary. Even a small record write may shift the race between a doorbell and acknowledgment. We will therefore reserve record slots before enabling the experiment, avoid allocation after boot, and compare transport timing histograms with telemetry compiled out, compiled in but disarmed, and armed. Another risk is false continuity when framework restarts without a hub reset. The capsule must show a new framework session inside the same boot epoch. Analysis tools will display that boundary prominently and refuse to calculate end-to-end latency across it. These safeguards keep the evidence honest instead of making a cleaner but misleading timeline.",
+          "ko": "잔여 위험 하나는 shared-memory 경계의 observer effect입니다. 작은 record write도 doorbell과 acknowledgment 사이 race를 바꿀 수 있습니다. 따라서 실험 활성화 전에 record slot을 예약하고 boot 뒤 allocation을 피하며 telemetry가 compile-out된 경우, compile-in됐지만 disarm된 경우, arm된 경우의 transport timing histogram을 비교합니다. 또 다른 위험은 hub reset 없이 framework가 restart될 때 생기는 잘못된 연속성입니다. capsule은 같은 boot epoch 안의 새 framework session을 보여야 합니다. 분석 tool은 그 경계를 눈에 띄게 표시하고 경계를 넘어 end-to-end latency를 계산하지 않습니다. 이 보호책은 더 깔끔하지만 오해를 부르는 timeline을 만드는 대신 증거의 정직성을 지킵니다."
+        },
+        {
+          "speaker": "Marcus Reed",
+          "en": "A second residual risk is retention wear or stale data after an unexpected brownout. Although the SRAM is not flash, its validity header can be partially updated. We will use two headers with generation, length, checksum, and commit state. Firmware writes payload first, then the inactive header, and changes the commit state last. On boot it accepts only one fully committed header whose measurement matches the running firmware. Ambiguous data is erased without parsing. We will execute 5,000 power cuts across every write offset and verify that normal sensing always starts within the boot budget. Recovery must favor service availability over preserving a damaged capsule.",
+          "ko": "두 번째 잔여 위험은 예기치 않은 brownout 뒤 retention 마모 또는 stale data입니다. SRAM은 flash가 아니지만 validity header가 부분적으로 갱신될 수 있습니다. generation, length, checksum, commit state를 가진 header 두 개를 사용합니다. Firmware는 payload를 먼저 쓰고 inactive header를 쓴 뒤 commit state를 마지막에 바꿉니다. boot 시 완전히 commit되고 measurement가 실행 중 firmware와 일치하는 header 하나만 수락합니다. 모호한 data는 parse하지 않고 삭제합니다. 모든 write offset에서 power cut 5,000회를 실행하고 정상 sensing이 항상 boot budget 안에 시작되는지 검증합니다. 복구는 손상 capsule 보존보다 service availability를 우선해야 합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "We also need an operational boundary for engineers. Authorization is not permission to browse arbitrary device history. The analysis tool will accept a capsule only with a case identifier, approved purpose, firmware digest, and automatic deletion date. It will show enumerated state transitions, not reconstruct a user's activity labels. Export is disabled in the pilot; reviewers can attach a generated diagnosis summary containing marker counts and fault classification. Access is logged and reviewed weekly. Before any field expansion, we need separate approval for user notice, collection scope, regional retention, and support workflow. The pilot decision does not pre-authorize production collection.",
+          "ko": "engineer를 위한 운영 경계도 필요합니다. authorization은 임의의 단말 이력을 살펴볼 권한이 아닙니다. 분석 tool은 case identifier, 승인 목적, firmware digest, 자동 삭제 날짜가 있을 때만 capsule을 받습니다. 사용자의 활동 label을 재구성하지 않고 열거된 state transition만 표시합니다. pilot에서는 export를 비활성화하며 reviewer는 marker count와 fault classification이 포함된 생성 diagnosis summary만 첨부할 수 있습니다. 접근은 기록되고 매주 검토됩니다. field 확장 전에는 user notice, collection scope, regional retention, support workflow에 대한 별도 승인이 필요합니다. pilot 결정은 production collection을 미리 승인하지 않습니다."
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "Validation will add a blinded diagnosis exercise before the review. One engineer will configure a fault injection and seal its identity; a different engineer will receive only the capsule, build metadata, and approved decoder output. The diagnosis must name the failed layer and confidence without using hidden test labels. We will include a clean control, a delayed but valid acknowledgment, and two simultaneous faults so the team cannot succeed by matching a single marker. Results will record both false certainty and correct uncertainty. A useful diagnostic system should say when evidence is insufficient, because an unsupported confident answer can send several teams toward the wrong fix and consume more time than collecting no capsule at all.",
+          "ko": "Validation은 검토 전에 blinded diagnosis exercise를 추가합니다. 한 engineer가 fault injection을 설정하고 정체를 봉인하며 다른 engineer는 capsule, build metadata, 승인된 decoder output만 받습니다. 진단은 숨겨진 test label을 사용하지 않고 실패 계층과 confidence를 밝혀야 합니다. 단일 marker matching으로 성공하지 못하도록 clean control, 지연됐지만 유효한 acknowledgment, 동시 fault 두 개를 포함합니다. 결과에는 잘못된 확신과 올바른 불확실성을 모두 기록합니다. 유용한 진단 시스템은 증거가 불충분한 때를 말할 수 있어야 합니다. 근거 없는 자신감 있는 답은 여러 팀을 잘못된 수정으로 이끌어 capsule을 수집하지 않는 것보다 더 많은 시간을 소모할 수 있기 때문입니다."
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "The follow-up meeting is Tuesday, November 10, at 16:30 KST. We will review schema compliance, threat-model actions, injected-fault precision, natural reproduction rate, power, latency, power-cut recovery, and old-firmware behavior. All four teams must approve progression. Any prohibited field, unexplained reproduction-rate shift, p99 overhead above 200 microseconds, false-trigger rate above the limit, or ambiguous retention recovery keeps the gate closed. Passing the meeting authorizes only a 200-device internal pilot for fourteen days. I will circulate today's decision record, experiment identifiers, and owner checklist by 18:30 KST, and each owner will acknowledge their dates before tomorrow noon.",
+          "ko": "후속 회의는 11월 10일 화요일 오후 4시 30분 KST입니다. schema compliance, threat-model action, injected-fault precision, 자연 재현율, 전력, latency, power-cut recovery, old-firmware behavior를 검토합니다. 진행에는 네 팀 모두의 승인이 필요합니다. 금지 field, 설명되지 않은 재현율 변화, 200마이크로초를 넘는 p99 overhead, 한도를 넘는 false-trigger rate, 모호한 retention recovery 중 하나라도 있으면 게이트를 닫아 둡니다. 회의 통과는 14일간 내부 단말 200대 pilot만 승인합니다. 오늘 오후 6시 30분 KST까지 결정 기록, experiment identifier, owner checklist를 배포하고 각 담당자는 내일 정오 전에 일정을 확인합니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "distinguish a firmware queue stall",
+      "meaning_ko": "펌웨어 큐 정지를 구분하다",
+      "usage_ko": "여러 원인 후보를 진단 증거로 나눌 때 쓴다.",
+      "example": "The application processor remains healthy, and restarting the sensor service restores delivery, but the current logs cannot distinguish a firmware queue stall, a broken shared-memory doorbell, or an incorrect framework subscription.",
+      "practice": "The new counters distinguish a firmware queue stall from a transport timeout."
+    },
+    {
+      "phrase": "evidence from before the symptom",
+      "meaning_ko": "증상 이전의 증거",
+      "usage_ko": "장애 직전 상태가 필요함을 강조할 때 쓴다.",
+      "example": "We need evidence from before the symptom, not merely a snapshot after recovery.",
+      "practice": "We need evidence from before the symptom to validate the race hypothesis."
+    },
+    {
+      "phrase": "one sequence identifier",
+      "meaning_ko": "하나의 시퀀스 식별자",
+      "usage_ko": "여러 계층을 관통하는 추적 키를 제안할 때 쓴다.",
+      "example": "We need one sequence identifier that follows an event from the firmware producer through the kernel transport to the framework dispatcher.",
+      "practice": "Use one sequence identifier across the producer and consumer logs."
+    },
+    {
+      "phrase": "minimum evidence required",
+      "meaning_ko": "필요한 최소 증거",
+      "usage_ko": "개인정보와 진단 가치를 균형 잡을 때 쓴다.",
+      "example": "We should start from the minimum evidence required to separate the three failure classes.",
+      "practice": "The review defines the minimum evidence required for escalation."
+    },
+    {
+      "phrase": "does not close it",
+      "meaning_ko": "결론을 내리지는 못한다",
+      "usage_ko": "증거가 범위를 좁혔지만 충분하지 않을 때 쓴다.",
+      "example": "Framework evidence narrows the problem but does not close it.",
+      "practice": "The latest trace narrows the issue but does not close it."
+    },
+    {
+      "phrase": "overwrites oldest entries",
+      "meaning_ko": "가장 오래된 항목을 덮어쓴다",
+      "usage_ko": "순환 버퍼 동작을 설명할 때 쓴다.",
+      "example": "The buffer overwrites oldest entries and freezes only when a failure predicate fires.",
+      "practice": "The diagnostic buffer overwrites oldest entries after reaching capacity."
+    },
+    {
+      "phrase": "a defensible boundary",
+      "meaning_ko": "방어 가능한 경계",
+      "usage_ko": "정책이나 설계 범위가 합리적임을 말할 때 쓴다.",
+      "example": "That criterion gives us a defensible boundary.",
+      "practice": "The explicit allowlist creates a defensible boundary for the pilot."
+    },
+    {
+      "phrase": "must never invent continuity",
+      "meaning_ko": "연속성을 절대 만들어내면 안 된다",
+      "usage_ko": "누락 데이터를 추측하지 말아야 할 때 쓴다.",
+      "example": "Missing data is explicit; the assembler must never invent continuity across a reset.",
+      "practice": "A recovery tool must never invent continuity across missing records."
+    },
+    {
+      "phrase": "statistically equivalent",
+      "meaning_ko": "통계적으로 동등한",
+      "usage_ko": "변경 전후 영향이 같음을 입증할 때 쓴다.",
+      "example": "The comparison must prove that diagnosis improves while reproduction rate, interrupt latency, and idle power remain statistically equivalent.",
+      "practice": "The two builds must be statistically equivalent on idle power."
+    },
+    {
+      "phrase": "treated as fatal",
+      "meaning_ko": "치명 오류로 취급되다",
+      "usage_ko": "호환성 처리 방식을 설명할 때 쓴다.",
+      "example": "Unknown event types are skipped by length, not treated as fatal.",
+      "practice": "An unknown optional field should not be treated as fatal."
+    },
+    {
+      "phrase": "inconclusive, not successful",
+      "meaning_ko": "성공이 아니라 결론 불가",
+      "usage_ko": "관찰 효과로 결과를 판단할 수 없을 때 쓴다.",
+      "example": "Any cell that changes the natural failure rate by more than the agreed interval is inconclusive, not successful.",
+      "practice": "A run with altered timing is inconclusive, not successful."
+    },
+    {
+      "phrase": "blocks integration",
+      "meaning_ko": "통합을 차단한다",
+      "usage_ko": "필수 게이트 위반의 결과를 말할 때 쓴다.",
+      "example": "The privacy gate is binary: a prohibited field blocks integration even if the engineering value is high.",
+      "practice": "Any raw identifier blocks integration until it is removed."
+    },
+    {
+      "phrase": "bounded failure capsule",
+      "meaning_ko": "제한된 장애 캡슐",
+      "usage_ko": "정해진 범위의 진단 산출물을 지칭할 때 쓴다.",
+      "example": "The decision is to build the bounded failure capsule, not a continuous trace service.",
+      "practice": "The service emits a bounded failure capsule after the predicate fires."
+    },
+    {
+      "phrase": "remain in the dataset",
+      "meaning_ko": "데이터셋에 남다",
+      "usage_ko": "불리한 결과도 제외하지 않을 때 쓴다.",
+      "example": "Every exclusion needs a hardware diagnosis recorded before results are opened; inconvenient or high-power devices remain in the dataset.",
+      "practice": "Slow devices remain in the dataset unless hardware damage is proven."
+    },
+    {
+      "phrase": "keeps the gate closed",
+      "meaning_ko": "게이트를 닫아 둔다",
+      "usage_ko": "조건 미충족 시 진행을 막을 때 쓴다.",
+      "example": "Any prohibited field, unexplained reproduction-rate shift, p99 overhead above 200 microseconds, false-trigger rate above the limit, or ambiguous retention recovery keeps the gate closed.",
+      "practice": "A privacy regression keeps the gate closed despite functional success."
+    }
+  ]
+}
