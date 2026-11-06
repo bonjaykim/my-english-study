@@ -1,0 +1,285 @@
+{
+  "date": "2026-11-07",
+  "category": "business",
+  "topic": "sw-kickoff",
+  "subject": "Kicking Off a Protected VM Pilot for Bounded Android Diagnostics",
+  "title_ko": "제한형 Android 진단을 위한 Protected VM 파일럿 킥오프",
+  "summary_ko": "가상의 Android 시스템 SW 회의에서 권한이 높은 host 진단 daemon의 일부를 protected VM으로 격리하는 제한적 PoC를 설계한다. 팀들은 입력·출력 권한, challenge 기반 freshness, exactly-once lifecycle, 성능 예산, 중단 조건과 Adopt·Continue·Stop 결정 기준을 합의한다. 모든 인물·조직·단말·VM·빌드·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Jiyun Seo",
+      "team": "Program and Quality"
+    },
+    {
+      "name": "Marcus Lee",
+      "team": "Virtualization Platform"
+    },
+    {
+      "name": "Priya Nair",
+      "team": "Virtualization Platform"
+    },
+    {
+      "name": "Daniel Cho",
+      "team": "Security Architecture"
+    },
+    {
+      "name": "Elena Ruiz",
+      "team": "Kernel and Performance"
+    },
+    {
+      "name": "Owen Blake",
+      "team": "Program and Quality"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and PoC Mandate",
+      "title_ko": "참석 확인과 PoC 목표",
+      "turns": [
+        {
+          "speaker": "Jiyun Seo",
+          "en": "Welcome to the R75 diagnostic isolation kickoff. Program, Quality, Virtualization, Security, and Kernel Performance are represented, so we have the people needed to define a bounded proof of concept. The proposal is to run an internal system-diagnostics collector inside an Android protected virtual machine rather than as a privileged host daemon. Leadership wants evidence before the R75 architecture freeze on December 4, not a promise that virtualization is automatically safer. Today we must agree on the question the PoC will answer, the workloads and data that remain out of scope, measurable success and stop conditions, named owners, and the date of the adoption decision. If we cannot express the experiment without assuming its conclusion, we should not start implementation.",
+          "ko": "R75 진단 격리 킥오프에 오신 것을 환영합니다. 프로그램, 품질, 가상화, 보안, 커널 성능 팀이 참석했으므로 제한된 PoC를 정의할 인원이 갖춰졌습니다. 제안은 내부 시스템 진단 수집기를 권한이 높은 host daemon 대신 Android protected virtual machine 안에서 실행하는 것입니다. 리더십은 12월 4일 R75 아키텍처 동결 전에 증거를 원하며, 가상화가 자동으로 더 안전하다는 약속을 원하는 것이 아닙니다. 오늘은 PoC가 답할 질문, 범위 밖에 남길 워크로드와 데이터, 측정 가능한 성공·중단 조건, 담당자, 도입 결정 날짜를 합의해야 합니다. 결론을 미리 가정하지 않고 실험을 표현할 수 없다면 구현을 시작하지 말아야 합니다."
+        },
+        {
+          "speaker": "Marcus Lee",
+          "en": "Virtualization Platform is ready to lead the prototype. My proposed question is narrower than moving diagnostics wholesale: can a protected VM collect kernel scheduling summaries and subsystem health counters, produce a signed result, and release only that result to the host without gaining access to user content? The collector will not ingest application logs, packet payloads, camera buffers, file names, or raw memory. We will use a synthetic fault workload and two existing aggregate counters. The value is a smaller host attack surface and a stronger boundary around parsing untrusted diagnostic records. The cost is additional boot time, reserved memory, attestation dependencies, and a more complicated recovery path when the VM becomes unavailable.",
+          "ko": "가상화 플랫폼 팀이 프로토타입을 주도할 준비가 됐습니다. 제가 제안하는 질문은 진단 전체를 옮기는 것보다 좁습니다. protected VM이 커널 스케줄링 요약과 subsystem 상태 카운터를 수집하고 서명된 결과를 만든 뒤 사용자 콘텐츠 접근 없이 그 결과만 host에 내보낼 수 있는가입니다. 수집기는 앱 로그, 패킷 payload, 카메라 buffer, 파일명, raw memory를 받지 않습니다. 합성 장애 워크로드와 기존 aggregate counter 두 개만 사용합니다. 가치는 host 공격 면적을 줄이고 신뢰할 수 없는 진단 record 파싱 주위에 더 강한 경계를 두는 것입니다. 비용은 추가 부팅 시간, 예약 메모리, attestation 의존성, VM을 사용할 수 없을 때 더 복잡한 복구 경로입니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "Security Architecture supports testing the boundary, but I want to challenge one assumption at the outset. A protected VM reduces direct host privilege only if its inputs and outputs are narrower than the daemon it replaces. If the host can stream arbitrary records into the guest or request arbitrary queries, we have moved the parser without reducing authority. The PoC must therefore define an immutable input schema, a fixed output vocabulary, and a policy that the host cannot relax after verified boot. We also need a threat model for denial of service, rollback, and a compromised host attempting to replay an old signed report. Isolation alone is not the result; constrained authority is the result we need to measure.",
+          "ko": "보안 아키텍처 팀은 경계 검증을 지지하지만 시작부터 한 가지 가정을 문제 삼고 싶습니다. protected VM은 입력과 출력이 대체할 daemon보다 더 좁을 때만 직접적인 host 권한을 줄입니다. host가 임의 record를 guest로 흘리거나 임의 query를 요청할 수 있다면 권한을 줄이지 않고 parser 위치만 옮긴 것입니다. 따라서 PoC는 불변 입력 스키마, 고정 출력 어휘, verified boot 이후 host가 완화할 수 없는 정책을 정의해야 합니다. 서비스 거부, rollback, 손상된 host가 오래된 서명 보고서를 replay하려는 상황에 대한 위협 모델도 필요합니다. 격리 자체가 결과가 아니라 제한된 권한이 측정해야 할 결과입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Current Path and Evidence Gap",
+      "title_ko": "현재 경로와 증거 공백",
+      "turns": [
+        {
+          "speaker": "Owen Blake",
+          "en": "Quality reviewed twelve months of diagnostics incidents. The current daemon has processed 2.8 billion records in stress testing without a production crash, so we should not manufacture urgency. However, fuzzing found four parser defects before release, and two required emergency hardening because the daemon runs with broad read access. We have no field evidence that a VM would have prevented those defects; it would only have changed their blast radius. We also lack reliable measurements for protected-VM cold start under memory pressure, behavior during suspend, and report delivery after host reboot. My recommendation is to compare the existing hardened daemon and the VM prototype under identical malformed-input campaigns rather than grade the prototype against an abstract ideal.",
+          "ko": "품질팀은 12개월간 진단 incident를 검토했습니다. 현재 daemon은 stress test에서 28억 개 record를 처리하며 production crash가 없었으므로 인위적으로 긴급성을 만들면 안 됩니다. 하지만 fuzzing에서 출시 전 parser 결함 네 개를 발견했고, 그중 두 개는 daemon이 광범위한 읽기 권한으로 실행돼 긴급 hardening이 필요했습니다. VM이 그 결함을 막았을 것이라는 현장 증거는 없습니다. 달라지는 것은 blast radius뿐입니다. 메모리 압박 시 protected VM cold start, suspend 중 동작, host reboot 후 보고서 전달에 대한 신뢰할 수 있는 측정도 없습니다. 추상적 이상과 비교하기보다 동일한 malformed-input campaign에서 현재 hardened daemon과 VM 프로토타입을 비교할 것을 권합니다."
+        },
+        {
+          "speaker": "Elena Ruiz",
+          "en": "Kernel and Performance measured the baseline on the two target devices. The host daemon consumes 18 megabytes proportional set size while idle, wakes once every thirty seconds during the synthetic campaign, and adds 0.7 percent CPU at the ninety-fifth percentile. A minimal protected VM reserves 64 megabytes before the collector starts, takes 410 to 690 milliseconds to become ready after launch, and causes a short cluster-frequency increase. Those figures are not automatically disqualifying, but they make always-on operation hard to justify. I propose an event-scoped VM that starts only after a signed diagnostic request, processes a bounded batch, seals its result, and terminates. We must compare energy per completed report, not only instantaneous CPU.",
+          "ko": "커널·성능 팀은 대상 기기 두 종에서 기준선을 측정했습니다. host daemon은 idle 상태에서 proportional set size 18MB를 사용하고 합성 campaign 중 30초마다 한 번 깨며 95백분위 CPU를 0.7% 늘립니다. 최소 protected VM은 수집기 시작 전 64MB를 예약하고 launch 후 준비까지 410~690밀리초가 걸리며 짧은 cluster 주파수 상승을 일으킵니다. 이 수치가 자동 탈락 조건은 아니지만 always-on 동작을 정당화하기 어렵게 합니다. 서명된 진단 요청 후에만 시작하고 제한된 batch를 처리하며 결과를 봉인하고 종료하는 event-scoped VM을 제안합니다. 순간 CPU만이 아니라 완료된 보고서당 에너지를 비교해야 합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "The event-scoped model changes our reliability question. Today the daemon buffers counters continuously and survives host service restarts. A short-lived VM must receive a complete input snapshot, prove which boot and policy version produced it, and avoid losing the request if the device reboots halfway through. I suggest a host-side request journal containing only a nonce, counter-window identifier, policy digest, and state transition. The VM consumes one journal entry exactly once and returns a report bound to that nonce. The journal never contains diagnostic payloads. This gives Quality a visible lifecycle and lets Security detect replay, while keeping the host from editing the guest's calculation after attestation.",
+          "ko": "event-scoped 모델은 신뢰성 질문을 바꿉니다. 현재 daemon은 counter를 계속 buffer하고 host service restart를 견딥니다. 짧게 사는 VM은 완전한 입력 snapshot을 받고 어떤 boot와 policy version이 이를 생성했는지 증명하며, 처리 중간에 기기가 reboot돼도 요청을 잃지 않아야 합니다. nonce, counter-window identifier, policy digest, 상태 전환만 담는 host-side request journal을 제안합니다. VM은 journal entry 하나를 정확히 한 번 소비하고 해당 nonce에 묶인 보고서를 반환합니다. journal에는 진단 payload를 넣지 않습니다. 이렇게 하면 품질팀에 가시적인 lifecycle을 제공하고 보안팀이 replay를 탐지할 수 있으며, attestation 후 host가 guest 계산을 수정하지 못하게 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Boundary Disagreement and Experiments",
+      "title_ko": "경계 이견과 실험 설계",
+      "turns": [
+        {
+          "speaker": "Daniel Cho",
+          "en": "I disagree with host ownership of the journal state unless we distinguish orchestration from truth. A compromised host can mark a request completed, suppress a report, or replay a pending entry after rollback. That may be acceptable for availability, but it must not create a false valid result. The guest should sign the nonce, boot measurement, policy digest, input-window digest, and a monotonic report sequence anchored by the secure component. The verifier must reject an older sequence even when the host journal looks consistent. We should test this explicitly by restoring a previous data partition snapshot and presenting a valid old report. If the verifier accepts it, the PoC fails its primary security claim.",
+          "ko": "orchestration과 진실을 구분하지 않는다면 host가 journal 상태를 소유하는 데 반대합니다. 손상된 host는 요청을 완료로 표시하거나 보고서를 억제하거나 rollback 후 pending entry를 replay할 수 있습니다. 가용성 측면에서는 허용할 수 있지만 거짓 유효 결과를 만들면 안 됩니다. guest는 nonce, boot measurement, policy digest, input-window digest, secure component에 고정된 단조 report sequence에 서명해야 합니다. host journal이 일관돼 보여도 verifier는 이전 sequence를 거부해야 합니다. 이전 data partition snapshot을 복원하고 유효한 옛 보고서를 제시하는 방식으로 이를 명시적으로 시험해야 합니다. verifier가 수락하면 PoC의 핵심 보안 주장은 실패입니다."
+        },
+        {
+          "speaker": "Marcus Lee",
+          "en": "I agree on authenticity, but a hardware-backed monotonic sequence for every report may exhaust scarce secure storage or serialize unrelated consumers. We should not make the prototype depend on a production resource model we have not reviewed. An alternative is to bind reports to the current verified-boot epoch and a server-issued challenge that expires after fifteen minutes. The internal verifier records consumed challenges, so replay within the epoch is rejected without persistent per-report secure writes. Offline collection would remain out of scope. That is a meaningful limitation, but it keeps the PoC focused on isolation and bounded authority. If later requirements demand offline proof across rollback, we can evaluate a batched secure counter as a separate design decision.",
+          "ko": "진위성에는 동의하지만 모든 보고서에 hardware-backed 단조 sequence를 사용하면 희소한 secure storage를 소모하거나 관련 없는 consumer를 직렬화할 수 있습니다. 검토하지 않은 production resource 모델에 프로토타입을 의존시키면 안 됩니다. 대안은 보고서를 현재 verified-boot epoch와 15분 후 만료되는 server-issued challenge에 묶는 것입니다. 내부 verifier가 소비한 challenge를 기록하므로 보고서마다 영구 secure write 없이 epoch 내 replay를 거부할 수 있습니다. offline 수집은 범위 밖에 남습니다. 의미 있는 제한이지만 PoC를 격리와 제한 권한에 집중시킵니다. 나중에 rollback을 넘어 offline 증명이 필요하면 batched secure counter를 별도 설계 결정으로 평가할 수 있습니다."
+        },
+        {
+          "speaker": "Jiyun Seo",
+          "en": "Let us make the trade-off visible instead of hiding it in implementation. The PoC will evaluate the online, challenge-bound workflow only, and the decision record will state that it does not prove offline diagnostics or cross-rollback freshness. Daniel's restored-snapshot attack remains mandatory; the expected result is rejection because the challenge is expired or already consumed, not because the host journal happens to disagree. Marcus must also document the secure-resource estimate for a future batched counter so leadership understands the path we are postponing. This is a conditional scope reduction, not evidence that the broader problem has disappeared. Owen, please turn these claims into pass and fail observations that automation can record without interpretation.",
+          "ko": "구현에 숨기지 말고 trade-off를 가시화합시다. PoC는 online challenge-bound workflow만 평가하며 결정 기록에 offline 진단이나 rollback 간 freshness를 증명하지 않는다고 명시합니다. Daniel의 snapshot 복원 공격은 필수입니다. 예상 결과는 host journal이 우연히 불일치해서가 아니라 challenge가 만료됐거나 이미 소비돼 거부되는 것입니다. Marcus는 미래의 batched counter에 필요한 secure resource 추정도 문서화해 리더십이 우리가 미루는 경로를 이해하게 해야 합니다. 이는 조건부 범위 축소이지 더 넓은 문제가 사라졌다는 증거가 아닙니다. Owen은 자동화가 해석 없이 기록할 수 있는 통과·실패 관찰값으로 이 주장을 바꿔 주세요."
+        }
+      ]
+    },
+    {
+      "title_en": "Success Metrics and Stop Conditions",
+      "title_ko": "성공 지표와 중단 조건",
+      "turns": [
+        {
+          "speaker": "Owen Blake",
+          "en": "I will define four evidence groups. Isolation passes only if the guest receives exactly the schema fields in the manifest and attempts to request excluded data are denied and audited. Integrity passes only if 10,000 malformed batches produce either a signed bounded result or an explicit rejected-input code, with no host crash, guest escape, or verifier ambiguity. Freshness passes only if every reused, expired, wrong-epoch, and restored-snapshot challenge is rejected. Reliability passes if 5,000 request lifecycles survive injected guest death, host service restart, suspend, low-memory pressure, and reboot without duplicate valid reports. A missing trace is a failed cycle, not a presumed success. We will publish raw denominators alongside percentages.",
+          "ko": "네 가지 증거 그룹을 정의하겠습니다. 격리는 guest가 manifest의 스키마 필드만 정확히 받고 제외된 데이터 요청이 거부되고 감사될 때만 통과합니다. 무결성은 malformed batch 10,000개가 서명된 제한 결과나 명시적 input 거부 코드를 생성하고 host crash, guest escape, verifier 모호성이 없을 때만 통과합니다. freshness는 재사용·만료·잘못된 epoch·snapshot 복원 challenge가 모두 거부될 때만 통과합니다. 신뢰성은 guest 종료, host service restart, suspend, low-memory pressure, reboot를 주입한 요청 lifecycle 5,000회가 중복 유효 보고서 없이 견딜 때 통과합니다. trace가 없으면 추정 성공이 아니라 실패 cycle입니다. 백분율과 함께 원시 분모를 게시하겠습니다."
+        },
+        {
+          "speaker": "Elena Ruiz",
+          "en": "Performance needs gates that compare completed work. On the high-memory model, peak incremental resident memory must stay below 82 megabytes and the ninety-fifth-percentile request-to-signed-report latency below 1.4 seconds. On the low-memory model, the limits are 70 megabytes and 1.8 seconds. Across 500 daily-equivalent requests, total energy must be no more than 8 percent above the hardened daemon baseline, and no foreground frame deadline may be missed because of VM startup. We will run warm, cold, thermally constrained, and background-reclaim conditions. If memory reclaim kills the guest three times for one request, orchestration must stop and return resource-unavailable; repeated automatic launches would be a battery and stability defect.",
+          "ko": "성능 게이트는 완료된 작업을 비교해야 합니다. 고메모리 모델에서 peak incremental resident memory는 82MB 미만, request-to-signed-report 95백분위 지연은 1.4초 미만이어야 합니다. 저메모리 모델의 한도는 70MB와 1.8초입니다. 하루 상당 요청 500회에서 총 에너지는 hardened daemon 기준보다 8%를 초과해선 안 되고 VM 시작 때문에 foreground frame deadline을 놓치면 안 됩니다. warm, cold, 발열 제한, background reclaim 조건을 실행합니다. 메모리 reclaim이 한 요청의 guest를 세 번 종료하면 orchestration은 멈추고 resource-unavailable을 반환해야 합니다. 반복 자동 launch는 배터리와 안정성 결함입니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "I propose three stop conditions before the full matrix. First, stop if the guest can observe any undeclared host memory, identifier, or payload, even once. Second, stop if a signed report can be accepted with a mismatched policy digest or consumed challenge. Third, pause architecture work if the low-memory prototype exceeds 90 megabytes in three consecutive representative runs, because tuning around that result would distort the product decision. Ordinary parser rejections do not stop the PoC; they are expected data. A guest crash also does not automatically stop it if the lifecycle returns a unique explicit failure and cleanup completes. We need to distinguish evidence against the architecture from defects we expect a prototype to reveal and repair.",
+          "ko": "전체 matrix 전에 세 가지 중단 조건을 제안합니다. 첫째, guest가 선언되지 않은 host memory, identifier, payload를 한 번이라도 관찰하면 중단합니다. 둘째, policy digest가 다르거나 이미 소비된 challenge로 서명 보고서가 수락되면 중단합니다. 셋째, 저메모리 프로토타입이 대표 실행 세 번 연속 90MB를 넘으면 아키텍처 작업을 멈춥니다. 그 결과를 tuning으로 감추면 제품 결정이 왜곡됩니다. 일반 parser 거부는 예상 데이터이므로 PoC를 중단하지 않습니다. lifecycle이 고유하고 명시적인 실패를 반환하고 cleanup이 끝난다면 guest crash도 자동 중단 사유는 아닙니다. 아키텍처에 반하는 증거와 프로토타입이 발견하고 수정할 것으로 예상되는 결함을 구분해야 합니다."
+        },
+        {
+          "speaker": "Jiyun Seo",
+          "en": "We also need a change-control rule for the measurements. Once the first baseline run starts, schema fields, corpus seeds, retry limits, timeout values, and device thermal setup are frozen in a versioned experiment manifest. A team may propose a change, but the evidence ledger must close the old run as incomplete and open a new revision with a stated reason. Results from different revisions cannot be pooled to reach a threshold. This prevents well-intentioned tuning from moving the goalposts after a weak result. Owen will approve manifest changes for test validity, Daniel for security meaning, and Elena for performance comparability; I will decide whether the remaining schedule still supports an adoption decision.",
+          "ko": "측정에 대한 변경 통제 규칙도 필요합니다. 첫 기준선 실행이 시작되면 스키마 필드, corpus seed, 재시도 한도, timeout 값, 기기 발열 설정을 버전형 experiment manifest에 동결합니다. 팀은 변경을 제안할 수 있지만 evidence ledger에서 기존 실행을 불완전으로 닫고 사유를 명시한 새 revision을 열어야 합니다. 서로 다른 revision 결과를 합쳐 임계값에 도달할 수 없습니다. 이렇게 하면 선의의 tuning이 약한 결과 뒤에 goalpost를 옮기는 일을 막습니다. Owen은 테스트 유효성, Daniel은 보안 의미, Elena는 성능 비교 가능성 관점에서 manifest 변경을 승인하고, 저는 남은 일정이 도입 결정을 계속 지원하는지 판단합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Work Plan Owners and Deadlines",
+      "title_ko": "작업 계획, 담당자와 기한",
+      "turns": [
+        {
+          "speaker": "Jiyun Seo",
+          "en": "Here is the agreed six-week plan. Marcus owns the minimal guest image, fixed schema, and report signer, with a bootable integration build by November 13 at 18:00 KST. Priya owns the request journal, exactly-once lifecycle, and failure cleanup by November 17 at 18:00 KST. Daniel owns the threat model, verifier policy, negative tests, and data-boundary review by November 18 at 15:00 KST. Elena owns baseline instrumentation and the memory, latency, energy, and foreground-jank harness by November 16 at 17:00 KST. Owen owns the shared fault campaign, trace completeness checks, and final evidence ledger by November 27 at 16:00 KST. I own scope control, dependency escalation, and the decision packet. No owner may widen input data to rescue a metric without a recorded scope review.",
+          "ko": "합의된 6주 계획입니다. Marcus는 최소 guest image, 고정 스키마, report signer를 맡아 11월 13일 18:00 KST까지 부팅 가능한 통합 빌드를 제공합니다. Priya는 request journal, exactly-once lifecycle, 실패 cleanup을 맡아 11월 17일 18:00 KST까지 완료합니다. Daniel은 threat model, verifier 정책, 음성 테스트, 데이터 경계 검토를 맡아 11월 18일 15:00 KST까지 완료합니다. Elena는 기준선 계측과 memory, latency, energy, foreground jank harness를 맡아 11월 16일 17:00 KST까지 완료합니다. Owen은 공통 fault campaign, trace 완전성 검사, 최종 evidence ledger를 맡아 11월 27일 16:00 KST까지 완료합니다. 저는 범위 통제, 의존성 escalation, 결정 자료를 맡습니다. 어떤 담당자도 기록된 범위 검토 없이 지표를 살리기 위해 입력 데이터를 넓힐 수 없습니다."
+        },
+        {
+          "speaker": "Marcus Lee",
+          "en": "I accept the guest-image deadline. I will begin with one scheduler-summary record and one thermal-health record, both generated by a synthetic producer. The guest build will contain no shell, network client, dynamic package loader, or general file parser. Its configuration is compiled into the measured image, and the host selects only the counter window and challenge. I will publish the image digest, interface manifest, and reproducible-build instructions with the first integration drop. If a debugging convenience requires a broader channel, it will exist only in a separately measured engineering image that cannot produce reports accepted by the production verifier. That separation prevents temporary tooling from silently becoming part of the security argument.",
+          "ko": "guest image 기한을 수락합니다. 합성 producer가 생성한 scheduler-summary record 하나와 thermal-health record 하나로 시작합니다. guest build에는 shell, network client, dynamic package loader, 범용 file parser가 없습니다. 설정은 measured image에 compile되고 host는 counter window와 challenge만 선택합니다. 첫 통합 drop과 함께 image digest, interface manifest, reproducible-build 지침을 게시하겠습니다. 디버깅 편의를 위해 더 넓은 channel이 필요하면 별도로 측정된 engineering image에만 존재하고 production verifier가 수락하는 보고서를 만들 수 없게 합니다. 이 분리는 임시 도구가 조용히 보안 논리의 일부가 되는 것을 막습니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "I accept the security deliverables with one dependency. The verifier team must provide challenge-consumption semantics by November 12 at noon, including behavior during service failover. I will not treat a best-effort cache as replay protection. My threat model will separate compromised host, malicious diagnostic producer, stale guest image, verifier outage, and physical rollback. Each test will name the trust assumption it exercises and the observable decision. I will also review whether aggregated scheduling counters can expose a stable workload fingerprint across repeated reports. If they can, the schema will need bucketing or privacy budgeting even though it contains no direct identifier. Excluding names does not by itself make a data stream non-identifying.",
+          "ko": "보안 산출물을 수락하지만 의존성이 하나 있습니다. verifier 팀은 service failover 중 동작을 포함한 challenge 소비 의미를 11월 12일 정오까지 제공해야 합니다. best-effort cache를 replay 보호로 취급하지 않겠습니다. threat model은 손상된 host, 악성 진단 producer, 오래된 guest image, verifier outage, 물리 rollback을 구분합니다. 각 테스트는 실행하는 신뢰 가정과 관찰 가능한 결정을 명시합니다. aggregate scheduling counter가 반복 보고서에서 안정된 workload fingerprint를 노출하는지도 검토합니다. 그렇다면 직접 식별자가 없어도 스키마에 bucketing이나 privacy budgeting이 필요합니다. 이름을 제외하는 것만으로 데이터 stream이 비식별이 되는 것은 아닙니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision Framework and Next Meeting",
+      "title_ko": "결정 기준과 차기 회의",
+      "turns": [
+        {
+          "speaker": "Owen Blake",
+          "en": "The evidence ledger will keep claims, tests, artifacts, and decisions separate. A claim such as the host cannot alter a result will link to the exact attack cases, build digests, verifier revision, raw outcomes, and trace-completeness status. Fixing a failed test creates a new evidence row; it never overwrites the original failure. I will compare the protected VM with the hardened daemon using identical corpus seeds and fault timing, and I will label any test that one architecture cannot execute symmetrically. Interim dashboards may guide debugging, but they cannot authorize adoption. The final ledger must show every denominator, exclusion, rerun reason, and unresolved observation so the decision group can see uncertainty rather than a single green score.",
+          "ko": "evidence ledger는 주장, 테스트, 산출물, 결정을 분리합니다. 'host가 결과를 변경할 수 없다' 같은 주장은 정확한 공격 case, build digest, verifier revision, 원시 결과, trace 완전성 상태에 연결됩니다. 실패 테스트를 수정하면 새 evidence row를 만들며 원래 실패를 덮어쓰지 않습니다. 동일한 corpus seed와 fault timing으로 protected VM과 hardened daemon을 비교하고, 한 아키텍처가 대칭적으로 실행할 수 없는 테스트는 표시합니다. 중간 dashboard는 디버깅을 안내할 수 있지만 도입을 승인할 수 없습니다. 최종 ledger는 모든 분모, 제외, 재실행 사유, 미해결 관찰을 보여줘 결정 그룹이 하나의 녹색 점수가 아니라 불확실성을 보게 해야 합니다."
+        },
+        {
+          "speaker": "Elena Ruiz",
+          "en": "For the adoption decision, I suggest three possible outcomes rather than yes or no. Adopt means every security and reliability gate passes and both models meet their performance budgets. Continue means the boundary is sound but one bounded performance metric misses by no more than 10 percent, with an identified optimization that does not widen authority. Stop means any boundary, freshness, or duplicate-valid-report gate fails, or the low-memory device crosses the architecture stop condition. Continue cannot ship code or reserve production memory; it authorizes one additional three-week experiment only. This prevents an encouraging demo from becoming a permanent platform commitment before operational costs are understood.",
+          "ko": "도입 결정에는 yes/no 대신 세 가지 결과를 제안합니다. Adopt는 모든 보안·신뢰성 게이트를 통과하고 두 모델이 성능 budget을 충족하는 경우입니다. Continue는 경계는 건전하지만 제한된 성능 지표 하나가 10% 이내로 미달하고 권한을 넓히지 않는 최적화가 확인된 경우입니다. Stop은 경계, freshness, 중복 유효 보고서 게이트 중 하나가 실패하거나 저메모리 기기가 아키텍처 중단 조건을 넘는 경우입니다. Continue는 코드 출하나 production memory 예약을 허용하지 않고 추가 3주 실험 한 번만 허용합니다. 고무적인 demo가 운영 비용을 이해하기 전에 영구 platform 약속으로 변하는 것을 막습니다."
+        },
+        {
+          "speaker": "Jiyun Seo",
+          "en": "The first checkpoint is November 19 at 14:00 KST, when we will review the bootable path, threat model, baseline harness, and the first 500 malformed batches. The final adoption meeting is December 1 at 16:00 KST. All six participants are required, and delegates need written decision authority. Owen will present the evidence ledger; Marcus and Priya will identify the exact guest and lifecycle revisions; Daniel will state whether the authority and freshness claims hold; Elena will present model-specific budgets. I will record Adopt, Continue, or Stop against the criteria we agreed today. Until that meeting, this work is an experiment with bounded inputs and no production dependency. We have owners, dates, measurable gates, and explicit limits, so the kickoff is complete.",
+          "ko": "첫 checkpoint는 11월 19일 14:00 KST이며 bootable path, threat model, baseline harness, malformed batch 첫 500개를 검토합니다. 최종 도입 회의는 12월 1일 16:00 KST입니다. 여섯 명 모두 필수 참석이며 대리 참석자는 서면 결정 권한이 필요합니다. Owen은 evidence ledger를 발표하고, Marcus와 Priya는 정확한 guest 및 lifecycle revision을 밝히며, Daniel은 권한·freshness 주장이 유지되는지 말하고, Elena는 모델별 budget을 제시합니다. 저는 오늘 합의한 기준에 따라 Adopt, Continue, Stop을 기록합니다. 그 회의 전까지 이 작업은 제한된 입력과 production 의존성이 없는 실험입니다. 담당자, 날짜, 측정 가능한 게이트, 명시적 한계가 정해졌으므로 킥오프를 마칩니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Final Confirmation",
+      "title_ko": "최종 확인",
+      "turns": [
+        {
+          "speaker": "Jiyun Seo",
+          "en": "Before we leave, each owner must post a written acknowledgment by 18:00 KST today. Silence will be treated as an unresolved dependency, not consent, and I will escalate it before implementation begins on Monday.",
+          "ko": "마치기 전에 각 담당자는 오늘 18:00 KST까지 서면 확인을 게시해야 합니다. 응답 없음은 동의가 아니라 미해결 의존성으로 취급하며 월요일 구현 시작 전에 제가 escalation하겠습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "bounded proof of concept",
+      "meaning_ko": "제한된 개념 검증",
+      "usage_ko": "실험 범위를 명확히 할 때",
+      "example": "Program, Quality, Virtualization, Security, and Kernel Performance are represented, so we have the people needed to define a bounded proof of concept.",
+      "practice": "We need a bounded proof of concept before changing the production architecture."
+    },
+    {
+      "phrase": "challenge one assumption at the outset",
+      "meaning_ko": "처음부터 한 가지 가정을 문제 삼다",
+      "usage_ko": "초기 가정을 검토할 때",
+      "example": "Security Architecture supports testing the boundary, but I want to challenge one assumption at the outset.",
+      "practice": "Let me challenge one assumption at the outset before we approve the budget."
+    },
+    {
+      "phrase": "constrained authority is the result",
+      "meaning_ko": "제한된 권한이 목표 결과다",
+      "usage_ko": "보안 목표를 명확히 할 때",
+      "example": "Isolation alone is not the result; constrained authority is the result we need to measure.",
+      "practice": "For this service, constrained authority is the result we need to demonstrate."
+    },
+    {
+      "phrase": "manufacture urgency",
+      "meaning_ko": "인위적으로 긴급성을 만들다",
+      "usage_ko": "근거 없는 긴급함을 경계할 때",
+      "example": "The current daemon has processed 2.8 billion records in stress testing without a production crash, so we should not manufacture urgency.",
+      "practice": "A missed internal target should not manufacture urgency for the customer release."
+    },
+    {
+      "phrase": "compare completed work",
+      "meaning_ko": "완료된 작업을 비교하다",
+      "usage_ko": "성능 비교 기준을 정할 때",
+      "example": "Performance needs gates that compare completed work.",
+      "practice": "The benchmark should compare completed work across both implementations."
+    },
+    {
+      "phrase": "distinguish orchestration from truth",
+      "meaning_ko": "조정 상태와 진실을 구분하다",
+      "usage_ko": "신뢰 경계를 논의할 때",
+      "example": "I disagree with host ownership of the journal state unless we distinguish orchestration from truth.",
+      "practice": "The design must distinguish orchestration from truth when the controller restarts."
+    },
+    {
+      "phrase": "make the trade-off visible",
+      "meaning_ko": "절충점을 가시화하다",
+      "usage_ko": "숨은 비용을 드러낼 때",
+      "example": "Let us make the trade-off visible instead of hiding it in implementation.",
+      "practice": "Please make the trade-off visible in the decision document."
+    },
+    {
+      "phrase": "conditional scope reduction",
+      "meaning_ko": "조건부 범위 축소",
+      "usage_ko": "범위를 제한하되 한계를 남길 때",
+      "example": "This is a conditional scope reduction, not evidence that the broader problem has disappeared.",
+      "practice": "Treat the excluded workflow as a conditional scope reduction, not a solved problem."
+    },
+    {
+      "phrase": "A missing trace is a failed cycle",
+      "meaning_ko": "trace 누락은 실패 cycle이다",
+      "usage_ko": "증거 완전성 기준을 말할 때",
+      "example": "A missing trace is a failed cycle, not a presumed success.",
+      "practice": "In this gate, a missing trace is a failed cycle and requires a rerun."
+    },
+    {
+      "phrase": "stop conditions",
+      "meaning_ko": "중단 조건",
+      "usage_ko": "실험을 멈출 기준을 정할 때",
+      "example": "Today we must agree on the question the PoC will answer, the workloads and data that remain out of scope, measurable success and stop conditions, named owners, and the date of the adoption decision.",
+      "practice": "We should agree on stop conditions before the expensive tests begin."
+    },
+    {
+      "phrase": "Here is the agreed six-week plan",
+      "meaning_ko": "합의된 6주 계획은 다음과 같다",
+      "usage_ko": "실행 계획을 확정할 때",
+      "example": "Here is the agreed six-week plan.",
+      "practice": "Here is the agreed six-week plan with owners and review dates."
+    },
+    {
+      "phrase": "I accept the guest-image deadline",
+      "meaning_ko": "guest image 기한을 수락한다",
+      "usage_ko": "담당과 기한을 확인할 때",
+      "example": "I accept the guest-image deadline.",
+      "practice": "I accept the guest-image deadline and will flag any dependency today."
+    },
+    {
+      "phrase": "cannot authorize adoption",
+      "meaning_ko": "도입을 승인할 수 없다",
+      "usage_ko": "중간 결과의 권한을 제한할 때",
+      "example": "Interim dashboards may guide debugging, but they cannot authorize adoption.",
+      "practice": "A successful demo cannot authorize adoption without the full evidence set."
+    },
+    {
+      "phrase": "three possible outcomes rather than yes or no",
+      "meaning_ko": "yes/no 대신 세 가지 결과",
+      "usage_ko": "의사결정 선택지를 구조화할 때",
+      "example": "For the adoption decision, I suggest three possible outcomes rather than yes or no.",
+      "practice": "The review needs three possible outcomes rather than yes or no."
+    },
+    {
+      "phrase": "the kickoff is complete",
+      "meaning_ko": "킥오프가 완료됐다",
+      "usage_ko": "회의를 공식 종료할 때",
+      "example": "We have owners, dates, measurable gates, and explicit limits, so the kickoff is complete.",
+      "practice": "Once every owner confirms the dates, the kickoff is complete."
+    }
+  ]
+}
