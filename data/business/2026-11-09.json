@@ -1,0 +1,273 @@
+{
+  "date": "2026-11-09",
+  "category": "business",
+  "topic": "sw-debug",
+  "subject": "Recovering Pen Input Ordering after Digitizer Firmware Reset",
+  "title_ko": "Digitizer Firmware Reset 이후 펜 입력 순서 복구",
+  "summary_ko": "가상의 Android 태블릿 디버깅 회의에서 digitizer controller의 자체 firmware recovery 직후 펜 stroke 일부가 사라지는 문제를 분석한다. 팀들은 recovery generation, timestamp 재기준화, mixed-version barrier, 종단간 event lineage와 정량 릴리스 게이트를 결정한다. 모든 인물·조직·단말·controller·firmware·driver·application·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Mina Park",
+      "team": "Input Platform"
+    },
+    {
+      "name": "Owen Brooks",
+      "team": "Input Platform"
+    },
+    {
+      "name": "Ravi Menon",
+      "team": "Kernel and BSP"
+    },
+    {
+      "name": "Sofia Alvarez",
+      "team": "Device Firmware"
+    },
+    {
+      "name": "Grace Liu",
+      "team": "System Quality"
+    },
+    {
+      "name": "Ethan Cole",
+      "team": "System Quality"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Failure Boundary",
+      "title_ko": "참석 확인과 실패 범위",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "Input Platform, Kernel and BSP, Device Firmware, and System Quality are represented. We are investigating missing pen strokes on the Aster Tab after the digitizer controller performs an autonomous firmware recovery. The user sees the pointer freeze for roughly half a second, then drawing resumes, but one or two completed strokes never reach the application. Touch input remains responsive. Today we need to establish the ownership boundary, agree on evidence that separates transport loss from framework filtering, and choose a fix that is safe for the November maintenance build. Before we close, I need named owners, measurable acceptance gates, rollback behavior, and a follow-up meeting with an exact time zone.",
+          "ko": "Input Platform, Kernel·BSP, Device Firmware, System Quality 팀이 참석했습니다. Aster Tab에서 digitizer controller가 자체 firmware recovery를 수행한 뒤 펜 stroke가 누락되는 문제를 조사합니다. 사용자는 pointer가 약 0.5초 멈춘 뒤 drawing이 재개되는 것을 보지만 완료된 stroke 한두 개가 application에 도달하지 않습니다. Touch input은 계속 반응합니다. 오늘 transport 손실과 framework filtering을 구분하는 증거에 합의하고 11월 maintenance build에 안전한 수정안을 선택해야 합니다. 종료 전에 담당자, 측정 가능한 수락 gate, rollback 동작, 정확한 시간대가 포함된 후속 회의가 필요합니다."
+        },
+        {
+          "speaker": "Grace Liu",
+          "en": "Quality has reproduced the symptom on 37 of 1,800 recovery cycles across twelve tablets. Thirty-two failures followed an injected controller watchdog, while five followed a naturally detected checksum mismatch. The missing interval starts after the last valid packet of the old controller session and ends before the first packet carrying the recovered firmware revision. Our video rig confirms that the pen remains on the glass during most failures. We have not reproduced the loss with finger touch, Bluetooth keyboards, or a second digitizer revision. The present logs cannot tell whether packets vanished on the bus, were discarded by the kernel driver, or arrived with timestamps that InputReader rejected. That observability gap is the first thing we must close.",
+          "ko": "품질팀은 태블릿 12대에서 recovery cycle 1,800회 중 37회 증상을 재현했습니다. 32회는 controller watchdog 주입 뒤, 5회는 자연적으로 감지된 checksum mismatch 뒤 발생했습니다. 누락 구간은 이전 controller session의 마지막 유효 packet 뒤 시작해 복구된 firmware revision을 담은 첫 packet 전에 끝납니다. 영상 장비는 대부분 실패 동안 펜이 유리 위에 계속 있음을 확인했습니다. Finger touch, Bluetooth keyboard, 두 번째 digitizer revision에서는 재현하지 못했습니다. 현재 log로는 packet이 bus에서 사라졌는지, kernel driver가 버렸는지, InputReader가 거부한 timestamp로 도착했는지 알 수 없습니다. 이 관측성 공백을 먼저 닫아야 합니다."
+        },
+        {
+          "speaker": "Sofia Alvarez",
+          "en": "The controller recovery sequence is intentional. When its internal scheduler misses three heartbeats, firmware stops reporting, resets the pen processing core, reloads calibration, and publishes a new session counter. The controller does not preserve pen samples across that reset because the buffer shares memory with the failed core. However, after recovery it emits a synthetic proximity-out marker for the old session before normal samples resume. Our trace shows that marker on the wire in 35 of the 37 failures. In two cases the bus analyzer started too late, so absence is unknown rather than proven. Firmware can expose the reset reason and the last committed sample sequence, but replaying physical coordinates from before reset would invent timing we cannot verify.",
+          "ko": "Controller recovery sequence는 의도된 동작입니다. 내부 scheduler가 heartbeat 세 번을 놓치면 firmware는 report를 중지하고 pen processing core를 reset하며 calibration을 다시 읽고 새 session counter를 게시합니다. 실패 core와 buffer memory를 공유하므로 reset을 넘겨 pen sample을 보존하지 않습니다. 하지만 recovery 뒤 정상 sample이 재개되기 전에 이전 session용 synthetic proximity-out marker를 냅니다. Wire trace에서 37회 실패 중 35회 marker를 확인했습니다. 두 건은 bus analyzer 시작이 늦어 부재가 입증된 것이 아니라 알 수 없는 상태입니다. Firmware는 reset reason과 마지막 committed sample sequence를 노출할 수 있지만 reset 전 physical coordinate를 replay하면 확인할 수 없는 timing을 만들어내게 됩니다."
+        },
+        {
+          "speaker": "Ravi Menon",
+          "en": "The kernel driver currently treats the controller reset as an ordinary report gap. It verifies packet checksums and forwards coordinates, tool state, pressure, and the controller timestamp through the input subsystem. It does not forward the session counter because the original interface predates autonomous recovery. More importantly, the synthetic proximity-out marker can be queued behind the first new-session coordinate when the interrupt line stays asserted during calibration completion. The work queue drains packets in arrival order, but it converts the marker into a device-wide release without a session identity. If InputReader has already accepted the new coordinate, that late release can terminate the new stroke. I see a plausible ordering defect, although we still need one trace that joins wire order, driver order, and framework consumption.",
+          "ko": "Kernel driver는 현재 controller reset을 일반적인 report gap으로 취급합니다. Packet checksum을 확인하고 coordinate, tool state, pressure, controller timestamp를 input subsystem으로 전달합니다. 기존 interface가 autonomous recovery보다 오래돼 session counter는 전달하지 않습니다. 더 중요한 것은 calibration 완료 중 interrupt line이 계속 asserted되면 synthetic proximity-out marker가 첫 new-session coordinate 뒤에 queue될 수 있다는 점입니다. Work queue는 arrival 순서로 packet을 처리하지만 marker를 session identity 없는 device-wide release로 변환합니다. InputReader가 이미 새 coordinate를 수락했다면 늦은 release가 새 stroke를 종료할 수 있습니다. Wire order, driver order, framework consumption을 연결한 trace가 필요하지만 ordering defect 가능성이 있습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and Competing Explanations",
+      "title_ko": "증거와 상충하는 설명",
+      "turns": [
+        {
+          "speaker": "Owen Brooks",
+          "en": "InputReader has two defenses that may be involved. It drops an event when its timestamp moves backward by more than eight milliseconds, and it synthesizes cancellation when a tool leaves proximity without a matching up event. In the captured framework traces, eleven failures include a backward timestamp warning immediately before cancellation. The controller timestamp restarts near zero after recovery, while the driver maps it onto the previous boot-time offset until its periodic clock fit runs again. That can make a valid new-session packet appear older than the final old-session packet. The remaining failures have no warning, which supports Ravi's late-release path. We may have two defects triggered by one recovery, not one defect with noisy evidence.",
+          "ko": "InputReader에는 관련될 수 있는 방어 로직이 두 개 있습니다. Timestamp가 8ms보다 크게 뒤로 가면 event를 버리고, matching up event 없이 tool이 proximity를 벗어나면 cancellation을 합성합니다. 수집된 framework trace에서 11회 실패는 cancellation 직전에 backward timestamp warning이 있습니다. Controller timestamp는 recovery 뒤 거의 0에서 다시 시작하지만 driver는 periodic clock fit이 다시 실행될 때까지 이전 boot-time offset에 mapping합니다. 그러면 유효한 new-session packet이 마지막 old-session packet보다 오래된 것처럼 보일 수 있습니다. 나머지 실패에는 warning이 없어 Ravi의 late-release 경로를 뒷받침합니다. 하나의 recovery가 결함 두 개를 촉발할 수 있습니다."
+        },
+        {
+          "speaker": "Ethan Cole",
+          "en": "We ran a correlation study over all 37 failures. Twenty-six have the first new coordinate followed by a release within 1.4 milliseconds, and those failures lose the beginning of the next stroke. Eleven have the backward timestamp warning and lose the end of the stroke that crossed recovery. None shows both signatures in the same cycle. In 400 control cycles where the recovery occurred while the pen was hovering but not touching, the pointer paused but no application-visible stroke disappeared. That distinction matters because a blanket debounce delay might hide the symptom without restoring a coherent tool state. Our acceptance test must compare the application event stream with an optical pen-contact reference, not merely count kernel packets.",
+          "ko": "37회 실패 모두에 correlation study를 수행했습니다. 26회는 첫 new coordinate 뒤 1.4ms 이내 release가 따라왔고 다음 stroke 시작을 잃었습니다. 11회는 backward timestamp warning이 있고 recovery를 가로지른 stroke 끝을 잃었습니다. 같은 cycle에서 두 signature가 함께 나타난 경우는 없습니다. 펜이 hover 중이지만 접촉하지 않을 때 recovery가 발생한 control cycle 400회에서는 pointer가 멈췄지만 application-visible stroke가 사라지지 않았습니다. Blanket debounce delay는 coherent tool state를 복원하지 않고 증상만 숨길 수 있습니다. 수락 시험은 kernel packet 수만 세지 말고 application event stream과 optical pen-contact reference를 비교해야 합니다."
+        },
+        {
+          "speaker": "Sofia Alvarez",
+          "en": "I disagree with describing every lost segment as a software ordering failure. Firmware cannot report samples captured while its processing core is resetting, and the optical reference cannot prove that those samples existed digitally. The product contract should promise a bounded interruption and an explicit discontinuity, not an impossible continuous line through hardware recovery. If the framework receives a session boundary, it can end the old stroke cleanly and start a new one at the first trustworthy coordinate. I can reduce recovery from a median of 410 milliseconds to about 260 by deferring a full calibration check, but that change increases the chance that a damaged calibration table survives until the next idle period. We should not trade data integrity for a prettier line.",
+          "ko": "모든 누락 segment를 software ordering failure라고 표현하는 데 반대합니다. Firmware는 processing core가 reset되는 동안 capture된 sample을 report할 수 없고 optical reference도 그 sample이 digital로 존재했음을 증명하지 못합니다. Product contract는 hardware recovery를 통과하는 불가능한 연속선을 약속하는 대신 제한된 interruption과 명시적 discontinuity를 약속해야 합니다. Framework가 session boundary를 받으면 이전 stroke를 깔끔히 종료하고 신뢰 가능한 첫 coordinate에서 새 stroke를 시작할 수 있습니다. 전체 calibration 검사를 미루면 recovery median을 410ms에서 약 260ms로 줄일 수 있지만 손상된 calibration table이 다음 idle period까지 남을 가능성이 커집니다. 더 예쁜 선을 위해 data integrity를 희생하면 안 됩니다."
+        },
+        {
+          "speaker": "Mina Park",
+          "en": "That is a fair boundary. The user-visible requirement is not to fabricate coordinates. It is to avoid silently deleting trustworthy events and to make the interruption deterministic. I propose an explicit recovery generation carried from firmware through the driver as a metadata event. InputReader will close any active pen gesture for the old generation, reset its timestamp fit, ignore old-generation releases that arrive late, and accept new coordinates only after a generation-start marker. Applications will receive a cancellation for the old gesture and a fresh down for the new gesture if the pen is still touching. The gap remains visible, but its endpoints are honest. We must verify that accessibility services, handwriting recognition, and drawing applications handle that sequence consistently.",
+          "ko": "타당한 경계입니다. 사용자 요구는 coordinate를 만들어내는 것이 아니라 신뢰 가능한 event를 조용히 삭제하지 않고 interruption을 결정적으로 만드는 것입니다. Firmware부터 driver까지 metadata event로 전달되는 명시적 recovery generation을 제안합니다. InputReader는 이전 generation의 active pen gesture를 닫고 timestamp fit을 reset하며 늦게 도착한 old-generation release를 무시하고 generation-start marker 뒤에만 새 coordinate를 수락합니다. Pen이 계속 닿아 있으면 application은 이전 gesture cancellation과 새 gesture의 fresh down을 받습니다. Gap은 보이지만 양 끝은 정직합니다. Accessibility service, handwriting recognition, drawing application이 이 sequence를 일관되게 처리하는지 검증해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Design Disagreement and Experiments",
+      "title_ko": "설계 이견과 실험",
+      "turns": [
+        {
+          "speaker": "Ravi Menon",
+          "en": "I support generation metadata, but I do not want a second private event channel that bypasses the Linux input ordering rules. The driver should attach generation to every pen packet and emit one synchronization record when it observes a change. It will maintain separate last-sequence values per generation, so a delayed packet from the retired generation is discarded before timestamp conversion. The timestamp mapper will establish a new affine fit from the first three packets and mark them uncertain; InputReader can order those packets by arrival until the fit stabilizes. This keeps the transport contract explicit. The cost is an input ABI extension, so we need proof that older framework builds safely ignore the additional metadata during a mixed system and vendor update.",
+          "ko": "Generation metadata를 지지하지만 Linux input ordering rule을 우회하는 두 번째 private event channel은 원하지 않습니다. Driver는 모든 pen packet에 generation을 붙이고 변경을 관찰하면 synchronization record 하나를 내야 합니다. Generation별 last-sequence value를 유지해 retired generation의 늦은 packet을 timestamp conversion 전에 버립니다. Timestamp mapper는 첫 세 packet으로 새 affine fit을 만들고 uncertain으로 표시하며 InputReader는 fit이 안정될 때까지 arrival 순서로 정렬할 수 있습니다. Transport contract가 명확해집니다. Input ABI 확장 비용이 있으므로 system·vendor 혼합 update 중 older framework build가 추가 metadata를 안전하게 무시한다는 증거가 필요합니다."
+        },
+        {
+          "speaker": "Owen Brooks",
+          "en": "Older frameworks ignoring generation is not sufficient if they still suffer the late-release defect. For mixed versions, the new driver must translate a generation change into a conservative release barrier when the framework has not advertised capability. It should drain the old generation, emit release, wait for synchronization, and then forward the new generation. That fallback may add up to twelve milliseconds, but it prevents cross-generation reordering. With a capable framework, there is no artificial wait. I also want the framework to expose a counter for recovery cancellation, stale release rejection, timestamp-fit reset, and unsupported fallback. Those are aggregate counters only; they must not contain coordinates, handwriting content, or application identity.",
+          "ko": "Older framework가 generation을 무시하는 것만으로는 late-release defect를 계속 겪는다면 충분하지 않습니다. Mixed version에서는 framework가 capability를 advertise하지 않았을 때 new driver가 generation change를 보수적인 release barrier로 변환해야 합니다. Old generation을 drain하고 release를 내며 synchronization을 기다린 뒤 new generation을 전달해야 합니다. Fallback은 최대 12ms를 추가하지만 cross-generation reordering을 막습니다. Capability 있는 framework에는 인위적 wait가 없습니다. Framework는 recovery cancellation, stale release rejection, timestamp-fit reset, unsupported fallback counter도 노출해야 합니다. Aggregate counter만 사용하며 coordinate, handwriting content, application identity를 담으면 안 됩니다."
+        },
+        {
+          "speaker": "Grace Liu",
+          "en": "The experiment matrix will separate the two proposed fixes. Variant A changes only generation ordering. Variant B changes only timestamp re-anchoring. Variant C combines both, and Variant D is the existing baseline. We will inject recovery at every pen state: out of range, hover, initial down, steady drawing, pressure transition, button press, and final up. Each state runs across warm and cold temperatures, both display refresh modes, charger connected and disconnected, and three firmware reset reasons. We need at least 10,000 recovery cycles per variant. A valid result requires zero cross-generation release, zero rejected trustworthy new-session packet, and no unexplained difference between optical contact boundaries and application cancellation boundaries.",
+          "ko": "실험 matrix는 두 제안 수정을 분리합니다. Variant A는 generation ordering만, B는 timestamp re-anchoring만, C는 둘 모두, D는 기존 baseline입니다. Out of range, hover, initial down, steady drawing, pressure transition, button press, final up 등 모든 pen state에서 recovery를 주입합니다. 각 state는 고온·저온, 두 display refresh mode, charger 연결·분리, 세 firmware reset reason을 가로질러 실행합니다. Variant별 최소 10,000 recovery cycle이 필요합니다. 유효 결과는 cross-generation release 0건, 신뢰 가능한 new-session packet rejection 0건이며 optical contact boundary와 application cancellation boundary 사이 설명되지 않은 차이가 없어야 합니다."
+        },
+        {
+          "speaker": "Ethan Cole",
+          "en": "I want one adversarial test added. We should delay the old-session release by controlled intervals from one microsecond to thirty milliseconds while restarting the controller timestamp at several offsets. That sweeps the race window instead of hoping natural scheduling reaches it. We also need a bus-stall case where the generation-start record arrives but the first coordinate is missing or corrupt. The framework must remain canceled rather than infer a down event. Finally, suspend can begin during recovery. The generation state must survive driver runtime suspend, but it must reset across a full device reboot. I will build the fault injector and publish seeds so every failure is repeatable on another bench.",
+          "ko": "Adversarial test 하나를 추가하고 싶습니다. Controller timestamp를 여러 offset에서 재시작하면서 old-session release를 1μs부터 30ms까지 통제된 간격으로 지연해야 합니다. 자연 scheduling이 도달하길 기다리지 않고 race window를 sweep합니다. Generation-start record가 오지만 첫 coordinate가 없거나 손상된 bus-stall case도 필요합니다. Framework는 down event를 추론하지 않고 canceled 상태를 유지해야 합니다. Recovery 중 suspend가 시작될 수도 있습니다. Generation state는 driver runtime suspend를 넘어 유지되지만 full device reboot에서는 reset돼야 합니다. Fault injector를 만들고 seed를 게시해 다른 bench에서 모든 실패를 반복할 수 있게 하겠습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision Owners and Release Gates",
+      "title_ko": "결정, 담당자와 릴리스 게이트",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "The decision is to implement the combined generation and timestamp contract, with Ravi's ordered driver path and Owen's capability fallback. We will not shorten firmware calibration in this maintenance release. Sofia will expose generation, reset reason, and last committed sequence by November 10 at 14:00 KST. Ravi will deliver the driver prototype, mixed-version barrier, and suspend handling by November 11 at 18:00 KST. Owen owns InputReader generation handling, timestamp re-anchoring, and aggregate counters by November 12 at 15:00 KST. Grace owns the matrix and application compatibility suite. Ethan owns the adversarial injector and reproducible seeds. I own the release packet and cross-team dependency tracking.",
+          "ko": "결정은 Ravi의 ordered driver path와 Owen의 capability fallback을 포함한 generation·timestamp 결합 contract를 구현하는 것입니다. 이번 maintenance release에서는 firmware calibration을 단축하지 않습니다. Sofia는 11월 10일 14:00 KST까지 generation, reset reason, last committed sequence를 노출합니다. Ravi는 11월 11일 18:00 KST까지 driver prototype, mixed-version barrier, suspend handling을 제공합니다. Owen은 11월 12일 15:00 KST까지 InputReader generation 처리, timestamp re-anchoring, aggregate counter를 담당합니다. Grace는 matrix와 application compatibility suite, Ethan은 adversarial injector와 재현 seed, 저는 release packet과 dependency 추적을 맡습니다."
+        },
+        {
+          "speaker": "Sofia Alvarez",
+          "en": "Firmware agrees, with one clarification. The generation increments before reset begins and is committed in always-on retention memory, so a second fault during recovery cannot reuse the same value. The start record includes generation, reset reason, calibration result, and first valid sequence. It contains no coordinates. If retention integrity fails, firmware reports generation unknown and the driver must use the conservative fallback rather than guess continuity. I will provide a decoder document and golden traces for watchdog, checksum, and manual diagnostic resets. I will also prove that the generation counter cannot wrap within the supported device life under the maximum specified recovery rate.",
+          "ko": "Firmware는 한 가지 명확화와 함께 동의합니다. Generation은 reset 시작 전에 증가하고 always-on retention memory에 commit돼 recovery 중 두 번째 fault가 같은 값을 재사용할 수 없습니다. Start record는 generation, reset reason, calibration result, first valid sequence를 포함하고 coordinate는 없습니다. Retention integrity가 실패하면 firmware는 generation unknown을 report하고 driver는 continuity를 추측하지 않고 보수적 fallback을 사용해야 합니다. Watchdog, checksum, manual diagnostic reset용 decoder 문서와 golden trace를 제공합니다. 최대 지정 recovery rate에서도 지원 device life 안에 generation counter가 wrap되지 않음을 증명하겠습니다."
+        },
+        {
+          "speaker": "Grace Liu",
+          "en": "The release gate has four layers. Functional testing requires 40,000 combined-variant cycles with no forbidden event and at least 99.95 percent of recovery gaps below 550 milliseconds. Compatibility covers new and old framework-driver combinations, both slots, interrupted OTA, runtime suspend, safe mode, and factory reset. Application testing covers the system drawing app, two third-party drawing apps, handwriting input, accessibility magnification, screen recording, and remote desktop injection. Performance allows no more than 0.15 milliseconds added median input latency and no measurable idle-power increase above 0.05 percent. Missing traces count as failed evidence. A flaky pass is not a pass; the same seed must succeed three consecutive times.",
+          "ko": "Release gate는 네 계층입니다. Functional testing은 결합 variant 40,000 cycle에서 금지 event 0건과 recovery gap의 99.95% 이상이 550ms 미만이어야 합니다. Compatibility는 new·old framework-driver 조합, 양 slot, interrupted OTA, runtime suspend, safe mode, factory reset을 다룹니다. Application testing은 system drawing app, third-party drawing app 두 개, handwriting input, accessibility magnification, screen recording, remote desktop injection을 포함합니다. Performance는 median input latency 추가 0.15ms 이하, idle power 증가 0.05% 초과 없음입니다. Trace 누락은 evidence 실패로 셉니다. Flaky pass는 pass가 아니며 같은 seed가 세 번 연속 성공해야 합니다."
+        },
+        {
+          "speaker": "Ravi Menon",
+          "en": "Rollback will be a single feature flag in the driver configuration, but its safe state is not today's behavior. Disabling the new ABI will retain the ordered release barrier and timestamp reset while suppressing generation metadata to the framework. That means rollback removes compatibility risk without restoring the known race. The flag is read only at boot and included in the diagnostic header, so field evidence identifies the active path. If the driver sees an impossible generation regression or more than one unknown generation in a boot, it enters the conservative barrier mode and increments a bounded health counter. It must never restart the controller merely to repair bookkeeping, because that could create a recovery loop.",
+          "ko": "Rollback은 driver configuration의 단일 feature flag지만 safe state는 현재 동작이 아닙니다. 새 ABI를 끄면 framework로 generation metadata를 보내지 않으면서 ordered release barrier와 timestamp reset은 유지합니다. 즉 rollback은 알려진 race를 되살리지 않고 compatibility 위험을 제거합니다. Flag는 boot 때만 읽고 diagnostic header에 포함돼 field evidence가 active path를 식별합니다. Driver가 불가능한 generation regression이나 한 boot에서 두 번 이상의 unknown generation을 보면 보수적 barrier mode로 들어가고 제한된 health counter를 증가시킵니다. Bookkeeping을 고치기 위해 controller를 재시작하면 recovery loop를 만들 수 있으므로 절대 그래서는 안 됩니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Final Review and Next Meeting",
+      "title_ko": "최종 검토와 다음 회의",
+      "turns": [
+        {
+          "speaker": "Owen Brooks",
+          "en": "For framework review, I will document the state machine in terms of old generation active, recovery announced, new generation pending, and new generation active. Every transition has one owner and one emitted application action. A late old release is ignored only after recovery is authenticated by the driver record; ordinary out-of-order events still follow existing rules. If the first new coordinate is corrupt, the state remains pending and applications stay canceled. Timestamp re-anchoring uses arrival time as a temporary bound, not as the permanent event time. Once three valid samples establish the fit, later packets use controller time without rewriting events already delivered. This avoids hidden history changes that would make traces impossible to interpret.",
+          "ko": "Framework review를 위해 state machine을 old generation active, recovery announced, new generation pending, new generation active로 문서화합니다. 모든 transition에는 owner와 application action 하나가 있습니다. Late old release는 driver record로 recovery가 인증된 뒤에만 무시하며 일반 out-of-order event는 기존 rule을 따릅니다. 첫 new coordinate가 손상되면 state는 pending에 남고 application은 canceled 상태를 유지합니다. Timestamp re-anchoring은 arrival time을 영구 event time이 아니라 임시 bound로 사용합니다. 유효 sample 세 개가 fit을 정하면 이후 packet은 이미 전달된 event를 다시 쓰지 않고 controller time을 사용합니다. Trace 해석을 어렵게 하는 숨은 history 변경을 피합니다."
+        },
+        {
+          "speaker": "Ethan Cole",
+          "en": "The injector will record six clocks and identifiers: optical frame time, bus capture time, interrupt entry, driver enqueue and dequeue, InputReader consumption, and application callback, all tied to generation and packet sequence. We will calibrate clock offsets before each run and flag drift above 100 microseconds. The report will show event lineage rather than separate screenshots from each layer. I will deliver the first deterministic race sweep by November 11 at 12:00 KST and the suspend-during-recovery suite by November 12 at noon. Any failure bundle includes the seed, temperatures, power state, firmware image, driver revision, framework revision, and application version. No manual editing of traces is allowed.",
+          "ko": "Injector는 optical frame time, bus capture time, interrupt entry, driver enqueue·dequeue, InputReader consumption, application callback 등 여섯 clock·identifier를 generation과 packet sequence에 연결해 기록합니다. 각 실행 전 clock offset을 보정하고 100μs를 넘는 drift를 표시합니다. Report는 layer별 별도 screenshot 대신 event lineage를 보여줍니다. 11월 11일 12:00 KST까지 첫 deterministic race sweep, 11월 12일 정오까지 suspend-during-recovery suite를 제공합니다. 모든 failure bundle에는 seed, temperature, power state, firmware image, driver revision, framework revision, application version이 포함됩니다. Trace 수동 편집은 허용하지 않습니다."
+        },
+        {
+          "speaker": "Grace Liu",
+          "en": "Quality will run a precommit subset of 600 cycles across active drawing, hover, timestamp restart, late release, and corrupt first packet. It must finish within twenty-five minutes and preserve all lineage fields. The larger 40,000-cycle matrix runs on the release farm after merge. We will quarantine a bench if clock calibration fails rather than silently excluding its cases. I will publish a dashboard separating hardware interruption duration, trustworthy packet loss, framework rejection, and application cancellation. Those categories must not be collapsed into one missing-stroke rate. The dashboard and blinded application results will be ready for the acceptance review on November 13 at 16:00 KST.",
+          "ko": "품질팀은 active drawing, hover, timestamp restart, late release, corrupt first packet을 아우르는 600 cycle precommit subset을 실행합니다. 25분 안에 완료되고 모든 lineage field를 보존해야 합니다. 더 큰 40,000 cycle matrix는 merge 뒤 release farm에서 실행합니다. Clock calibration이 실패하면 case를 조용히 제외하지 않고 bench를 quarantine합니다. Hardware interruption duration, trustworthy packet loss, framework rejection, application cancellation을 분리한 dashboard를 게시합니다. 이 범주를 하나의 missing-stroke rate로 합치면 안 됩니다. Dashboard와 blinded application 결과는 11월 13일 16:00 KST 수락 검토까지 준비합니다."
+        },
+        {
+          "speaker": "Mina Park",
+          "en": "We have a conditional maintenance-build candidate, not a final approval. Integration may start after the firmware record and driver parser pass peer review. Release eligibility requires every functional, compatibility, application, and performance gate, plus complete lineage for all failures. The follow-up meeting is November 13 at 16:00 KST, and all six participants are required. If evidence is incomplete, we will keep the existing build and move the fix to the next maintenance window; we will not weaken the gate to recover the date. I will circulate today's decision and owner table within one hour. Please attach objections to the decision record by 12:00 KST tomorrow so they are resolved before integration. The meeting is closed.",
+          "ko": "최종 승인이 아니라 조건부 maintenance-build 후보입니다. Firmware record와 driver parser가 peer review를 통과한 뒤 integration을 시작할 수 있습니다. Release 자격에는 모든 functional, compatibility, application, performance gate와 모든 실패의 완전한 lineage가 필요합니다. 후속 회의는 11월 13일 16:00 KST이며 여섯 명 모두 참석해야 합니다. 증거가 불완전하면 기존 build를 유지하고 수정을 다음 maintenance window로 옮깁니다. 날짜를 회복하려 gate를 약화하지 않습니다. 한 시간 안에 오늘 결정과 담당자 표를 배포합니다. 이견은 내일 12:00 KST까지 decision record에 첨부해 integration 전에 해결해 주세요. 회의를 마칩니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "ownership boundary",
+      "meaning_ko": "소유권 경계",
+      "usage_ko": "컴포넌트 간 책임 범위를 정할 때",
+      "example": "Today we need to establish the ownership boundary, agree on evidence that separates transport loss from framework filtering, and choose a fix that is safe for the November maintenance build.",
+      "practice": "We should use the phrase ownership boundary when the next review reaches a similar decision."
+    },
+    {
+      "phrase": "observability gap",
+      "meaning_ko": "관측성 공백",
+      "usage_ko": "원인 구분에 필요한 증거가 없을 때",
+      "example": "That observability gap is the first thing we must close.",
+      "practice": "We should use the phrase observability gap when the next review reaches a similar decision."
+    },
+    {
+      "phrase": "plausible ordering defect",
+      "meaning_ko": "가능성 있는 순서 결함",
+      "usage_ko": "추가 증거가 필요한 가설을 제시할 때",
+      "example": "I see a plausible ordering defect, although we still need one trace that joins wire order, driver order, and framework consumption.",
+      "practice": "We should use the phrase plausible ordering defect when the next review reaches a similar decision."
+    },
+    {
+      "phrase": "two defects triggered by one recovery",
+      "meaning_ko": "하나의 복구가 촉발한 두 결함",
+      "usage_ko": "복합 원인을 설명할 때",
+      "example": "We may have two defects triggered by one recovery, not one defect with noisy evidence.",
+      "practice": "We should use the phrase two defects triggered by one recovery when the next review reaches a similar decision."
+    },
+    {
+      "phrase": "not merely count kernel packets",
+      "meaning_ko": "커널 패킷 수만 세는 것이 아니라",
+      "usage_ko": "종단간 검증을 강조할 때",
+      "example": "Our acceptance test must compare the application event stream with an optical pen-contact reference, not merely count kernel packets.",
+      "practice": "We should use the phrase not merely count kernel packets when the next review reaches a similar decision."
+    },
+    {
+      "phrase": "a fair boundary",
+      "meaning_ko": "타당한 경계",
+      "usage_ko": "상대의 범위 구분을 수용할 때",
+      "example": "That is a fair boundary.",
+      "practice": "We should use the phrase a fair boundary when the next review reaches a similar decision."
+    },
+    {
+      "phrase": "transport contract explicit",
+      "meaning_ko": "전송 계약을 명확하게",
+      "usage_ko": "인터페이스 의미를 명시할 때",
+      "example": "This keeps the transport contract explicit.",
+      "practice": "We should use the phrase transport contract explicit when the next review reaches a similar decision."
+    },
+    {
+      "phrase": "sweeps the race window",
+      "meaning_ko": "경쟁 조건 구간을 훑는다",
+      "usage_ko": "동시성 결함을 체계적으로 시험할 때",
+      "example": "That sweeps the race window instead of hoping natural scheduling reaches it.",
+      "practice": "We should use the phrase sweeps the race window when the next review reaches a similar decision."
+    },
+    {
+      "phrase": "named owners",
+      "meaning_ko": "지정된 담당자",
+      "usage_ko": "실행 책임을 명확히 할 때",
+      "example": "Before we close, I need named owners, measurable acceptance gates, rollback behavior, and a follow-up meeting with an exact time zone.",
+      "practice": "We should use the phrase named owners when the next review reaches a similar decision."
+    },
+    {
+      "phrase": "Missing traces count as failed evidence",
+      "meaning_ko": "누락된 추적 자료는 증거 실패로 센다",
+      "usage_ko": "검증 완전성을 요구할 때",
+      "example": "Missing traces count as failed evidence.",
+      "practice": "We should use the phrase Missing traces count as failed evidence when the next review reaches a similar decision."
+    },
+    {
+      "phrase": "A flaky pass is not a pass",
+      "meaning_ko": "간헐적 통과는 통과가 아니다",
+      "usage_ko": "비결정적 결과를 거부할 때",
+      "example": "A flaky pass is not a pass; the same seed must succeed three consecutive times.",
+      "practice": "We should use the phrase A flaky pass is not a pass when the next review reaches a similar decision."
+    },
+    {
+      "phrase": "safe state is not today's behavior",
+      "meaning_ko": "안전 상태는 현재 동작이 아니다",
+      "usage_ko": "rollback에도 필수 수정을 유지할 때",
+      "example": "Rollback will be a single feature flag in the driver configuration, but its safe state is not today's behavior.",
+      "practice": "We should use the phrase safe state is not today's behavior when the next review reaches a similar decision."
+    },
+    {
+      "phrase": "event lineage",
+      "meaning_ko": "이벤트 계보",
+      "usage_ko": "계층별 이벤트 연결을 설명할 때",
+      "example": "The report will show event lineage rather than separate screenshots from each layer.",
+      "practice": "We should use the phrase event lineage when the next review reaches a similar decision."
+    },
+    {
+      "phrase": "conditional maintenance-build candidate",
+      "meaning_ko": "조건부 유지보수 빌드 후보",
+      "usage_ko": "최종 승인 전 상태를 말할 때",
+      "example": "We have a conditional maintenance-build candidate, not a final approval.",
+      "practice": "We should use the phrase conditional maintenance-build candidate when the next review reaches a similar decision."
+    },
+    {
+      "phrase": "we will not weaken the gate to recover the date",
+      "meaning_ko": "일정을 맞추려 게이트를 약화하지 않는다",
+      "usage_ko": "품질 원칙을 선언할 때",
+      "example": "If evidence is incomplete, we will keep the existing build and move the fix to the next maintenance window; we will not weaken the gate to recover the date.",
+      "practice": "We should use the phrase we will not weaken the gate to recover the date when the next review reaches a similar decision."
+    }
+  ]
+}
