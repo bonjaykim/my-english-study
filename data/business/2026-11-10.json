@@ -1,0 +1,273 @@
+{
+  "date": "2026-11-10",
+  "category": "business",
+  "topic": "sw-status",
+  "subject": "Reviewing Dex Optimization Starvation under New Thermal Budgets",
+  "title_ko": "새 Thermal Budget에서 Dex Optimization 기아 현상 검토",
+  "summary_ko": "가상의 Android 유지보수 릴리스 현황 회의에서 강화된 충전·열 정책 이후 background dex optimization이 반복 취소되어 앱 cold start debt가 누적되는 문제를 검토한다. 팀들은 resumable checkpoint, 정확한 queue accounting, energy ledger 기반 completion tail, cohort별 정량 gate와 분리 rollback을 결정한다. 모든 인물·조직·단말·package·compiler·정책·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Jiyoon Han",
+      "team": "Android Runtime"
+    },
+    {
+      "name": "Marcus Reed",
+      "team": "Android Runtime"
+    },
+    {
+      "name": "Priya Shah",
+      "team": "Power and Thermal"
+    },
+    {
+      "name": "Leo Martin",
+      "team": "Power and Thermal"
+    },
+    {
+      "name": "Nora Jensen",
+      "team": "System Quality"
+    },
+    {
+      "name": "Daniel Cho",
+      "team": "Release Management"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Release Status",
+      "title_ko": "참석 확인과 릴리스 현황",
+      "turns": [
+        {
+          "speaker": "Daniel Cho",
+          "en": "Android Runtime, Power and Thermal, System Quality, and Release Management are represented. We are reviewing the November maintenance candidate after field simulation showed that background dex optimization rarely finishes on heavily used devices. The build changed charging and thermal budgets to protect battery longevity, and cold starts for several large applications now regress after an update. Today we need to determine whether the scheduler policy, compiler workload, or test assumptions created the backlog. We also need a release disposition, exact owners, dated deliverables, rollback behavior, and a follow-up meeting in a stated time zone. Please separate measured facts from hypotheses because this issue crosses three policies that were approved for different reasons.",
+          "ko": "Android Runtime, Power·Thermal, System Quality, Release Management 팀이 참석했습니다. 배터리 수명을 보호하기 위해 충전·열 budget을 바꾼 11월 maintenance 후보에서 사용량이 많은 단말의 background dex optimization이 거의 완료되지 않고, 업데이트 후 대형 앱의 cold start가 느려진 현황을 검토합니다. Scheduler 정책, compiler workload, test 가정 중 무엇이 backlog를 만들었는지 판단해야 합니다. 릴리스 처분, 담당자, 기한, rollback, 시간대가 명시된 후속 회의도 정합니다. 서로 다른 이유로 승인된 세 정책이 교차하므로 측정 사실과 가설을 분리해 주세요."
+        },
+        {
+          "speaker": "Nora Jensen",
+          "en": "Quality upgraded 240 devices from the October build and replayed seven days of mixed office, gaming, camera, and navigation use. On the old build, 91 percent completed the priority package set within forty-eight hours. On the candidate, only 38 percent did. Median cold start for the five largest packages increased by 310 milliseconds, while the ninety-fifth percentile increased by 740. Devices with light use generally recovered overnight. The failures cluster on devices that charge in short daytime sessions and remain above the warm thermal band during evening use. We saw no increase in compiler crashes, storage errors, or package corruption. Our evidence points to starvation rather than failed compilation, but the reason for starvation is still disputed.",
+          "ko": "품질팀은 240대를 10월 build에서 upgrade하고 office, gaming, camera, navigation을 섞어 7일간 재생했습니다. 이전 build는 48시간 안에 우선 package set의 91%가 완료됐지만 후보는 38%뿐입니다. 가장 큰 앱 5개의 cold start median은 310ms, 95백분위는 740ms 늘었습니다. 사용량이 적은 단말은 대체로 밤새 회복했습니다. 실패는 낮에 짧게 충전하고 저녁 사용 중 warm thermal band 위에 머무는 단말에 집중됩니다. Compiler crash, storage error, package corruption 증가는 없었습니다. 증거는 compilation 실패보다 starvation을 가리키지만 원인은 논쟁 중입니다."
+        },
+        {
+          "speaker": "Priya Shah",
+          "en": "Power policy now requires stable external power, battery above 55 percent, skin-temperature estimate below 37.5 degrees, and no foreground high-load session for ten minutes before unrestricted optimization starts. Those gates were introduced after long compiler bursts raised battery temperature during top-off charging. The scheduler still permits a small maintenance budget below those thresholds, but Runtime requests work in units that can occupy a big core for several minutes. Once temperature crosses the warm band, the unit is canceled and restarts from the beginning later. From my perspective the policy is behaving as specified. The mismatch is that the workload is not preemptible enough to use the budget we deliberately left available.",
+          "ko": "전원 정책은 unrestricted optimization 시작 전에 안정적 외부 전원, 배터리 55% 이상, skin-temperature estimate 37.5도 미만, 10분 동안 foreground high-load session 없음이 필요합니다. 긴 compiler burst가 top-off charging 중 배터리 온도를 높여 gate를 도입했습니다. Threshold 아래에서도 작은 maintenance budget은 허용하지만 Runtime은 big core를 몇 분 점유할 수 있는 단위로 작업을 요청합니다. 온도가 warm band를 넘으면 unit이 취소되고 나중에 처음부터 재시작합니다. 정책은 명세대로 동작합니다. 의도적으로 남긴 budget을 workload가 충분히 preemptible하지 않아 쓰지 못하는 것이 불일치입니다."
+        },
+        {
+          "speaker": "Jiyoon Han",
+          "en": "Runtime agrees that restart cost is significant, but the candidate also reduced the number of eligible windows more than the design review predicted. The policy model assumed a typical overnight charge of six hours. Quality telemetry shows that 44 percent of the affected population charges in sessions shorter than ninety minutes. We cannot call that an edge case. The compiler currently checkpoints between methods for profile-guided work, but image generation and final verification are package-level transactions. Canceling during either stage discards useful computation to protect atomic output. We have two potential levers: create smaller resumable artifacts, or reserve a protected completion tail once a package passes a defined progress point. Each has integrity and power tradeoffs.",
+          "ko": "Runtime도 restart 비용이 크다는 데 동의하지만 후보는 design review 예측보다 eligible window를 더 많이 줄였습니다. 정책 model은 보통 6시간 overnight charge를 가정했습니다. 품질 telemetry에서는 영향 인구의 44%가 90분보다 짧게 충전합니다. Edge case라고 할 수 없습니다. Compiler는 profile-guided work에서 method 사이 checkpoint를 하지만 image generation과 final verification은 package-level transaction입니다. 그 단계에서 취소하면 atomic output을 보호하기 위해 유용한 계산을 버립니다. 더 작은 resumable artifact를 만들거나 package가 정해진 진행 지점을 넘으면 보호된 completion tail을 예약할 수 있습니다. 둘 다 integrity와 power tradeoff가 있습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and Root Cause Debate",
+      "title_ko": "증거와 원인 논쟁",
+      "turns": [
+        {
+          "speaker": "Marcus Reed",
+          "en": "I reconstructed 600 scheduler histories with compiler traces. Seventy-two percent of wasted CPU time occurs after code generation is complete but before image sealing finishes. The same package may repeat that interval four or five times. A second pattern affects packages with multiple architecture splits: the scheduler counts each split as new work, so its fairness score keeps moving the package behind smaller jobs. The backlog is therefore not simply insufficient time. We are spending time without retaining progress, and our queue accounting hides partially completed value. I recommend a durable package checkpoint containing input digests, completed split map, compiler version, and verification state. Resume is allowed only when every digest matches; otherwise the checkpoint is discarded.",
+          "ko": "Scheduler history 600개를 compiler trace와 재구성했습니다. 낭비 CPU time의 72%가 code generation 완료 후 image sealing 전에 발생합니다. 같은 package가 그 구간을 네다섯 번 반복하기도 합니다. 여러 architecture split이 있는 package는 scheduler가 split마다 새 work로 계산해 fairness score가 계속 작은 job 뒤로 밀립니다. Backlog는 단순히 시간이 부족한 것이 아닙니다. 진전을 보존하지 못한 채 시간을 쓰고 부분 완료 가치를 queue accounting이 숨깁니다. Input digest, completed split map, compiler version, verification state를 담는 durable package checkpoint를 권합니다. 모든 digest가 일치할 때만 resume하고 아니면 폐기합니다."
+        },
+        {
+          "speaker": "Leo Martin",
+          "en": "A durable checkpoint helps repeated work, but it does not answer the energy peak during sealing. Our rail measurements show sealing plus verification draws 1.8 watts above idle for up to eighty seconds on the largest package. If we grant a protected tail whenever progress crosses a threshold, several packages could chain their tails and defeat the thermal policy. The reservation must be charged against a rolling energy ledger, not just a percentage-complete marker. I propose a maximum tail of ninety seconds, one reservation per thermal recovery epoch, and a hard abort at the hot threshold. The ledger must include compiler, storage flush, and verification energy because moving work between processes does not remove its physical cost.",
+          "ko": "Durable checkpoint는 반복 작업에 도움이 되지만 sealing 중 energy peak를 해결하지는 않습니다. Rail 측정에서 가장 큰 package의 sealing·verification은 최대 80초 동안 idle보다 1.8W 높습니다. 진행 threshold를 넘을 때마다 protected tail을 허용하면 여러 package tail이 이어져 thermal policy를 무력화할 수 있습니다. 예약은 완료율만이 아니라 rolling energy ledger에 부과해야 합니다. Tail 최대 90초, thermal recovery epoch당 예약 하나, hot threshold에서 hard abort를 제안합니다. 작업을 process 사이 옮겨도 물리 비용은 사라지지 않으므로 ledger에 compiler, storage flush, verification energy를 포함해야 합니다."
+        },
+        {
+          "speaker": "Nora Jensen",
+          "en": "The data also challenges our test assumptions. The original release gate measured average device temperature and total optimization completion after an eight-hour plug-in soak. It did not measure canceled work, time to optimize the priority set, or users who never provide a long idle window. A green result under that test concealed the exact failure we now see. I want three cohorts: long overnight charging, repeated thirty-minute top-ups, and mostly wireless charging with warm ambient conditions. For each cohort we should report useful compiler progress retained per joule, priority-set completion by twenty-four and forty-eight hours, cold-start debt, canceled seconds, and thermal excursions. Aggregate completion alone is not an adequate release signal.",
+          "ko": "데이터는 test 가정에도 문제를 제기합니다. 기존 release gate는 8시간 plug-in soak 뒤 평균 device temperature와 전체 optimization completion을 측정했습니다. 취소된 work, priority set 최적화 시간, 긴 idle window를 제공하지 않는 사용자를 측정하지 않았습니다. 그 test의 green 결과가 지금의 실패를 가렸습니다. 긴 overnight charging, 반복 30분 top-up, 따뜻한 환경의 wireless charging 세 cohort가 필요합니다. Cohort별 joule당 보존된 유용 compiler progress, 24·48시간 priority-set 완료, cold-start debt, 취소된 시간, thermal excursion을 보고해야 합니다. Aggregate completion만으로는 충분한 release signal이 아닙니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "I need clarity on customer impact before we choose scope. The candidate contains unrelated security and modem fixes scheduled for November 16. Delaying the entire build has a cost, but shipping a performance regression that accumulates for days also has a cost. Can we safely disable only the new thermal gate, or is that coupled to the battery-protection change? Can we ship checkpointing without the protected tail? Please frame options as independent changes with evidence, not as one large solution that must land together. Release can accept a staged correction if the first stage prevents unbounded debt and the second improves efficiency without changing output correctness.",
+          "ko": "범위를 정하기 전에 고객 영향을 명확히 해야 합니다. 후보에는 11월 16일 예정된 별도 security·modem fix가 있습니다. 전체 build 지연에도 비용이 있지만 며칠간 누적되는 성능 regression을 배포하는 데도 비용이 있습니다. 새 thermal gate만 안전하게 끌 수 있는지, battery-protection 변경과 결합돼 있는지, protected tail 없이 checkpointing만 배포할 수 있는지 묻습니다. 하나의 큰 해법이 아니라 독립 변경과 증거로 option을 구성해 주세요. 1단계가 무제한 debt를 막고 2단계가 output correctness를 바꾸지 않고 효율을 높인다면 staged correction을 수용할 수 있습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Options and Cross Team Disagreement",
+      "title_ko": "대안과 팀 간 이견",
+      "turns": [
+        {
+          "speaker": "Priya Shah",
+          "en": "Disabling the thermal gate is not acceptable. It would restore the measured charging heat we were asked to remove, and it would teach the scheduler that performance debt outranks a safety budget. However, we can revise eligibility without removing the guardrail. The ten-minute quiet requirement can become a confidence score based on recent load, charging power, and temperature slope. That creates more short windows while preserving hard temperature limits. I would not put that model into this maintenance build without at least a week of comparison data. For November, I support checkpointing and a strictly bounded tail using the existing thresholds. The policy remains conservative, while Runtime stops throwing away work inside permitted windows.",
+          "ko": "Thermal gate를 끄는 것은 수용할 수 없습니다. 제거 요청을 받은 charging heat를 되살리고 scheduler에 performance debt가 safety budget보다 우선한다고 가르치게 됩니다. 하지만 guardrail을 제거하지 않고 eligibility를 수정할 수는 있습니다. 10분 quiet 요구를 최근 load, charging power, temperature slope 기반 confidence score로 바꾸면 hard temperature limit을 지키면서 짧은 window를 더 만들 수 있습니다. 비교 데이터 일주일 없이 그 model을 이번 maintenance build에 넣지는 않겠습니다. 11월에는 기존 threshold를 사용하는 checkpointing과 엄격히 제한된 tail을 지지합니다. 정책은 보수적으로 유지하고 Runtime은 허용 window 안에서 work를 버리지 않게 합니다."
+        },
+        {
+          "speaker": "Jiyoon Han",
+          "en": "Checkpointing alone prevents repeated compilation, but without a completion mechanism the final seal can still starve indefinitely. I propose two queue classes. Priority packages with measured cold-start debt may request one completion tail after all splits are compiled and the predicted remaining energy is below the ledger allowance. Nonpriority packages remain fully interruptible. The tail is revoked at the hot threshold, foreground latency pressure, or battery discharge. No package can request another tail until it has made new checkpointed progress. This is not a blanket exception; it is a bounded way to turn retained progress into an installable artifact. We will expose every grant, revocation, consumed joule estimate, and completion outcome to Quality.",
+          "ko": "Checkpointing만으로 반복 compilation은 막지만 completion mechanism이 없으면 final seal은 무기한 starve할 수 있습니다. Queue class 두 개를 제안합니다. 측정된 cold-start debt가 있는 priority package는 모든 split이 compile되고 예측 remaining energy가 ledger allowance 아래일 때 completion tail 하나를 요청할 수 있습니다. Nonpriority package는 완전히 interruptible 상태입니다. Tail은 hot threshold, foreground latency pressure, battery discharge에서 취소됩니다. 새 checkpointed progress 없이는 같은 package가 tail을 다시 요청할 수 없습니다. Blanket exception이 아니라 보존된 진전을 installable artifact로 바꾸는 제한 방식입니다. Grant, revocation, consumed joule estimate, completion outcome을 모두 Quality에 노출합니다."
+        },
+        {
+          "speaker": "Marcus Reed",
+          "en": "We must protect correctness across software updates. A checkpoint is valid only for the exact package code digest, profile digest, compiler build, instruction-set features, boot image fingerprint, and optimization filter. It also needs a monotonic format version and a completed-stage bitmap covered by a checksum. We write into a temporary directory, fsync the data and manifest, then atomically publish the checkpoint. Resume never trusts paths supplied by the package and never loads executable output before final verification. Storage quota is capped at 350 megabytes, with eviction by expired input identity rather than least-recently-used time. I will add fault injection after every write and rename boundary so power loss cannot promote a partial artifact.",
+          "ko": "Software update를 가로질러 correctness를 보호해야 합니다. Checkpoint는 정확한 package code digest, profile digest, compiler build, instruction-set feature, boot image fingerprint, optimization filter에만 유효합니다. Monotonic format version과 checksum으로 보호된 completed-stage bitmap도 필요합니다. Temporary directory에 쓰고 data·manifest를 fsync한 뒤 checkpoint를 atomically publish합니다. Resume은 package가 제공한 path를 신뢰하지 않고 final verification 전 executable output을 load하지 않습니다. Storage quota는 350MB이며 least-recently-used 시간이 아니라 만료 input identity로 evict합니다. 모든 write·rename 경계 뒤 fault injection을 넣어 power loss가 partial artifact를 승격하지 못하게 합니다."
+        },
+        {
+          "speaker": "Leo Martin",
+          "en": "I can accept that design if the energy ledger is authoritative and auditable. Runtime predicts remaining energy from package class and historical samples, but Power owns the final allowance. The ledger uses a ten-minute rolling window, permits one tail when projected headroom is at least 180 joules, and reserves 20 percent uncertainty. If measured consumption exceeds prediction by 25 percent, that package class loses tail eligibility for the rest of the boot and falls back to checkpoint-only execution. We should not tune thresholds per application name; the class must derive from size, architecture count, and compiler stage. That prevents hidden favoritism and keeps the policy explainable during field analysis.",
+          "ko": "Energy ledger가 authoritative하고 audit 가능하다면 설계를 수용할 수 있습니다. Runtime은 package class와 historical sample로 remaining energy를 예측하지만 최종 allowance는 Power가 소유합니다. Ledger는 10분 rolling window를 사용하고 projected headroom이 최소 180J일 때 tail 하나를 허용하며 uncertainty 20%를 예약합니다. 측정 소비가 예측을 25% 넘으면 해당 package class는 나머지 boot 동안 tail eligibility를 잃고 checkpoint-only로 돌아갑니다. Application name별 threshold 조정은 안 됩니다. Class는 size, architecture count, compiler stage에서 파생해야 합니다. 숨은 favoritism을 막고 field analysis에서 정책을 설명 가능하게 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision Owners and Validation Gates",
+      "title_ko": "결정, 담당자와 검증 게이트",
+      "turns": [
+        {
+          "speaker": "Daniel Cho",
+          "en": "The November plan is now split into two controlled changes. Change one adds durable resumable checkpoints and correct queue accounting. Change two adds the bounded completion tail under the existing hard thermal limits and Leo's energy ledger. Both may enter the candidate behind separate boot-time flags. Jiyoon owns scheduler classes and tail state by November 11 at 17:00 KST. Marcus owns checkpoint format, atomic publication, quota, and corruption tests by November 12 at noon. Priya owns policy review and thermal thresholds; Leo owns ledger implementation and rail validation by November 12 at 18:00. Nora owns cohort testing and the release dashboard. I own the integration order, rollback packet, and decision record.",
+          "ko": "11월 계획을 통제된 변경 두 개로 나눕니다. 변경 1은 durable resumable checkpoint와 올바른 queue accounting, 변경 2는 기존 hard thermal limit과 Leo의 energy ledger 아래 제한된 completion tail입니다. 각각 별도 boot-time flag 뒤에서 후보에 들어갈 수 있습니다. Jiyoon은 11월 11일 17:00 KST까지 scheduler class·tail state, Marcus는 11월 12일 정오까지 checkpoint format·atomic publication·quota·corruption test를 담당합니다. Priya는 정책 검토·thermal threshold, Leo는 11월 12일 18:00까지 ledger·rail validation, Nora는 cohort test·release dashboard, 저는 integration order·rollback packet·decision record를 맡습니다."
+        },
+        {
+          "speaker": "Nora Jensen",
+          "en": "Acceptance has five gates. Correctness requires zero invalid resume, zero partial artifact promotion, and identical final compiler output across checkpointed and uninterrupted runs. Performance requires at least 85 percent of priority sets complete within twenty-four hours and 97 percent within forty-eight across every cohort, not only the average. Efficiency requires retained useful progress above 80 percent and canceled CPU time below five minutes per device-day. Thermal safety allows no increase above 0.2 degrees at the battery sensor and no additional hot-threshold event. User impact requires the median cold-start regression below 80 milliseconds by day two. Missing telemetry is a failed case, and each failure needs a reproducible seed or a documented field trace.",
+          "ko": "수락 gate는 다섯 개입니다. Correctness는 invalid resume 0건, partial artifact promotion 0건, checkpointed·uninterrupted run의 final compiler output 동일을 요구합니다. Performance는 평균뿐 아니라 모든 cohort에서 priority set이 24시간 내 85%, 48시간 내 97% 이상 완료돼야 합니다. Efficiency는 retained useful progress 80% 이상, 취소 CPU time device-day당 5분 미만입니다. Thermal safety는 battery sensor 증가 0.2도 이하, 추가 hot-threshold event 0건입니다. User impact는 2일 차 median cold-start regression 80ms 미만입니다. Telemetry 누락은 실패이며 각 실패에는 재현 seed나 문서화된 field trace가 필요합니다."
+        },
+        {
+          "speaker": "Priya Shah",
+          "en": "Power approval is conditional on observing the physical measurements, not only scheduler counters. Ten percent of test devices will carry external rail logging, and all devices will report battery current, temperature slope, charging state, screen state, and tail lifecycle. We will compare checkpoint-only, checkpoint-plus-tail, candidate baseline, and October control under identical replay seeds. The tail flag defaults off for production until the full matrix passes. If rail and software energy estimates differ by more than 15 percent, the ledger is not calibrated and the tail cannot ship. Checkpointing may still ship if its storage, latency, and corruption gates pass independently. This keeps the safety decision reversible without discarding a correctness improvement.",
+          "ko": "Power 승인은 scheduler counter뿐 아니라 물리 측정을 관찰하는 조건입니다. Test device 10%에 external rail logging을 붙이고 모든 device는 battery current, temperature slope, charging state, screen state, tail lifecycle을 report합니다. 같은 replay seed로 checkpoint-only, checkpoint-plus-tail, candidate baseline, October control을 비교합니다. Full matrix 통과 전 production에서 tail flag 기본값은 off입니다. Rail과 software energy estimate 차이가 15%를 넘으면 ledger calibration 실패이므로 tail은 출하할 수 없습니다. Checkpointing은 storage, latency, corruption gate를 독립 통과하면 출하할 수 있습니다. Correctness 개선을 버리지 않고 safety 결정을 되돌릴 수 있습니다."
+        },
+        {
+          "speaker": "Marcus Reed",
+          "en": "Rollback has three states rather than one. If checkpoint parsing fails, Runtime deletes only the invalid checkpoint, records the reason, and performs an uninterrupted compile when policy permits. If a format-wide defect appears, Release disables checkpoint creation and resume while retaining corrected queue accounting. If the tail policy fails, Release disables tail grants but keeps checkpoints. No rollback restores repeated package-level work as an invisible loop. The flags are read at boot, included in the optimization report, and covered by server-side configuration signatures. I will provide downgrade tests proving that the October runtime ignores checkpoint directories and that the maintenance runtime safely discards a checkpoint created by an unsupported newer format.",
+          "ko": "Rollback은 하나가 아니라 세 상태입니다. Checkpoint parsing 실패 시 Runtime은 invalid checkpoint만 삭제하고 reason을 기록하며 정책이 허용할 때 uninterrupted compile을 합니다. Format-wide 결함이면 Release는 corrected queue accounting을 유지하면서 checkpoint creation·resume을 끕니다. Tail policy 실패면 checkpoint를 유지하고 tail grant를 끕니다. 어떤 rollback도 반복 package-level work를 보이지 않는 loop로 복원하지 않습니다. Flag는 boot 때 읽고 optimization report에 포함되며 server-side configuration signature로 보호됩니다. 10월 runtime이 checkpoint directory를 무시하고 maintenance runtime이 지원하지 않는 newer format checkpoint를 안전히 버리는 downgrade test를 제공합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Release Disposition and Next Review",
+      "title_ko": "릴리스 처분과 다음 검토",
+      "turns": [
+        {
+          "speaker": "Jiyoon Han",
+          "en": "Runtime will also add a debt model so the queue reflects user impact instead of raw package count. Debt combines observed cold-start cost, launch frequency, compiled progress, and age since update. It never uses account identity or application content. The score chooses priority class but cannot override hard thermal limits. We will publish score components in a developer-only report and aggregate distributions in production telemetry. A package leaves priority status once optimized or when its measured launch debt falls below the threshold. This prevents a permanently popular application from monopolizing maintenance windows. I will deliver the model separately from the tail so Quality can test scheduling fairness even when the tail remains disabled.",
+          "ko": "Runtime은 raw package count 대신 사용자 영향을 반영하도록 debt model도 추가합니다. Debt는 관찰된 cold-start cost, launch frequency, compiled progress, update 후 age를 결합하며 account identity나 application content를 사용하지 않습니다. Score는 priority class를 선택하지만 hard thermal limit을 override할 수 없습니다. Developer-only report에 score component, production telemetry에 aggregate distribution을 게시합니다. Package가 optimized되거나 measured launch debt가 threshold 아래로 내려가면 priority status를 벗어납니다. 인기 앱 하나가 maintenance window를 영구 독점하지 않게 합니다. Tail이 disabled여도 Quality가 scheduling fairness를 시험하도록 model을 tail과 분리해 제공합니다."
+        },
+        {
+          "speaker": "Leo Martin",
+          "en": "For field monitoring, we need leading indicators rather than waiting for cold-start complaints. The dashboard should show devices with growing optimization debt, repeated checkpoint eviction, tail prediction error, eligible-window minutes, and useful progress per joule. Alerts trigger if any cohort misses the forty-eight-hour target by more than two percentage points or if thermal headroom falls for three consecutive daily samples. We will compare wired and wireless charging separately because their available headroom differs. A rollout pause must preserve security-fix delivery if the optimization flags can be changed independently. I will verify that remote flag changes take effect only after reboot and are recorded before the first scheduler decision.",
+          "ko": "현장 monitoring은 cold-start 불만을 기다리는 대신 leading indicator가 필요합니다. Dashboard는 optimization debt 증가 device, 반복 checkpoint eviction, tail prediction error, eligible-window minutes, joule당 useful progress를 보여야 합니다. 어떤 cohort든 48시간 목표를 2%p 넘게 놓치거나 thermal headroom이 3일 연속 감소하면 alert합니다. Wired·wireless charging은 available headroom이 달라 별도 비교합니다. Optimization flag를 독립 변경할 수 있다면 rollout pause가 security-fix delivery는 유지해야 합니다. Remote flag 변경이 reboot 후에만 적용되고 첫 scheduler 결정 전에 기록되는지 검증합니다."
+        },
+        {
+          "speaker": "Nora Jensen",
+          "en": "The precommit suite will run 500 shortened jobs and cover checkpoint creation, cancellation at every file boundary, resume, digest mismatch, quota eviction, flag downgrade, and one permitted tail. It must finish within thirty minutes so developers cannot bypass it as a nightly-only test. The release farm then runs seven simulated days for all cohorts with 240 devices. I will publish both successful and canceled work; hiding cancellations would recreate the original blind spot. Application cold starts are measured from process request to first interactive frame, with cache state and package version fixed. The first dashboard is due November 13 at 13:00 KST, and the complete matrix by November 14 at 15:00.",
+          "ko": "Precommit suite는 축약 job 500개로 checkpoint creation, 모든 file 경계 cancellation, resume, digest mismatch, quota eviction, flag downgrade, 허용 tail 하나를 다룹니다. 30분 안에 끝나야 개발자가 nightly-only test라며 우회할 수 없습니다. Release farm은 240대로 모든 cohort에 대해 7일을 simulation합니다. 원래 blind spot을 재현하지 않도록 성공·취소 work를 모두 게시합니다. Application cold start는 cache state·package version을 고정하고 process request부터 first interactive frame까지 측정합니다. 첫 dashboard는 11월 13일 13:00 KST, complete matrix는 11월 14일 15:00까지입니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "The release disposition is conditional integration, not approval to ship. Checkpointing and queue accounting may merge after peer review. The completion tail may merge behind a production-off flag, but it activates only after Power and Quality sign the calibrated matrix. The acceptance review is November 14 at 16:30 KST, with all six participants required. If checkpointing fails its independent gates, we ship the security and modem fixes with optimization reverted to the October execution path and corrected observability only. If only the tail fails, we ship checkpointing without it. We will not relax thermal limits to recover the calendar. I will circulate the owner table and three rollback states within one hour. The meeting is closed.",
+          "ko": "릴리스 처분은 조건부 integration이며 출하 승인이 아닙니다. Checkpointing·queue accounting은 peer review 후 merge할 수 있습니다. Completion tail은 production-off flag 뒤에 merge할 수 있지만 Power·Quality가 calibrated matrix에 sign해야 활성화됩니다. 수락 검토는 11월 14일 16:30 KST이며 여섯 명 모두 참석합니다. Checkpointing이 독립 gate를 실패하면 security·modem fix는 출하하되 optimization은 10월 실행 path와 corrected observability만 사용합니다. Tail만 실패하면 checkpointing만 출하합니다. 일정을 위해 thermal limit을 완화하지 않습니다. 한 시간 안에 owner table과 rollback 세 상태를 배포합니다. 회의를 마칩니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "separate measured facts from hypotheses",
+      "meaning_ko": "측정 사실과 가설을 분리하다",
+      "usage_ko": "원인 분석의 근거 수준을 구분할 때",
+      "example": "Please separate measured facts from hypotheses because this issue crosses three policies that were approved for different reasons.",
+      "practice": "We should use separate measured facts from hypotheses when another release review reaches the same kind of decision."
+    },
+    {
+      "phrase": "starvation rather than failed compilation",
+      "meaning_ko": "컴파일 실패가 아닌 기아 상태",
+      "usage_ko": "작업이 실행 기회를 얻지 못함을 설명할 때",
+      "example": "Our evidence points to starvation rather than failed compilation, but the reason for starvation is still disputed.",
+      "practice": "We should use starvation rather than failed compilation when another release review reaches the same kind of decision."
+    },
+    {
+      "phrase": "workload is not preemptible enough",
+      "meaning_ko": "작업이 충분히 선점 가능하지 않다",
+      "usage_ko": "취소 가능한 작업 단위를 논의할 때",
+      "example": "The mismatch is that the workload is not preemptible enough to use the budget we deliberately left available.",
+      "practice": "We should use workload is not preemptible enough when another release review reaches the same kind of decision."
+    },
+    {
+      "phrase": "We cannot call that an edge case",
+      "meaning_ko": "그것을 예외 사례라 부를 수 없다",
+      "usage_ko": "영향 비율이 충분히 클 때",
+      "example": "We cannot call that an edge case.",
+      "practice": "We should use We cannot call that an edge case when another release review reaches the same kind of decision."
+    },
+    {
+      "phrase": "not simply insufficient time",
+      "meaning_ko": "단순한 시간 부족이 아니다",
+      "usage_ko": "표면 원인보다 구조 문제를 강조할 때",
+      "example": "The backlog is therefore not simply insufficient time.",
+      "practice": "We should use not simply insufficient time when another release review reaches the same kind of decision."
+    },
+    {
+      "phrase": "rolling energy ledger",
+      "meaning_ko": "이동 구간 에너지 원장",
+      "usage_ko": "누적 에너지 예산을 설명할 때",
+      "example": "The reservation must be charged against a rolling energy ledger, not just a percentage-complete marker.",
+      "practice": "We should use rolling energy ledger when another release review reaches the same kind of decision."
+    },
+    {
+      "phrase": "Aggregate completion alone is not an adequate release signal",
+      "meaning_ko": "전체 완료율만으로 충분한 릴리스 신호가 아니다",
+      "usage_ko": "세부 cohort 지표를 요구할 때",
+      "example": "Aggregate completion alone is not an adequate release signal.",
+      "practice": "We should use Aggregate completion alone is not an adequate release signal when another release review reaches the same kind of decision."
+    },
+    {
+      "phrase": "independent changes with evidence",
+      "meaning_ko": "증거가 있는 독립 변경",
+      "usage_ko": "큰 해법을 분리해 평가할 때",
+      "example": "Please frame options as independent changes with evidence, not as one large solution that must land together.",
+      "practice": "We should use independent changes with evidence when another release review reaches the same kind of decision."
+    },
+    {
+      "phrase": "bounded way to turn retained progress into an installable artifact",
+      "meaning_ko": "보존한 진전을 설치 가능한 산출물로 바꾸는 제한 방식",
+      "usage_ko": "통제된 완료 예외를 설명할 때",
+      "example": "This is not a blanket exception; it is a bounded way to turn retained progress into an installable artifact.",
+      "practice": "We should use bounded way to turn retained progress into an installable artifact when another release review reaches the same kind of decision."
+    },
+    {
+      "phrase": "authoritative and auditable",
+      "meaning_ko": "권위 있고 감사 가능하다",
+      "usage_ko": "정책 기준의 소유권을 명확히 할 때",
+      "example": "I can accept that design if the energy ledger is authoritative and auditable.",
+      "practice": "We should use authoritative and auditable when another release review reaches the same kind of decision."
+    },
+    {
+      "phrase": "Missing telemetry is a failed case",
+      "meaning_ko": "누락 telemetry는 실패 사례다",
+      "usage_ko": "관측 자료 완전성을 요구할 때",
+      "example": "Missing telemetry is a failed case, and each failure needs a reproducible seed or a documented field trace.",
+      "practice": "We should use Missing telemetry is a failed case when another release review reaches the same kind of decision."
+    },
+    {
+      "phrase": "conditional on observing the physical measurements",
+      "meaning_ko": "물리 측정 관찰을 조건으로 한다",
+      "usage_ko": "software counter 이외의 증거를 요구할 때",
+      "example": "Power approval is conditional on observing the physical measurements, not only scheduler counters.",
+      "practice": "We should use conditional on observing the physical measurements when another release review reaches the same kind of decision."
+    },
+    {
+      "phrase": "three states rather than one",
+      "meaning_ko": "하나가 아니라 세 상태",
+      "usage_ko": "세분화된 rollback을 설명할 때",
+      "example": "Rollback has three states rather than one.",
+      "practice": "We should use three states rather than one when another release review reaches the same kind of decision."
+    },
+    {
+      "phrase": "leading indicators",
+      "meaning_ko": "선행 지표",
+      "usage_ko": "문제가 체감되기 전 징후를 말할 때",
+      "example": "For field monitoring, we need leading indicators rather than waiting for cold-start complaints.",
+      "practice": "We should use leading indicators when another release review reaches the same kind of decision."
+    },
+    {
+      "phrase": "conditional integration, not approval to ship",
+      "meaning_ko": "출하 승인이 아닌 조건부 통합",
+      "usage_ko": "통합과 출시 승인을 구분할 때",
+      "example": "The release disposition is conditional integration, not approval to ship.",
+      "practice": "We should use conditional integration, not approval to ship when another release review reaches the same kind of decision."
+    }
+  ]
+}
