@@ -1,0 +1,273 @@
+{
+  "date": "2026-11-11",
+  "category": "business",
+  "topic": "sw-release",
+  "subject": "Gating Snapshot Merge Reconciliation after an Interrupted Virtual AB Update",
+  "title_ko": "중단된 Virtual A/B 업데이트 후 Snapshot Merge 조정 게이트",
+  "summary_ko": "가상의 Android 유지보수 릴리스 회의에서 전원 손실 뒤 snapshot merge의 journal과 device-mapper 상태가 엇갈려 다음 OTA가 막히는 문제를 검토한다. 팀들은 frozen inspection lease, 다섯 필드 evidence bundle, 한 번의 제한된 journal correction, 명시적 quarantine과 단계적 rollout gate를 결정한다. 모든 인물·조직·단말·partition·payload·build·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Mina Park",
+      "team": "Update Engine"
+    },
+    {
+      "name": "Owen Blake",
+      "team": "Update Engine"
+    },
+    {
+      "name": "Sofia Chen",
+      "team": "Storage and Kernel"
+    },
+    {
+      "name": "Ravi Nair",
+      "team": "Storage and Kernel"
+    },
+    {
+      "name": "Grace Kim",
+      "team": "System Reliability"
+    },
+    {
+      "name": "Ethan Cole",
+      "team": "Release Management"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Release Context",
+      "title_ko": "참석 확인과 릴리스 배경",
+      "turns": [
+        {
+          "speaker": "Ethan Cole",
+          "en": "Update Engine, Storage and Kernel, System Reliability, and Release Management are present. We are reviewing the R81 maintenance candidate after an interrupted virtual A/B update left a small device cohort unable to finish snapshot merge. The devices still booted the new slot, but they consumed growing copy-on-write space and eventually rejected the next update. Today we must decide whether metadata repair is safe enough for this release, what evidence authorizes it, and when the system must stop instead of guessing. We also need named owners, deadlines, rollout gates, rollback behavior, and a concrete follow-up meeting. Please keep recovery convenience separate from proof of state because a device that boots is not necessarily a device whose update transaction is healthy.",
+          "ko": "Update Engine, Storage·Kernel, System Reliability, Release Management 팀이 참석했습니다. 중단된 virtual A/B 업데이트 뒤 일부 단말이 snapshot merge를 끝내지 못한 R81 유지보수 후보를 검토합니다. 단말은 새 slot으로 부팅했지만 copy-on-write 공간이 계속 늘었고 결국 다음 업데이트를 거부했습니다. 오늘은 metadata repair가 이번 릴리스에 충분히 안전한지, 어떤 증거가 repair를 허가하는지, 언제 추측하지 말고 중단해야 하는지 정해야 합니다. 담당자·기한·rollout gate·rollback·구체적인 후속 회의도 필요합니다. 부팅된 단말이 update transaction까지 건강한 것은 아니므로 복구 편의와 상태 증명을 분리해 주세요."
+        },
+        {
+          "speaker": "Grace Kim",
+          "en": "Reliability reproduced the issue on 37 of 1,200 update cycles that injected power loss between merge checkpoints. Twenty-nine devices recovered after one reboot, while eight remained in a loop where userspace reported 62 percent complete but the device-mapper target advanced no further. The stuck devices retained valid data blocks, passed verified boot, and showed no filesystem corruption. However, their merge generation in the update journal was one behind the generation stored in the snapshot status sector. Free space fell by roughly 1.4 gigabytes per day because cleanup never became eligible. Rebooting again did not change the evidence. The failure is persistent transaction ambiguity, not a slow merge, and our current health check cannot distinguish those states.",
+          "ko": "Reliability는 merge checkpoint 사이에 전원 손실을 주입한 1,200회 업데이트 중 37회에서 문제를 재현했습니다. 29대는 한 번 재부팅 뒤 회복했지만 8대는 userspace가 62% 완료를 보고하는 동안 device-mapper target이 더 진행하지 않는 loop에 남았습니다. 정지 단말은 data block이 유효했고 verified boot를 통과했으며 filesystem corruption도 없었습니다. 그러나 update journal의 merge generation이 snapshot status sector보다 하나 뒤였습니다. Cleanup이 허용되지 않아 여유 공간이 하루 약 1.4GB 줄었습니다. 추가 재부팅에도 증거가 바뀌지 않았습니다. 이는 느린 merge가 아니라 지속적인 transaction ambiguity이며 현재 health check는 둘을 구분하지 못합니다."
+        },
+        {
+          "speaker": "Sofia Chen",
+          "en": "Storage traced the mismatch to ordering, not damaged media. The status sector is flushed after a merge extent is committed, but the userspace journal can be delayed behind unrelated metadata traffic. If power fails in that interval, the lower layer has safely consumed an extent while the upper layer still describes the previous boundary. Replaying the old journal is conservative, but it cannot reclaim space because the target refuses to merge an extent twice. Blindly copying the newer generation upward would make progress, yet generation alone does not prove that the mapped block set matches the intended source image. My position is fail closed unless we can reconstruct a quorum from independent records. A repair must never turn one stale counter into authority over the transaction.",
+          "ko": "Storage 분석상 문제는 media 손상이 아니라 ordering입니다. Merge extent가 commit된 뒤 status sector는 flush되지만 userspace journal은 다른 metadata traffic 뒤로 밀릴 수 있습니다. 그 사이 전원이 끊기면 lower layer는 extent를 안전하게 소비했는데 upper layer는 이전 boundary를 설명합니다. 오래된 journal replay는 보수적이지만 target이 extent를 두 번 merge하지 않아 공간을 회수할 수 없습니다. 새 generation을 위로 복사하면 진행은 되지만 generation만으로 mapped block set이 의도한 source image와 일치한다고 증명할 수 없습니다. 독립 기록에서 quorum을 재구성하지 못하면 fail closed해야 합니다. Repair가 stale counter 하나를 transaction 권위로 만들면 안 됩니다."
+        },
+        {
+          "speaker": "Mina Park",
+          "en": "Update Engine agrees that the counter is insufficient, but stopping every mismatch creates a service burden that we can avoid with stronger evidence. We already have the target generation, completed extent bitmap, source and target partition digests, update payload identifier, and the last signed boot-control record. On all eight stuck devices, those records describe the same payload and slot pair; only the journal checkpoint lags. I propose a read-only reconciliation phase that compares those identities before any write. If the payload, slot, bitmap checksum, and committed extent boundary agree, we can advance only the journal checkpoint and resume normal merge. If any identity differs, we preserve the evidence, disable cleanup, and enter recovery mode. The disagreement is therefore about the proof threshold, not whether arbitrary repair is acceptable.",
+          "ko": "Update Engine도 counter만으로 부족하다는 데 동의하지만 모든 mismatch를 멈추면 더 강한 증거로 피할 수 있는 서비스 부담이 생깁니다. Target generation, completed extent bitmap, source·target partition digest, update payload identifier, 마지막 signed boot-control record가 이미 있습니다. 정지 단말 8대 모두 이 기록이 같은 payload와 slot pair를 설명하고 journal checkpoint만 뒤처졌습니다. 쓰기 전에 identity를 비교하는 read-only reconciliation을 제안합니다. Payload·slot·bitmap checksum·committed extent boundary가 일치하면 journal checkpoint만 전진시키고 정상 merge를 재개합니다. 하나라도 다르면 증거를 보존하고 cleanup을 끄며 recovery mode로 들어갑니다. 이견은 임의 repair 허용 여부가 아니라 proof threshold입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and Failure Model",
+      "title_ko": "증거와 실패 모델",
+      "turns": [
+        {
+          "speaker": "Owen Blake",
+          "en": "I compared traces from successful recovery, permanent ambiguity, and an intentionally corrupted bitmap. A healthy retry shows monotonic target progress and a journal update within two seconds. The ambiguous case shows a stable target boundary, an older journal generation, and matching digests across three boots. The corrupted case can look similar until we compare the bitmap checksum and the per-extent hash chain. That distinction matters because a simple generation rule would repair both cases. I recommend an evidence bundle with five fields: payload identity, slot pair, target generation, extent hash-chain root, and signed boot-control epoch. Reconciliation may proceed only when all five are present and internally consistent. Missing evidence is not negative evidence; it is an inability to authorize a mutation.",
+          "ko": "성공 복구, 영구 ambiguity, 의도적으로 손상한 bitmap의 trace를 비교했습니다. 정상 retry는 target progress가 단조 증가하고 2초 안에 journal이 갱신됩니다. Ambiguous case는 target boundary가 고정되고 journal generation은 오래됐지만 세 번 부팅 동안 digest가 일치합니다. 손상 case도 bitmap checksum과 extent별 hash chain을 비교하기 전에는 비슷해 보일 수 있습니다. 단순 generation 규칙이면 두 case 모두 repair하므로 구분이 중요합니다. Payload identity, slot pair, target generation, extent hash-chain root, signed boot-control epoch 다섯 필드의 evidence bundle을 권합니다. 모두 존재하고 내부적으로 일치할 때만 reconciliation을 진행합니다. 증거 누락은 반대 증거가 아니라 mutation을 허가할 수 없는 상태입니다."
+        },
+        {
+          "speaker": "Ravi Nair",
+          "en": "The kernel side can expose the extent hash-chain root, but there is a timing concern. During early boot, the target may still be replaying its own small log. If userspace samples before replay completes, two correct records can appear inconsistent. We need a frozen observation point. I propose that Update Engine request a merge-inspection lease; the target then blocks new merge work, finishes internal replay, publishes a sequence number, and returns a consistent status snapshot. The lease expires after thirty seconds and permits no data mutation. Userspace compares the bundle, then explicitly releases the lease before requesting repair. Without that handshake, retries can manufacture fresh disagreement while we are measuring it. The diagnostic act must not perturb the state we are trying to diagnose.",
+          "ko": "Kernel은 extent hash-chain root를 노출할 수 있지만 timing 문제가 있습니다. Early boot 동안 target이 자체 작은 log를 replay할 수 있어 userspace가 완료 전에 sample하면 올바른 두 기록도 불일치처럼 보입니다. Frozen observation point가 필요합니다. Update Engine이 merge-inspection lease를 요청하면 target이 새 merge work를 막고 internal replay를 끝낸 뒤 sequence number를 게시하고 일관된 status snapshot을 반환하도록 제안합니다. Lease는 30초 뒤 만료되고 data mutation은 허용하지 않습니다. Userspace는 bundle을 비교하고 repair 요청 전에 lease를 명시적으로 해제합니다. 이 handshake가 없으면 retry가 측정 중 새 disagreement를 만들 수 있습니다. 진단 행위가 진단 대상 상태를 흔들면 안 됩니다."
+        },
+        {
+          "speaker": "Grace Kim",
+          "en": "I support the lease, but the test matrix must include the cases that make it inconvenient. We will kill power before lease acquisition, during target replay, after the snapshot is returned, and immediately before journal publication. We will also fill userdata to within 200 megabytes of the reserve, inject one unreadable sector outside the merged range, and force a boot-control epoch change through rollback testing. The expected outcome is not always successful recovery. Some cases must remain quarantined with an explicit reason. Our release metric should be authorized recovery rate, not raw recovery rate. A system that recovers every device by weakening its evidence is worse than one that safely repairs the known ordering gap and refuses everything else.",
+          "ko": "Lease를 지지하지만 test matrix에는 불편하게 만드는 case도 포함해야 합니다. Lease 획득 전, target replay 중, snapshot 반환 후, journal publication 직전에 전원을 끕니다. Userdata를 reserve보다 200MB만 남게 채우고 merged range 밖에 unreadable sector 하나를 주입하며 rollback test로 boot-control epoch 변경도 강제합니다. 기대 결과가 항상 성공 복구인 것은 아닙니다. 일부 case는 명시적 이유와 함께 quarantine 상태여야 합니다. Release metric은 raw recovery rate가 아니라 authorized recovery rate여야 합니다. 증거를 약화해 모든 단말을 복구하는 system보다 알려진 ordering gap만 안전하게 repair하고 나머지는 거부하는 system이 낫습니다."
+        },
+        {
+          "speaker": "Ethan Cole",
+          "en": "That changes the release question in a useful way. We do not need a universal repair tool in R81; we need a narrowly defined remedy for one proven write-ordering gap. However, operations needs a deterministic customer path when authorization fails. A device cannot silently remain in a merge loop until storage is exhausted. Please define the degraded state, how many retries are allowed, what the user sees, and whether security updates can continue. I also need the repair implementation and the diagnostic export separated behind different controls. If repair causes an unexpected result, support must still be able to collect the read-only bundle. We should preserve observability when we disable mutation.",
+          "ko": "릴리스 질문이 유용하게 바뀌었습니다. R81에 범용 repair tool이 필요한 것이 아니라 증명된 write-ordering gap 하나에 대한 좁은 remedy가 필요합니다. 하지만 authorization 실패 시 운영 측의 결정적 고객 경로가 필요합니다. Storage가 소진될 때까지 단말이 merge loop에 조용히 남으면 안 됩니다. Degraded state, 허용 retry 수, 사용자에게 보이는 내용, security update 지속 가능 여부를 정의해 주세요. Repair implementation과 diagnostic export도 서로 다른 control 뒤에 분리해야 합니다. Repair가 예상 밖 결과를 내도 support는 read-only bundle을 수집할 수 있어야 합니다. Mutation을 끌 때 observability는 보존해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Options and Cross Team Disagreement",
+      "title_ko": "대안과 팀 간 이견",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "Option one is no automatic repair: detect the mismatch, stop merge, and require a service image. It is safest in code scope but strands devices and blocks future over-the-air updates. Option two is the five-field reconciliation with a single bounded journal correction. Option three rebuilds the journal from the target bitmap, which could handle more failures but introduces a new recovery algorithm we have not validated. I recommend option two. It changes one checkpoint record, never data blocks, and only after the inspection lease produces a consistent bundle. The repair token includes the observed sequence number, so it becomes invalid if the target state changes before publication. We get useful recovery without pretending we understand every possible ambiguity.",
+          "ko": "Option 1은 자동 repair 없이 mismatch를 감지하고 merge를 멈춘 뒤 service image를 요구합니다. Code scope상 가장 안전하지만 단말을 고립시키고 이후 OTA를 막습니다. Option 2는 다섯 필드 reconciliation과 한 번의 제한된 journal correction입니다. Option 3은 target bitmap에서 journal을 재구축해 더 많은 failure를 처리할 수 있지만 검증되지 않은 새 recovery algorithm입니다. Option 2를 권합니다. Inspection lease가 일관된 bundle을 만든 뒤 checkpoint record 하나만 바꾸고 data block은 건드리지 않습니다. Repair token에 관찰 sequence number를 넣어 publication 전 target state가 변하면 무효화합니다. 모든 ambiguity를 이해한다고 가장하지 않고 유용한 복구를 얻습니다."
+        },
+        {
+          "speaker": "Sofia Chen",
+          "en": "I can accept option two only if the kernel independently verifies the token and the proposed boundary. Userspace should not be able to say, 'trust me, these records matched.' The repair ioctl must receive the signed bundle digest, inspection sequence, old journal generation, and requested new generation. The target verifies that it is still frozen at that sequence, that the requested boundary equals its committed boundary, and that the generation advances by exactly one. It then returns a receipt without changing blocks. Userspace atomically writes the journal with that receipt and fsyncs the parent directory. On the next inspection, both layers must agree before merge resumes. This is a two-sided protocol, not a privileged shortcut.",
+          "ko": "Kernel이 token과 proposed boundary를 독립 검증할 때만 option 2를 수용할 수 있습니다. Userspace가 '기록이 일치했으니 믿어 달라'고 할 수 없어야 합니다. Repair ioctl은 signed bundle digest, inspection sequence, old journal generation, 요청 new generation을 받아야 합니다. Target은 같은 sequence에 freeze돼 있는지, 요청 boundary가 committed boundary와 같은지, generation이 정확히 하나 증가하는지 검증합니다. 이후 block을 바꾸지 않고 receipt를 반환합니다. Userspace는 receipt와 함께 journal을 atomic write하고 parent directory를 fsync합니다. 다음 inspection에서 두 layer가 일치해야 merge를 재개합니다. 이는 privileged shortcut이 아니라 양측 protocol입니다."
+        },
+        {
+          "speaker": "Owen Blake",
+          "en": "The two-sided protocol adds a second reboot in the conservative path because we want the receipt persisted before resuming merge. I think that is acceptable for the affected cohort, but it will lengthen validation. We should also cap the mechanism at one repair attempt per payload identity. If the next boot still shows disagreement, the device enters quarantine and exports the bundle; it does not issue a second token. A server flag may disable repair globally, but it cannot increase the attempt count or relax fields. The cap belongs in local persistent state covered by the same boot-control epoch. That prevents remote configuration mistakes from converting a bounded correction into a loop.",
+          "ko": "양측 protocol은 merge 재개 전에 receipt가 persist되길 원하므로 보수 경로에서 두 번째 reboot를 추가합니다. 영향 cohort에는 수용 가능하지만 validation은 길어집니다. 또한 payload identity당 repair attempt를 한 번으로 제한해야 합니다. 다음 boot에도 disagreement면 device는 quarantine으로 들어가 bundle을 export하고 두 번째 token은 발행하지 않습니다. Server flag는 repair를 전체적으로 끌 수 있지만 attempt count를 늘리거나 필드를 완화할 수 없습니다. Cap은 같은 boot-control epoch로 보호되는 local persistent state에 있어야 합니다. Remote configuration 실수가 제한된 correction을 loop로 바꾸지 못하게 합니다."
+        },
+        {
+          "speaker": "Ravi Nair",
+          "en": "I disagree with requiring a reboot in every repaired case. The target can verify the newly persisted journal through a second inspection lease in the same boot. A forced reboot adds wear, time, and another power-loss window. We should reboot only when the first repair was initiated during early boot before userdata reached a stable mount state. For repairs after stable mount, a lease-release-reacquire sequence gives equivalent evidence if the sequence advances and both generations match. Let us test both paths rather than hard-code ceremony. The safety property is independent agreement after persistence, not the reboot itself. If Quality proves the same-boot path under power cuts and storage pressure, we should use it to reduce recovery time.",
+          "ko": "모든 repaired case에 reboot를 요구하는 데 반대합니다. Target은 같은 boot에서 두 번째 inspection lease로 새로 persist된 journal을 검증할 수 있습니다. 강제 reboot는 wear·시간·또 다른 power-loss window를 더합니다. 첫 repair가 userdata stable mount 전 early boot에서 시작된 경우에만 reboot해야 합니다. Stable mount 뒤 repair는 sequence가 증가하고 두 generation이 일치하면 lease release·reacquire로 같은 증거를 얻습니다. 의식을 hard-code하지 말고 두 path를 시험합시다. Safety property는 persistence 후 독립 합의이지 reboot 자체가 아닙니다. Quality가 power cut·storage pressure 아래 same-boot path를 증명하면 recovery time을 줄이기 위해 사용해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision Owners and Acceptance Gates",
+      "title_ko": "결정, 담당자와 수락 게이트",
+      "turns": [
+        {
+          "speaker": "Ethan Cole",
+          "en": "We will implement option two with two completion paths. Early-boot repair requires a reboot before merge resumes; stable-mount repair may use a second lease in the same boot if Reliability proves equivalence. Mina owns the userspace reconciler, repair-attempt ledger, and quarantine transition by November 12 at 18:00 KST. Sofia owns the kernel inspection lease and boundary checks by November 13 at noon. Owen owns token and receipt persistence plus server kill-switch behavior by November 13 at 17:00. Ravi owns fault injection hooks and same-boot versus reboot instrumentation. Grace owns the device matrix, evidence dashboard, and acceptance report. I own integration order, customer messaging, and the final release decision. No owner may broaden the repair predicate without another review.",
+          "ko": "Option 2를 completion path 두 개로 구현합니다. Early-boot repair는 merge 재개 전 reboot가 필요하고 stable-mount repair는 Reliability가 동등성을 증명하면 같은 boot에서 두 번째 lease를 쓸 수 있습니다. Mina는 11월 12일 18:00 KST까지 userspace reconciler·repair-attempt ledger·quarantine transition, Sofia는 11월 13일 정오까지 kernel inspection lease·boundary check, Owen은 11월 13일 17:00까지 token·receipt persistence와 server kill switch, Ravi는 fault injection hook과 same-boot 대 reboot 계측을 맡습니다. Grace는 device matrix·evidence dashboard·acceptance report, 저는 integration order·customer messaging·최종 release decision을 담당합니다. 새 review 없이 repair predicate를 넓힐 수 없습니다."
+        },
+        {
+          "speaker": "Grace Kim",
+          "en": "Acceptance has six gates. Integrity requires zero data-block mutation by repair and identical partition digests before and after reconciliation. Authorization requires every successful repair to contain all five evidence fields, a valid lease sequence, and one kernel receipt. Containment requires exactly one attempt per payload and 100 percent quarantine on injected corruption or missing evidence. Recovery requires at least 95 percent of the proven ordering-gap cohort to resume merge within ten minutes, with no device stuck beyond two boots. Resource safety requires less than 40 megabytes of additional write amplification and no reserve-space breach. Observability requires a complete reason code and exportable bundle for every refusal. A missing field fails the case; it is not excluded from the denominator.",
+          "ko": "수락 gate는 여섯 개입니다. Integrity는 repair에 의한 data-block mutation 0건과 reconciliation 전후 partition digest 동일을 요구합니다. Authorization은 성공 repair마다 다섯 evidence field, 유효 lease sequence, kernel receipt 하나가 있어야 합니다. Containment는 payload당 정확히 한 번 시도하고 corruption 주입 또는 증거 누락 시 100% quarantine해야 합니다. Recovery는 증명된 ordering-gap cohort의 최소 95%가 10분 안에 merge를 재개하고 두 boot를 넘겨 정지한 단말이 없어야 합니다. Resource safety는 추가 write amplification 40MB 미만, reserve-space breach 0건입니다. Observability는 모든 거부에 완전한 reason code와 export 가능한 bundle을 요구합니다. 필드 누락 case는 실패이며 분모에서 제외하지 않습니다."
+        },
+        {
+          "speaker": "Sofia Chen",
+          "en": "Storage adds three invariants. The target boundary never moves backward, an extent can transition from pending to committed only once, and cleanup cannot begin until journal and target generations match under a fresh lease. We will assert those invariants in debug builds and report them as counters in production. Any violation disables repair and merge for that payload, preserves the COW devices, and requests recovery. The kill switch disables only mutation; inspection and export remain active. Downgrade testing must show that R80 ignores the new receipt safely and that R81 treats an unknown newer receipt version as nonauthorizing. We also need a corrupted local attempt ledger test so a damaged cap record cannot grant a second repair.",
+          "ko": "Storage는 invariant 세 개를 추가합니다. Target boundary는 뒤로 이동하지 않고 extent는 pending에서 committed로 한 번만 전이하며 fresh lease에서 journal·target generation이 일치하기 전 cleanup은 시작할 수 없습니다. Debug build에서는 assert하고 production에서는 counter로 보고합니다. 위반 시 해당 payload의 repair와 merge를 끄고 COW device를 보존하며 recovery를 요청합니다. Kill switch는 mutation만 끄고 inspection·export는 유지합니다. Downgrade test는 R80이 새 receipt를 안전히 무시하고 R81이 알 수 없는 newer receipt version을 nonauthorizing으로 취급함을 보여야 합니다. 손상된 cap record가 두 번째 repair를 허가하지 않도록 local attempt ledger corruption test도 필요합니다."
+        },
+        {
+          "speaker": "Mina Park",
+          "en": "Update Engine will expose state transitions rather than one generic merge percentage. The dashboard will show inspecting, authorized, journal-persisted, independently-verified, merging, complete, or quarantined. Each transition records payload identity, boot-control epoch, lease sequence, and monotonic time, but no user data or file names. Support can tell whether a device is waiting for evidence, refusing repair, or making merge progress. We will remove the existing behavior that retries after every boot without a terminal reason. After one unauthorized inspection or one failed post-repair verification, the state becomes quarantined until a signed service action resets it. That gives operations a deterministic path and prevents silent storage exhaustion.",
+          "ko": "Update Engine은 generic merge percentage 하나 대신 state transition을 노출합니다. Dashboard에는 inspecting, authorized, journal-persisted, independently-verified, merging, complete, quarantined를 표시합니다. 각 transition은 payload identity, boot-control epoch, lease sequence, monotonic time을 기록하지만 user data나 file name은 기록하지 않습니다. Support는 단말이 증거를 기다리는지, repair를 거부하는지, merge를 진행하는지 알 수 있습니다. Terminal reason 없이 매 boot 재시도하는 기존 동작은 제거합니다. Unauthorized inspection 한 번 또는 post-repair verification 실패 한 번 뒤에는 signed service action이 reset할 때까지 quarantined가 됩니다. 운영에 결정적 경로를 주고 조용한 storage 소진을 막습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Release Disposition and Next Review",
+      "title_ko": "릴리스 처분과 다음 검토",
+      "turns": [
+        {
+          "speaker": "Ravi Nair",
+          "en": "The validation farm will run 2,000 power-cut cycles across four checkpoints and three storage-pressure levels. Half use early-boot repair and half wait for stable mount. We will compare time to independent agreement, total bytes written, number of leases, merge completion, and quarantine accuracy. Every run keeps the raw target status and journal images so a reported success can be audited later. I will add a scheduler delay that changes the replay timing without changing the underlying transaction; this should alter latency but never authorization. If authorization changes merely because a thread ran earlier, our observation protocol is still racy. The first comparable results will be ready November 14 at 11:00 KST.",
+          "ko": "Validation farm은 checkpoint 네 곳과 storage pressure 세 수준에서 2,000회 power-cut cycle을 실행합니다. 절반은 early-boot repair, 절반은 stable mount까지 기다립니다. Independent agreement 시간, 총 write byte, lease 수, merge completion, quarantine accuracy를 비교합니다. 모든 run은 raw target status와 journal image를 보관해 성공 보고를 나중에 audit할 수 있게 합니다. Underlying transaction은 바꾸지 않고 replay timing만 바꾸는 scheduler delay도 추가합니다. 이는 latency는 바꿔도 authorization은 절대 바꾸면 안 됩니다. Thread 실행 순서 때문에 authorization이 변하면 observation protocol이 여전히 race입니다. 첫 비교 결과는 11월 14일 11:00 KST까지 준비합니다."
+        },
+        {
+          "speaker": "Owen Blake",
+          "en": "For rollout, we will start with a 0.5 percent internal cohort whose devices have ample reserve space and complete telemetry. We advance to 5 percent only after forty-eight hours with zero invariant violation, zero repeated repair, and at least 95 percent authorized recovery. The next stage is 20 percent for seventy-two hours and includes low-storage devices. Any integrity violation stops mutation globally within fifteen minutes; a recovery miss pauses expansion but leaves inspection active. Server configuration can reduce the cohort or disable repair, never widen eligibility. The dashboard will separate not-affected, authorized-repaired, refused, and unresolved devices, so a high success rate cannot hide a growing refusal population.",
+          "ko": "Rollout은 reserve space가 충분하고 telemetry가 완전한 internal cohort 0.5%에서 시작합니다. 48시간 동안 invariant violation 0건, repeated repair 0건, authorized recovery 95% 이상일 때만 5%로 갑니다. 다음은 low-storage device를 포함해 72시간 동안 20%입니다. Integrity violation 하나라도 있으면 15분 안에 mutation을 전체 중단하고 recovery miss는 확장을 pause하되 inspection은 유지합니다. Server configuration은 cohort를 줄이거나 repair를 끌 수만 있고 eligibility를 넓힐 수 없습니다. Dashboard는 not-affected, authorized-repaired, refused, unresolved를 나눠 높은 성공률이 증가하는 refusal population을 숨기지 못하게 합니다."
+        },
+        {
+          "speaker": "Grace Kim",
+          "en": "I will not sign the same-boot path merely because its average is faster. It must match the reboot path on every authorization and containment gate, and its ninety-fifth-percentile recovery time must be below six minutes. We will manually inspect every false refusal and every quarantine to confirm that the reason code matches raw evidence. A false refusal is inconvenient but visible; a false authorization is a release blocker. The report will therefore present those error classes separately instead of combining them as recovery failures. Complete matrix results are due November 15 at 14:00 KST. If the same-boot path is not proven by then, R81 ships only the reboot path rather than delaying the bounded repair.",
+          "ko": "평균이 빠르다는 이유만으로 same-boot path에 sign하지 않겠습니다. 모든 authorization·containment gate에서 reboot path와 같아야 하고 95백분위 recovery time은 6분 미만이어야 합니다. 모든 false refusal과 quarantine을 수동 검토해 reason code가 raw evidence와 맞는지 확인합니다. False refusal은 불편하지만 보이는 문제이고 false authorization은 release blocker입니다. 따라서 report는 이를 recovery failure 하나로 합치지 않고 error class를 분리해 제시합니다. Complete matrix는 11월 15일 14:00 KST까지입니다. 그때까지 same-boot path가 증명되지 않으면 R81은 제한된 repair를 지연하지 않고 reboot path만 출하합니다."
+        },
+        {
+          "speaker": "Ethan Cole",
+          "en": "The disposition is conditional integration, not permission to ship. The read-only inspection path may merge after peer review. Repair code remains production-off until all integrity, authorization, and containment gates pass. The release decision meeting is November 15 at 16:30 KST, and all six participants are required. If repair fails, R81 still ships unrelated fixes with mismatch detection, terminal quarantine, and diagnostic export; affected devices follow the service path. If only the same-boot path fails, we retain reboot verification. We will not trade transaction proof for a calendar date. I will circulate the owner table, refusal workflow, and rollout stop rules by 10:00 KST tomorrow. That closes the meeting.",
+          "ko": "결론은 조건부 integration이지 출하 허가가 아닙니다. Read-only inspection path는 peer review 후 merge할 수 있습니다. Repair code는 모든 integrity·authorization·containment gate 통과 전 production-off입니다. Release decision meeting은 11월 15일 16:30 KST이며 여섯 명 모두 참석합니다. Repair가 실패해도 R81은 mismatch detection, terminal quarantine, diagnostic export와 함께 관련 없는 fix를 출하하고 영향 단말은 service path를 따릅니다. Same-boot path만 실패하면 reboot verification을 유지합니다. 일정을 위해 transaction proof를 바꾸지 않습니다. 내일 10:00 KST까지 owner table, refusal workflow, rollout stop rule을 배포합니다. 회의를 마칩니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "recovery convenience separate from proof of state",
+      "meaning_ko": "복구 편의와 상태 증명을 분리하다",
+      "usage_ko": "안전한 복구의 증거 수준을 구분할 때",
+      "example": "Please keep recovery convenience separate from proof of state because a device that boots is not necessarily a device whose update transaction is healthy.",
+      "practice": "The team should discuss recovery convenience separate from proof of state before approving a similar recovery change."
+    },
+    {
+      "phrase": "persistent transaction ambiguity",
+      "meaning_ko": "지속적인 트랜잭션 불명확성",
+      "usage_ko": "느린 진행과 상태 불일치를 구분할 때",
+      "example": "The failure is persistent transaction ambiguity, not a slow merge, and our current health check cannot distinguish those states.",
+      "practice": "The team should discuss persistent transaction ambiguity before approving a similar recovery change."
+    },
+    {
+      "phrase": "fail closed",
+      "meaning_ko": "안전하게 거부하다",
+      "usage_ko": "증거가 부족하면 변경을 막을 때",
+      "example": "My position is fail closed unless we can reconstruct a quorum from independent records.",
+      "practice": "The team should discuss fail closed before approving a similar recovery change."
+    },
+    {
+      "phrase": "read-only reconciliation phase",
+      "meaning_ko": "읽기 전용 조정 단계",
+      "usage_ko": "쓰기 전에 상태를 비교할 때",
+      "example": "I propose a read-only reconciliation phase that compares those identities before any write.",
+      "practice": "The team should discuss read-only reconciliation phase before approving a similar recovery change."
+    },
+    {
+      "phrase": "Missing evidence is not negative evidence",
+      "meaning_ko": "증거 누락은 반대 증거가 아니다",
+      "usage_ko": "자료가 없음을 판단 근거로 오해하지 않을 때",
+      "example": "Missing evidence is not negative evidence; it is an inability to authorize a mutation.",
+      "practice": "The team should discuss Missing evidence is not negative evidence before approving a similar recovery change."
+    },
+    {
+      "phrase": "frozen observation point",
+      "meaning_ko": "고정된 관찰 시점",
+      "usage_ko": "경쟁 상태 없이 측정할 때",
+      "example": "We need a frozen observation point.",
+      "practice": "The team should discuss frozen observation point before approving a similar recovery change."
+    },
+    {
+      "phrase": "authorized recovery rate",
+      "meaning_ko": "허가된 복구율",
+      "usage_ko": "안전하게 승인된 복구만 측정할 때",
+      "example": "Our release metric should be authorized recovery rate, not raw recovery rate.",
+      "practice": "The team should discuss authorized recovery rate before approving a similar recovery change."
+    },
+    {
+      "phrase": "preserve observability when we disable mutation",
+      "meaning_ko": "변경을 꺼도 관측 가능성을 보존하다",
+      "usage_ko": "긴급 중단 중 진단 기능을 유지할 때",
+      "example": "We should preserve observability when we disable mutation.",
+      "practice": "The team should discuss preserve observability when we disable mutation before approving a similar recovery change."
+    },
+    {
+      "phrase": "single bounded journal correction",
+      "meaning_ko": "한 번의 제한된 저널 수정",
+      "usage_ko": "복구 범위를 엄격히 제한할 때",
+      "example": "Option two is the five-field reconciliation with a single bounded journal correction.",
+      "practice": "The team should discuss single bounded journal correction before approving a similar recovery change."
+    },
+    {
+      "phrase": "two-sided protocol",
+      "meaning_ko": "양측 프로토콜",
+      "usage_ko": "두 계층이 서로 검증하는 절차를 말할 때",
+      "example": "This is a two-sided protocol, not a privileged shortcut.",
+      "practice": "The team should discuss two-sided protocol before approving a similar recovery change."
+    },
+    {
+      "phrase": "one repair attempt per payload identity",
+      "meaning_ko": "payload identity당 한 번의 복구 시도",
+      "usage_ko": "재시도 loop를 제한할 때",
+      "example": "We should also cap the mechanism at one repair attempt per payload identity.",
+      "practice": "The team should discuss one repair attempt per payload identity before approving a similar recovery change."
+    },
+    {
+      "phrase": "independent agreement after persistence",
+      "meaning_ko": "영속화 후 독립적 합의",
+      "usage_ko": "저장 결과를 다시 검증할 때",
+      "example": "The safety property is independent agreement after persistence, not the reboot itself.",
+      "practice": "The team should discuss independent agreement after persistence before approving a similar recovery change."
+    },
+    {
+      "phrase": "A missing field fails the case",
+      "meaning_ko": "필드 누락은 해당 사례 실패다",
+      "usage_ko": "telemetry 누락을 엄격히 처리할 때",
+      "example": "A missing field fails the case; it is not excluded from the denominator.",
+      "practice": "The team should discuss A missing field fails the case before approving a similar recovery change."
+    },
+    {
+      "phrase": "deterministic path",
+      "meaning_ko": "결정적인 처리 경로",
+      "usage_ko": "모호하지 않은 운영 절차를 요구할 때",
+      "example": "That gives operations a deterministic path and prevents silent storage exhaustion.",
+      "practice": "The team should discuss deterministic path before approving a similar recovery change."
+    },
+    {
+      "phrase": "conditional integration, not permission to ship",
+      "meaning_ko": "출하 허가가 아닌 조건부 통합",
+      "usage_ko": "merge와 출시 승인을 구분할 때",
+      "example": "The disposition is conditional integration, not permission to ship.",
+      "practice": "The team should discuss conditional integration, not permission to ship before approving a similar recovery change."
+    }
+  ]
+}
