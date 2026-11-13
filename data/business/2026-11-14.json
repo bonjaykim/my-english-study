@@ -1,0 +1,273 @@
+{
+  "date": "2026-11-14",
+  "category": "business",
+  "topic": "sw-field",
+  "subject": "Recovering Binaural LE Audio after a Bluetooth Controller Watchdog",
+  "title_ko": "블루투스 컨트롤러 Watchdog 이후 양이 LE Audio 복구",
+  "summary_ko": "가상의 Android 현장 대응 회의에서 단말을 펼치며 LE Audio 통화 경로로 전환할 때 컨트롤러 watchdog과 늦은 스트림 허용이 한쪽 이어버드 무음을 만드는 문제를 분석한다. 팀들은 controller epoch, 양쪽 packet progress, transaction-scoped scan suppression, 정량 검증 gate를 결합한 조건부 기업 배포를 결정한다. 모든 인물·조직·단말·이어버드·컨트롤러·펌웨어·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Mina Park",
+      "team": "Program and Field Operations"
+    },
+    {
+      "name": "Jonah Lee",
+      "team": "Android System Software"
+    },
+    {
+      "name": "Rina Solis",
+      "team": "Android System Software"
+    },
+    {
+      "name": "Dev Rao",
+      "team": "Controller Firmware Partner"
+    },
+    {
+      "name": "Sofia Chen",
+      "team": "System Quality"
+    },
+    {
+      "name": "Elias Morgan",
+      "team": "Program and Field Operations"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Field Impact",
+      "title_ko": "참석 확인과 현장 영향",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "Thanks for joining on short notice. I have Mina from Field Reliability, Jonah from Android Audio, Rina from Connectivity, Dev from the controller vendor, Sofia from Quality, and Elias from Release Operations. Our goal is to decide whether the silent-earbud reports can be contained in software before Monday's maintenance train. We have forty-three confirmed incidents from two enterprise customers using the Lumen Fold with paired LE Audio earbuds. In every report, a call moves from the handset speaker to the earbuds after the device unfolds, the user hears audio in only one ear, and the settings page still shows both buds connected. The customers operate help desks, so an agent may handle thirty calls per shift and cannot reboot between conversations. No safety call was lost, but agents repeated confidential statements when they believed the far ear had disconnected. That operational detail raises the urgency without changing our evidence standard. We need a defensible cause, an immediate customer action, and a repair that does not destabilize classic Bluetooth.",
+          "ko": "갑작스러운 요청에도 참석해 주셔서 감사합니다. 현장 신뢰성의 미나, Android 오디오의 조나, 연결성의 리나, 컨트롤러 공급사 데브, 품질의 소피아, 릴리스 운영의 일라이어스가 참석했습니다. 오늘 목표는 한쪽 이어버드 무음 보고를 월요일 유지보수 빌드 전에 소프트웨어로 억제할 수 있는지 결정하는 것입니다. Lumen Fold와 LE Audio 이어버드를 쓰는 두 기업 고객에게서 확인된 사례가 43건입니다. 모든 사례에서 단말을 펼친 뒤 통화 오디오가 단말 스피커에서 이어버드로 이동하면 한쪽에서만 소리가 들리지만 설정 화면에는 두 버드가 모두 연결된 것으로 표시됩니다. 고객사는 헬프데스크를 운영하므로 상담원 한 명이 교대 근무 중 30건의 통화를 처리할 수 있고 대화 사이마다 재부팅할 수 없습니다. 안전 관련 통화가 손실되지는 않았지만 상담원들은 반대쪽 이어버드 연결이 끊겼다고 생각해 기밀 문장을 반복했습니다. 이 운영상 세부 사항은 증거 기준을 바꾸지 않으면서 긴급성을 높입니다. 방어 가능한 원인, 즉시 제공할 고객 조치, 그리고 클래식 블루투스를 불안정하게 만들지 않는 수정안이 필요합니다."
+        },
+        {
+          "speaker": "Sofia Chen",
+          "en": "Quality is present, and I want to put the customer symptom in perspective. The failure rate is 6.8 percent across six hundred unfold-and-transfer cycles in our congested-radio chamber, but zero across four hundred cycles with the screen already open. Rebooting the phone clears the condition, while toggling Bluetooth does not clear it in seven of ten attempts. That distinction matters because a radio toggle restarts the framework stack but may leave the controller patch state intact. We also saw the issue on two earbud brands, so we should not anchor on a single accessory implementation. I will challenge any proposal that relies only on UI connection state because the audible path is the outcome we must protect.",
+          "ko": "품질팀이 참석했습니다. 고객 증상을 수치로 정리하겠습니다. 혼잡 무선 챔버에서 단말 펼침과 오디오 전환을 600회 수행했을 때 실패율은 6.8%였지만, 화면이 이미 열린 상태에서 400회 수행했을 때는 0건이었습니다. 단말 재부팅은 상태를 해소했지만 블루투스 토글은 10회 중 7회에서 해소하지 못했습니다. 무선 토글은 프레임워크 스택을 다시 시작해도 컨트롤러 패치 상태는 남길 수 있으므로 이 차이가 중요합니다. 이어버드 두 브랜드에서 모두 발생했기 때문에 특정 액세서리 구현에만 원인을 고정해서도 안 됩니다. 보호해야 할 결과는 실제 청취 경로이므로 UI 연결 상태만 의존하는 제안에는 이의를 제기하겠습니다."
+        },
+        {
+          "speaker": "Dev Rao",
+          "en": "I am here for the controller team. The controller firmware does not intentionally preserve a partially configured Connected Isochronous Group after its watchdog recovery, but our first review found one suspicious path. If the second stream establishment command arrives while the patch loader is releasing its transport lock, the command can receive a success status before the internal stream table is committed. That window is under twelve milliseconds, yet unfolding produces a burst of coexistence updates and may extend it. I am not calling that the root cause yet. The packet traces supplied yesterday stop before the vendor diagnostic event, so we cannot tell whether the second stream vanished inside the controller or was never reissued by Android.",
+          "ko": "컨트롤러 팀을 대표해 참석했습니다. 컨트롤러 펌웨어는 watchdog 복구 뒤 부분 구성된 Connected Isochronous Group을 의도적으로 보존하지 않지만, 1차 검토에서 의심스러운 경로 하나를 찾았습니다. 패치 로더가 전송 잠금을 해제하는 동안 두 번째 스트림 설정 명령이 도착하면 내부 스트림 테이블이 커밋되기 전에 성공 상태가 반환될 수 있습니다. 그 창은 12밀리초 미만이지만, 단말 펼침이 공존성 업데이트를 한꺼번에 발생시켜 창을 늘릴 수 있습니다. 아직 이것을 근본 원인이라고 단정하지는 않겠습니다. 어제 제공된 패킷 추적이 공급사 진단 이벤트 전에 끝나므로 두 번째 스트림이 컨트롤러 내부에서 사라졌는지, Android가 다시 발행하지 않았는지 구분할 수 없습니다."
+        },
+        {
+          "speaker": "Elias Morgan",
+          "en": "Release Operations is present. The maintenance branch closes at 18:00 KST on November 17, and the enterprise image begins certification the next morning. We can take a framework-only change if it has a narrow flag and a clean rollback, but a new controller binary would miss that train. Let us separate containment from correction. I need the meeting to end with one owner for the field instruction, one owner for a trace-complete reproduction, and explicit gates for enabling any workaround. If the evidence remains ambiguous, we should preserve service by declining the automatic transfer rather than pretending that a green connection icon proves two-channel audio.",
+          "ko": "릴리스 운영팀이 참석했습니다. 유지보수 브랜치는 11월 17일 18시(KST)에 닫히며 기업용 이미지는 다음 날 아침 인증을 시작합니다. 범위가 좁은 플래그와 명확한 롤백이 있는 프레임워크 변경은 받을 수 있지만 새 컨트롤러 바이너리는 그 열차를 놓칩니다. 억제책과 근본 수정을 분리합시다. 회의가 끝날 때 현장 지침 담당자 한 명, 완전한 추적 재현 담당자 한 명, 우회책 활성화의 명시적 게이트가 필요합니다. 증거가 계속 모호하다면 녹색 연결 아이콘이 2채널 오디오를 증명하는 척하기보다 자동 전환을 거부해 서비스를 보존해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Agenda and Evidence",
+      "title_ko": "안건과 증거",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "Here is the agenda: reconstruct one failing transfer, test three competing explanations, choose containment, and define the permanent repair. The field sequence begins with an active call on the handset, weak office Wi-Fi, and both buds connected but idle. The user unfolds the device, which activates the larger display and changes antenna tuning. Within 180 milliseconds, Android requests an LE Audio route. The left stream reports ready; the right stream reports ready 31 milliseconds later; audio starts; then the controller watchdog fires once. Our telemetry records a group identifier but not the controller boot counter. That missing dimension may be why the framework treats a pre-recovery handle as current.",
+          "ko": "안건은 실패 전환 한 건을 재구성하고, 경쟁 가설 세 가지를 시험하며, 억제책을 선택하고 영구 수정안을 정의하는 것입니다. 현장 순서는 단말 스피커로 통화 중이고 사무실 Wi-Fi가 약하며 두 버드가 연결됐지만 유휴 상태인 조건에서 시작합니다. 사용자가 단말을 펼치면 큰 화면이 활성화되고 안테나 튜닝이 바뀝니다. 180밀리초 안에 Android가 LE Audio 경로를 요청합니다. 왼쪽 스트림이 준비를 보고하고 오른쪽은 31밀리초 뒤 준비를 보고하며 오디오가 시작된 다음 컨트롤러 watchdog이 한 번 발생합니다. 현재 텔레메트리는 그룹 식별자는 기록하지만 컨트롤러 부팅 카운터는 기록하지 않습니다. 그 누락된 차원 때문에 프레임워크가 복구 전 핸들을 현재 것으로 취급할 수 있습니다."
+        },
+        {
+          "speaker": "Jonah Lee",
+          "en": "The Audio HAL trace adds an important contradiction. It receives two start acknowledgments from the Bluetooth service and opens a stereo presentation path, yet only the left-side packet counter advances. When the controller resets, the Bluetooth service emits a generic adapter-up callback, not a loss event for each isochronous stream. The HAL therefore has no reason to tear down the presentation. My working theory is an ownership gap across layers: every component is locally consistent, while the end-to-end route is broken. We should make the recovery epoch part of the route contract. A stream created before the epoch change must never satisfy readiness after the change, even if its numeric handle is reused.",
+          "ko": "Audio HAL 추적에는 중요한 모순이 있습니다. 블루투스 서비스에서 시작 확인 두 개를 받아 스테레오 프레젠테이션 경로를 열지만 왼쪽 패킷 카운터만 증가합니다. 컨트롤러가 재설정될 때 블루투스 서비스는 각 isochronous 스트림의 손실 이벤트가 아니라 일반적인 adapter-up 콜백만 보냅니다. 따라서 HAL은 프레젠테이션을 해제할 이유가 없습니다. 제 가설은 계층 간 소유권 공백입니다. 각 구성 요소는 국소적으로 일관되지만 종단 간 경로는 깨져 있습니다. 복구 epoch를 경로 계약의 일부로 만들어야 합니다. 숫자 핸들이 재사용되더라도 epoch 변경 전에 만들어진 스트림은 변경 뒤 준비 상태를 충족해서는 안 됩니다."
+        },
+        {
+          "speaker": "Rina Solis",
+          "en": "I agree that the epoch is necessary, but I do not think it is sufficient. In two lab failures, both streams were created after the same controller boot counter, and the right stream still had no packets. The coexistence manager delayed the second data-path command until after the framework's 120-millisecond group-ready deadline. Android then promoted the group because one member was active and the accessory metadata allowed degraded rendering. That policy is reasonable for media, where mono fallback is acceptable, but not for a voice call advertised as a binaural route. We need to put the failure under a microscope: controller recovery and late member admission are separate branches that converge on the same symptom.",
+          "ko": "epoch가 필요하다는 데 동의하지만 충분하다고 보지는 않습니다. 실험실 실패 두 건에서는 두 스트림 모두 같은 컨트롤러 부팅 카운터 뒤 생성됐는데도 오른쪽에 패킷이 없었습니다. 공존성 관리자가 두 번째 데이터 경로 명령을 프레임워크의 120밀리초 그룹 준비 기한 이후까지 지연시켰습니다. Android는 한 멤버가 활성이고 액세서리 메타데이터가 성능 저하 렌더링을 허용했기 때문에 그룹을 승격했습니다. 이 정책은 모노 대체가 허용되는 미디어에는 합리적이지만 양이 경로로 표시되는 음성 통화에는 적합하지 않습니다. 문제를 현미경 아래 놓아야 합니다. 컨트롤러 복구와 늦은 멤버 허용은 같은 증상으로 수렴하는 별도 분기입니다."
+        },
+        {
+          "speaker": "Sofia Chen",
+          "en": "I mapped the evidence against those branches. Of forty-one chamber failures, twenty-nine include a watchdog marker, eight include a late second-member command without a watchdog, and four lack enough diagnostic bytes to classify. The left-only symptom is identical, but the recovery time differs: watchdog cases persist until reboot, while late-admission cases clear on the next route switch. This is not a rounding error; it changes the safe containment. A blanket longer timeout might hide late admission but would leave stale handles alive after recovery. A blanket controller reset might repair stale handles but interrupt healthy calls whenever congestion delays one member. We need a decision tree grounded in observable signals.",
+          "ko": "증거를 두 분기에 맞춰 정리했습니다. 챔버 실패 41건 중 29건에는 watchdog 표식이 있고, 8건에는 watchdog 없이 늦은 두 번째 멤버 명령이 있으며, 4건은 진단 바이트가 부족해 분류할 수 없습니다. 왼쪽만 들리는 증상은 같지만 복구 시간은 다릅니다. watchdog 사례는 재부팅까지 지속되고 늦은 허용 사례는 다음 경로 전환에서 해소됩니다. 이것은 사소한 오차가 아니라 안전한 억제책을 바꾸는 차이입니다. 단순히 timeout을 늘리면 늦은 허용은 숨길 수 있지만 복구 뒤 오래된 핸들이 남습니다. 무조건 컨트롤러를 재설정하면 오래된 핸들은 고치지만 혼잡으로 한 멤버가 지연될 때 정상 통화를 방해합니다. 관찰 가능한 신호에 근거한 결정 트리가 필요합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Technical Debate and Experiments",
+      "title_ko": "기술 토론과 실험",
+      "turns": [
+        {
+          "speaker": "Dev Rao",
+          "en": "I propose a vendor event carrying the controller boot counter and a committed-stream bitmap. That would let Android distinguish an acknowledged command from an installed path. However, it requires firmware and host changes, so it is the permanent repair, not Monday's containment. For the current build, the host can read an existing diagnostic register after any watchdog indication. The read costs about 2.4 milliseconds and returns the boot counter, though it does not expose the bitmap. If the counter changes, Android should invalidate every LE Audio group, wait for adapter readiness, and rebuild both members as one transaction. Do not reuse a single surviving member across that boundary.",
+          "ko": "컨트롤러 부팅 카운터와 커밋된 스트림 비트맵을 담는 공급사 이벤트를 제안합니다. 그러면 Android는 명령 확인과 실제 경로 설치를 구분할 수 있습니다. 다만 펌웨어와 호스트 변경이 모두 필요하므로 월요일 억제책이 아니라 영구 수정입니다. 현재 빌드에서는 watchdog 표시 뒤 기존 진단 레지스터를 호스트가 읽을 수 있습니다. 읽기 비용은 약 2.4밀리초이고 비트맵은 노출하지 않지만 부팅 카운터를 반환합니다. 카운터가 바뀌면 Android는 모든 LE Audio 그룹을 무효화하고 adapter 준비를 기다린 뒤 두 멤버를 하나의 트랜잭션으로 재구성해야 합니다. 그 경계를 넘어 살아남은 단일 멤버를 재사용해서는 안 됩니다."
+        },
+        {
+          "speaker": "Jonah Lee",
+          "en": "I support invalidation, but rebuilding during an active call creates a six-hundred-millisecond mute in our prototype. Product may prefer that over silent audio in one ear, yet we should not switch automatically until both packet counters prove forward progress. I suggest a two-phase commit at the route layer. Phase one creates both streams under the current epoch and observes at least five packets on each. Phase two publishes the route to AudioPolicy. If either member misses the 250-millisecond proof window, keep the handset route and destroy the candidate group. The handset is our known-good anchor, and we should fail closed around it.",
+          "ko": "무효화를 지지하지만 통화 중 재구성은 프로토타입에서 600밀리초 무음을 만듭니다. 제품 측은 한쪽만 무음인 것보다 이를 선호할 수 있지만 두 패킷 카운터가 모두 진행을 증명하기 전 자동 전환해서는 안 됩니다. 경로 계층에서 2단계 커밋을 제안합니다. 1단계는 현재 epoch 아래 두 스트림을 만들고 각각 최소 5개 패킷을 관찰합니다. 2단계는 AudioPolicy에 경로를 게시합니다. 어느 멤버든 250밀리초 증명 창을 놓치면 단말 경로를 유지하고 후보 그룹을 제거합니다. 단말 스피커가 검증된 기준점이므로 그 주변에서 닫힌 방향으로 실패해야 합니다."
+        },
+        {
+          "speaker": "Rina Solis",
+          "en": "The proposed proof window could misclassify congested but recoverable links. In the chamber, the ninety-ninth percentile for the second member is 278 milliseconds when Wi-Fi scans overlap the unfold event. I would set 320 milliseconds and temporarily suppress one scan cycle while the call transfer is pending. Before anyone objects, I am not asking to disable Wi-Fi scanning broadly. The suppression would be bounded to 350 milliseconds, only during an explicit voice-route transaction, and recorded in metrics. That buys deterministic admission without masking a controller epoch change. We should test battery and discovery impact, but the blast radius is smaller than repeated group teardown.",
+          "ko": "제안된 증명 창은 혼잡하지만 복구 가능한 링크를 실패로 잘못 분류할 수 있습니다. 챔버에서 Wi-Fi 스캔이 펼침 이벤트와 겹치면 두 번째 멤버의 99백분위가 278밀리초입니다. 320밀리초로 설정하고 통화 전환 대기 중 스캔 한 주기를 일시 억제하겠습니다. Wi-Fi 스캔을 광범위하게 끄자는 뜻은 아닙니다. 억제는 명시적 음성 경로 트랜잭션 동안 350밀리초로 제한되고 지표에 기록됩니다. 이는 컨트롤러 epoch 변경을 가리지 않으면서 결정론적 허용 시간을 확보합니다. 배터리와 검색 영향은 시험해야 하지만 반복 그룹 해제보다 영향 범위가 작습니다."
+        },
+        {
+          "speaker": "Sofia Chen",
+          "en": "I can accept 320 milliseconds only with independent exit conditions. The test must cover clean transfers, delayed admission, watchdog recovery before the first member, watchdog recovery between members, and a reset after route publication. We also need negative cases with classic Bluetooth, a single LE earbud, hearing-aid mode, and Wi-Fi calling. The pass bar should be zero false stereo publications in ten thousand transfers, at least 99.5 percent successful binaural transfers within 700 milliseconds, no more than a 0.3 percent increase in Wi-Fi discovery latency, and no call drop. Let the data break the tie between 250 and 320 milliseconds rather than settling it by intuition.",
+          "ko": "320밀리초는 독립적인 종료 조건이 있을 때만 수용할 수 있습니다. 시험은 정상 전환, 늦은 허용, 첫 멤버 전 watchdog 복구, 멤버 사이 watchdog 복구, 경로 게시 후 재설정을 다뤄야 합니다. 클래식 블루투스, 단일 LE 이어버드, 보청기 모드, Wi-Fi 통화의 음성 사례도 필요합니다. 합격 기준은 1만 번 전환에서 거짓 스테레오 게시 0건, 700밀리초 안 양이 전환 성공률 99.5% 이상, Wi-Fi 검색 지연 증가 0.3% 이하, 통화 끊김 0건이어야 합니다. 직관으로 정하지 말고 데이터가 250과 320밀리초 사이 승부를 가르게 합시다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decisions, Owners, and Deadlines",
+      "title_ko": "결정, 담당자와 기한",
+      "turns": [
+        {
+          "speaker": "Elias Morgan",
+          "en": "I hear convergence on a framework containment and a later firmware contract. For the November 17 branch, we will gate automatic LE Audio voice transfer behind a transactional readiness flag. The candidate group must belong to the current controller boot counter, contain every required member, and show packet progress before AudioPolicy sees it. A watchdog counter change aborts the candidate and retains the handset route. Late admission receives a bounded window whose final value comes from Sofia's experiment. This is a conditional go, not an unconditional approval. The flag remains off for consumer builds and on only for the two affected enterprise cohorts after the gate report passes.",
+          "ko": "프레임워크 억제책과 이후 펌웨어 계약으로 의견이 모였습니다. 11월 17일 브랜치에서는 트랜잭션 준비 플래그 뒤에서 LE Audio 음성 자동 전환을 제어합니다. 후보 그룹은 현재 컨트롤러 부팅 카운터에 속하고 필요한 모든 멤버를 포함하며 AudioPolicy에 보이기 전에 패킷 진행을 보여야 합니다. watchdog 카운터 변경은 후보를 중단하고 단말 경로를 유지합니다. 늦은 허용에는 제한된 창을 주되 최종 값은 소피아의 실험으로 정합니다. 이는 조건부 진행이지 무조건 승인이 아닙니다. 게이트 보고서가 통과한 뒤 영향받은 두 기업 코호트에만 켜고 소비자 빌드에서는 플래그를 끈 상태로 유지합니다."
+        },
+        {
+          "speaker": "Mina Park",
+          "en": "I own the field instruction by 14:00 KST today. Support will tell customers to keep calls on the handset if one side is silent, then disconnect and reconnect the earbuds after the call; we will not recommend repeated Bluetooth toggles because the evidence shows they are unreliable. I will also collect five complete diagnostic bundles with user consent by November 15 at noon. Each bundle must include the unfold marker, coexistence timeline, HCI trace, controller boot counter, Audio HAL counters, and route decision. I will keep customer language factual and avoid implying that either earbud brand caused the failure.",
+          "ko": "현장 지침은 제가 오늘 14시(KST)까지 담당합니다. 한쪽이 무음이면 통화 중에는 단말 스피커를 유지하고 통화가 끝난 뒤 이어버드를 연결 해제했다가 다시 연결하도록 안내하겠습니다. 증거상 신뢰할 수 없으므로 블루투스 토글 반복은 권하지 않습니다. 또한 사용자 동의를 받아 11월 15일 정오까지 완전한 진단 번들 5개를 수집하겠습니다. 각 번들에는 펼침 표식, 공존성 타임라인, HCI 추적, 컨트롤러 부팅 카운터, Audio HAL 카운터, 경로 결정이 포함되어야 합니다. 고객 문구는 사실에 근거하고 어느 이어버드 브랜드가 원인이라는 인상을 피하겠습니다."
+        },
+        {
+          "speaker": "Jonah Lee",
+          "en": "I own the host prototype and will post a reviewable change by 20:00 KST on November 14. Rina will add the bounded scan-suppression hook by 11:00 on November 15, with a hard timer and metrics for every entry and exit. Dev will provide the diagnostic-register specification and a signed test firmware that emits the committed-stream bitmap by 18:00 on November 16. We are drawing a line between the emergency path and the durable interface: the maintenance build may read the existing boot counter, but the next BSP must consume an explicit event and cannot depend on register polling as a permanent contract.",
+          "ko": "호스트 프로토타입은 제가 맡아 11월 14일 20시(KST)까지 검토 가능한 변경을 올리겠습니다. 리나는 11월 15일 11시까지 강제 타이머와 진입·종료 지표가 있는 제한적 스캔 억제 훅을 추가합니다. 데브는 11월 16일 18시까지 진단 레지스터 명세와 커밋된 스트림 비트맵을 내보내는 서명된 시험 펌웨어를 제공합니다. 긴급 경로와 지속 가능한 인터페이스 사이에 선을 긋겠습니다. 유지보수 빌드는 기존 부팅 카운터를 읽을 수 있지만 다음 BSP는 명시적 이벤트를 소비해야 하며 레지스터 폴링을 영구 계약으로 의존할 수 없습니다."
+        },
+        {
+          "speaker": "Sofia Chen",
+          "en": "I own validation. The ten-thousand-cycle matrix starts when both host patches land and finishes by 10:00 KST on November 17. I will publish separate results for 250 and 320 milliseconds, plus an unmodified control build. A build fails immediately if it publishes stereo with one stagnant packet counter, drops a call, carries a group across a boot-counter change, or leaves scan suppression active past 350 milliseconds. If both timeout values pass, we choose 320 only if it improves successful transfer by at least 0.4 percentage points without exceeding the discovery budget. That rule prevents us from moving the goalposts after seeing attractive partial results.",
+          "ko": "검증은 제가 담당합니다. 두 호스트 패치가 들어오면 1만 회 매트릭스를 시작해 11월 17일 10시(KST)까지 마칩니다. 250밀리초와 320밀리초 결과, 수정하지 않은 대조 빌드를 각각 발표하겠습니다. 한 패킷 카운터가 정지한 채 스테레오를 게시하거나, 통화가 끊기거나, 부팅 카운터 변경을 넘어 그룹을 유지하거나, 스캔 억제가 350밀리초를 넘으면 즉시 실패입니다. 두 timeout이 모두 통과하면 검색 예산을 넘지 않으면서 성공 전환이 최소 0.4%포인트 향상될 때만 320을 선택합니다. 이 규칙은 매력적인 부분 결과를 본 뒤 목표를 옮기는 일을 막습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Follow Up and Closing",
+      "title_ko": "후속 회의와 마무리",
+      "turns": [
+        {
+          "speaker": "Dev Rao",
+          "en": "Before we close, I want one compatibility guard recorded. Older controller firmware returns an all-zero value for the boot-counter register during the first 40 milliseconds after transport recovery. The host must treat zero as unknown, not as a valid epoch, and it must keep the handset route until a nonzero value is read or a 500-millisecond recovery deadline expires. On expiry, destroy the candidate group and surface a recoverable transfer failure; do not loop on reads. I will add that behavior to the specification and supply three fault scripts covering delayed register readiness, repeated watchdogs, and handle reuse. This guard closes a hole that our initial proposal left open.",
+          "ko": "마무리 전에 호환성 보호 조건 하나를 기록하고 싶습니다. 이전 컨트롤러 펌웨어는 전송 복구 후 처음 40밀리초 동안 부팅 카운터 레지스터에 모두 0을 반환합니다. 호스트는 0을 유효한 epoch가 아니라 미상으로 취급하고, 0이 아닌 값을 읽거나 500밀리초 복구 기한이 끝날 때까지 단말 경로를 유지해야 합니다. 기한이 끝나면 후보 그룹을 제거하고 복구 가능한 전환 실패를 표시하되 읽기를 반복하지 마십시오. 이 동작을 명세에 추가하고 레지스터 준비 지연, 반복 watchdog, 핸들 재사용을 다루는 fault script 세 개를 제공하겠습니다. 이 보호 조건은 초기 제안에 남아 있던 구멍을 닫습니다."
+        },
+        {
+          "speaker": "Rina Solis",
+          "en": "I will pair with Jonah on the route transaction because the scan suppression must follow the transaction token, not the UI request. Cancellation, call end, user route reversal, controller epoch change, and the hard timer must all release it exactly once. I will add counters for requested, granted, cancelled, timed out, and leaked suppression scopes. For the follow-up, I will bring a histogram split by Wi-Fi band and signal level so we can see whether 320 milliseconds is compensating for one environmental corner. If it is, the longer-term fix belongs in coexistence scheduling rather than in a generous audio deadline.",
+          "ko": "스캔 억제가 UI 요청이 아니라 트랜잭션 토큰을 따라야 하므로 조나와 함께 경로 트랜잭션을 작업하겠습니다. 취소, 통화 종료, 사용자 경로 되돌림, 컨트롤러 epoch 변경, 강제 타이머가 모두 정확히 한 번 억제를 해제해야 합니다. 요청, 허용, 취소, timeout, 누수 억제 범위 카운터를 추가하겠습니다. 후속 회의에는 Wi-Fi 대역과 신호 수준별 히스토그램을 가져와 320밀리초가 특정 환경 모서리를 보상하는지 확인하겠습니다. 그렇다면 장기 수정은 관대한 오디오 기한이 아니라 공존성 스케줄링에 있어야 합니다."
+        },
+        {
+          "speaker": "Elias Morgan",
+          "en": "The follow-up decision meeting is set for November 17 at 15:30 KST. Required attendees are the six people here, and the packet must arrive by 13:00. It will contain Sofia's gate table, the selected timeout, Jonah's rollback instructions, Rina's discovery-impact chart, Dev's firmware event plan, and Mina's field trend. At that meeting we will choose among enabling the enterprise flag, holding the branch, or shipping only the customer guidance. If enabled, rollout starts at five percent on November 18, pauses for twenty-four hours, and advances only with zero false stereo publications and no rise in call drops.",
+          "ko": "후속 결정 회의는 11월 17일 15시 30분(KST)으로 정합니다. 필수 참석자는 오늘 여섯 명이며 자료는 13시까지 도착해야 합니다. 자료에는 소피아의 게이트 표, 선택한 timeout, 조나의 롤백 지침, 리나의 검색 영향 차트, 데브의 펌웨어 이벤트 계획, 미나의 현장 추세가 포함됩니다. 그 회의에서 기업용 플래그 활성화, 브랜치 보류, 고객 지침만 배포 중 하나를 선택합니다. 활성화하면 11월 18일 5%에서 롤아웃을 시작해 24시간 멈추고, 거짓 스테레오 게시 0건과 통화 끊김 증가 없음일 때만 확대합니다."
+        },
+        {
+          "speaker": "Mina Park",
+          "en": "Let me read back the decision. We will preserve the handset route until both LE Audio members prove packet progress under one known controller epoch. Watchdog recovery invalidates the whole candidate group; late admission gets a measured, bounded window; scan suppression is transaction-scoped and time-limited. Owners and deadlines are recorded, validation has objective stop conditions, and the next decision is November 17 at 15:30 KST. I will distribute the minutes within thirty minutes and open one incident record linking every trace, change, test report, and customer update. If anyone sees a mismatch, correct the record today rather than carrying an assumption into certification.",
+          "ko": "결정을 다시 읽겠습니다. 하나의 알려진 컨트롤러 epoch 아래 두 LE Audio 멤버가 패킷 진행을 증명할 때까지 단말 경로를 보존합니다. watchdog 복구는 후보 그룹 전체를 무효화하고, 늦은 허용에는 측정된 제한 창을 주며, 스캔 억제는 트랜잭션 범위에서 시간 제한을 둡니다. 담당자와 기한이 기록됐고 검증에는 객관적 중단 조건이 있으며 다음 결정은 11월 17일 15시 30분(KST)입니다. 30분 안에 회의록을 배포하고 모든 추적, 변경, 시험 보고서, 고객 업데이트를 연결하는 단일 incident record를 열겠습니다. 불일치가 보이면 가정을 인증까지 가져가지 말고 오늘 기록을 바로잡아 주십시오."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "put the customer symptom in perspective",
+      "meaning_ko": "고객 증상의 규모와 맥락을 분명히 하다",
+      "usage_ko": "현상 수치를 설명할 때",
+      "example": "Quality is present, and I want to put the customer symptom in perspective. The failure rate is 6.8 percent across six hundred unfold-and-transfer cycles in our congested-radio chamber, but zero across four hundred cycles with the screen already open. Rebooting the phone clears the condition, while toggling Bluetooth does not clear it in seven of ten attempts. That distinction matters because a radio toggle restarts the framework stack but may leave the controller patch state intact. We also saw the issue on two earbud brands, so we should not anchor on a single accessory implementation. I will challenge any proposal that relies only on UI connection state because the audible path is the outcome we must protect.",
+      "practice": "The failure histogram puts the customer impact in perspective."
+    },
+    {
+      "phrase": "anchor on",
+      "meaning_ko": "~에 성급히 원인을 고정하지 않다",
+      "usage_ko": "성급한 단일 원인 판단을 경계할 때",
+      "example": "Quality is present, and I want to put the customer symptom in perspective. The failure rate is 6.8 percent across six hundred unfold-and-transfer cycles in our congested-radio chamber, but zero across four hundred cycles with the screen already open. Rebooting the phone clears the condition, while toggling Bluetooth does not clear it in seven of ten attempts. That distinction matters because a radio toggle restarts the framework stack but may leave the controller patch state intact. We also saw the issue on two earbud brands, so we should not anchor on a single accessory implementation. I will challenge any proposal that relies only on UI connection state because the audible path is the outcome we must protect.",
+      "practice": "We should not anchor on the first timeout we observe."
+    },
+    {
+      "phrase": "separate containment from correction",
+      "meaning_ko": "억제책과 근본 수정을 구분하다",
+      "usage_ko": "단기 대응과 장기 수정을 구분할 때",
+      "example": "Release Operations is present. The maintenance branch closes at 18:00 KST on November 17, and the enterprise image begins certification the next morning. We can take a framework-only change if it has a narrow flag and a clean rollback, but a new controller binary would miss that train. Let us separate containment from correction. I need the meeting to end with one owner for the field instruction, one owner for a trace-complete reproduction, and explicit gates for enabling any workaround. If the evidence remains ambiguous, we should preserve service by declining the automatic transfer rather than pretending that a green connection icon proves two-channel audio.",
+      "practice": "The review must separate containment from correction."
+    },
+    {
+      "phrase": "put the failure under a microscope",
+      "meaning_ko": "문제를 매우 세밀하게 조사하다",
+      "usage_ko": "정밀 분석을 요청할 때",
+      "example": "I agree that the epoch is necessary, but I do not think it is sufficient. In two lab failures, both streams were created after the same controller boot counter, and the right stream still had no packets. The coexistence manager delayed the second data-path command until after the framework's 120-millisecond group-ready deadline. Android then promoted the group because one member was active and the accessory metadata allowed degraded rendering. That policy is reasonable for media, where mono fallback is acceptable, but not for a voice call advertised as a binaural route. We need to put the failure under a microscope: controller recovery and late member admission are separate branches that converge on the same symptom.",
+      "practice": "The trace lets us put the scheduler race under a microscope."
+    },
+    {
+      "phrase": "This is not a rounding error",
+      "meaning_ko": "무시할 만한 작은 차이가 아니다",
+      "usage_ko": "차이의 중요성을 강조할 때",
+      "example": "I mapped the evidence against those branches. Of forty-one chamber failures, twenty-nine include a watchdog marker, eight include a late second-member command without a watchdog, and four lack enough diagnostic bytes to classify. The left-only symptom is identical, but the recovery time differs: watchdog cases persist until reboot, while late-admission cases clear on the next route switch. This is not a rounding error; it changes the safe containment. A blanket longer timeout might hide late admission but would leave stale handles alive after recovery. A blanket controller reset might repair stale handles but interrupt healthy calls whenever congestion delays one member. We need a decision tree grounded in observable signals.",
+      "practice": "A two-percent regression is not a rounding error for this fleet."
+    },
+    {
+      "phrase": "grounded in observable signals",
+      "meaning_ko": "관찰 가능한 신호에 근거한",
+      "usage_ko": "증거 기반 판단을 요구할 때",
+      "example": "I mapped the evidence against those branches. Of forty-one chamber failures, twenty-nine include a watchdog marker, eight include a late second-member command without a watchdog, and four lack enough diagnostic bytes to classify. The left-only symptom is identical, but the recovery time differs: watchdog cases persist until reboot, while late-admission cases clear on the next route switch. This is not a rounding error; it changes the safe containment. A blanket longer timeout might hide late admission but would leave stale handles alive after recovery. A blanket controller reset might repair stale handles but interrupt healthy calls whenever congestion delays one member. We need a decision tree grounded in observable signals.",
+      "practice": "The rollback decision must be grounded in observable signals."
+    },
+    {
+      "phrase": "as one transaction",
+      "meaning_ko": "하나의 트랜잭션으로",
+      "usage_ko": "원자적 처리 단위를 강조할 때",
+      "example": "I propose a vendor event carrying the controller boot counter and a committed-stream bitmap. That would let Android distinguish an acknowledged command from an installed path. However, it requires firmware and host changes, so it is the permanent repair, not Monday's containment. For the current build, the host can read an existing diagnostic register after any watchdog indication. The read costs about 2.4 milliseconds and returns the boot counter, though it does not expose the bitmap. If the counter changes, Android should invalidate every LE Audio group, wait for adapter readiness, and rebuild both members as one transaction. Do not reuse a single surviving member across that boundary.",
+      "practice": "Apply the schema update as one transaction."
+    },
+    {
+      "phrase": "known-good anchor",
+      "meaning_ko": "검증된 기준점",
+      "usage_ko": "안전한 기준 경로를 말할 때",
+      "example": "I support invalidation, but rebuilding during an active call creates a six-hundred-millisecond mute in our prototype. Product may prefer that over silent audio in one ear, yet we should not switch automatically until both packet counters prove forward progress. I suggest a two-phase commit at the route layer. Phase one creates both streams under the current epoch and observes at least five packets on each. Phase two publishes the route to AudioPolicy. If either member misses the 250-millisecond proof window, keep the handset route and destroy the candidate group. The handset is our known-good anchor, and we should fail closed around it.",
+      "practice": "The previous stable build is our known-good anchor."
+    },
+    {
+      "phrase": "the blast radius is smaller",
+      "meaning_ko": "영향 범위가 더 작다",
+      "usage_ko": "대안의 영향 범위를 비교할 때",
+      "example": "The proposed proof window could misclassify congested but recoverable links. In the chamber, the ninety-ninth percentile for the second member is 278 milliseconds when Wi-Fi scans overlap the unfold event. I would set 320 milliseconds and temporarily suppress one scan cycle while the call transfer is pending. Before anyone objects, I am not asking to disable Wi-Fi scanning broadly. The suppression would be bounded to 350 milliseconds, only during an explicit voice-route transaction, and recorded in metrics. That buys deterministic admission without masking a controller epoch change. We should test battery and discovery impact, but the blast radius is smaller than repeated group teardown.",
+      "practice": "The blast radius is smaller when the flag is cohort-specific."
+    },
+    {
+      "phrase": "Let the data break the tie",
+      "meaning_ko": "데이터로 결론을 가리게 하다",
+      "usage_ko": "실험으로 이견을 해소할 때",
+      "example": "I can accept 320 milliseconds only with independent exit conditions. The test must cover clean transfers, delayed admission, watchdog recovery before the first member, watchdog recovery between members, and a reset after route publication. We also need negative cases with classic Bluetooth, a single LE earbud, hearing-aid mode, and Wi-Fi calling. The pass bar should be zero false stereo publications in ten thousand transfers, at least 99.5 percent successful binaural transfers within 700 milliseconds, no more than a 0.3 percent increase in Wi-Fi discovery latency, and no call drop. Let the data break the tie between 250 and 320 milliseconds rather than settling it by intuition.",
+      "practice": "Let the data break the tie between the two queue policies."
+    },
+    {
+      "phrase": "a conditional go",
+      "meaning_ko": "조건부 진행 승인",
+      "usage_ko": "조건이 붙은 승인을 말할 때",
+      "example": "I hear convergence on a framework containment and a later firmware contract. For the November 17 branch, we will gate automatic LE Audio voice transfer behind a transactional readiness flag. The candidate group must belong to the current controller boot counter, contain every required member, and show packet progress before AudioPolicy sees it. A watchdog counter change aborts the candidate and retains the handset route. Late admission receives a bounded window whose final value comes from Sofia's experiment. This is a conditional go, not an unconditional approval. The flag remains off for consumer builds and on only for the two affected enterprise cohorts after the gate report passes.",
+      "practice": "This is a conditional go pending the overnight reliability run."
+    },
+    {
+      "phrase": "drawing a line between",
+      "meaning_ko": "~사이의 경계를 명확히 긋다",
+      "usage_ko": "임시책과 영구책을 구분할 때",
+      "example": "I own the host prototype and will post a reviewable change by 20:00 KST on November 14. Rina will add the bounded scan-suppression hook by 11:00 on November 15, with a hard timer and metrics for every entry and exit. Dev will provide the diagnostic-register specification and a signed test firmware that emits the committed-stream bitmap by 18:00 on November 16. We are drawing a line between the emergency path and the durable interface: the maintenance build may read the existing boot counter, but the next BSP must consume an explicit event and cannot depend on register polling as a permanent contract.",
+      "practice": "We are drawing a line between emergency access and normal operation."
+    },
+    {
+      "phrase": "moving the goalposts",
+      "meaning_ko": "결과를 본 뒤 기준을 바꾸다",
+      "usage_ko": "사후 기준 변경을 막을 때",
+      "example": "I own validation. The ten-thousand-cycle matrix starts when both host patches land and finishes by 10:00 KST on November 17. I will publish separate results for 250 and 320 milliseconds, plus an unmodified control build. A build fails immediately if it publishes stereo with one stagnant packet counter, drops a call, carries a group across a boot-counter change, or leaves scan suppression active past 350 milliseconds. If both timeout values pass, we choose 320 only if it improves successful transfer by at least 0.4 percentage points without exceeding the discovery budget. That rule prevents us from moving the goalposts after seeing attractive partial results.",
+      "practice": "Freeze the thresholds now so we cannot start moving the goalposts."
+    },
+    {
+      "phrase": "closes a hole",
+      "meaning_ko": "허점을 막다",
+      "usage_ko": "설계상 누락을 보완할 때",
+      "example": "Before we close, I want one compatibility guard recorded. Older controller firmware returns an all-zero value for the boot-counter register during the first 40 milliseconds after transport recovery. The host must treat zero as unknown, not as a valid epoch, and it must keep the handset route until a nonzero value is read or a 500-millisecond recovery deadline expires. On expiry, destroy the candidate group and surface a recoverable transfer failure; do not loop on reads. I will add that behavior to the specification and supply three fault scripts covering delayed register readiness, repeated watchdogs, and handle reuse. This guard closes a hole that our initial proposal left open.",
+      "practice": "The new ownership check closes a hole in the recovery path."
+    },
+    {
+      "phrase": "read back the decision",
+      "meaning_ko": "결정 사항을 다시 확인해 읽다",
+      "usage_ko": "회의 결론을 정확히 확인할 때",
+      "example": "Let me read back the decision. We will preserve the handset route until both LE Audio members prove packet progress under one known controller epoch. Watchdog recovery invalidates the whole candidate group; late admission gets a measured, bounded window; scan suppression is transaction-scoped and time-limited. Owners and deadlines are recorded, validation has objective stop conditions, and the next decision is November 17 at 15:30 KST. I will distribute the minutes within thirty minutes and open one incident record linking every trace, change, test report, and customer update. If anyone sees a mismatch, correct the record today rather than carrying an assumption into certification.",
+      "practice": "I will read back the decision before we assign the final owners."
+    }
+  ]
+}
