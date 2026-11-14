@@ -1,0 +1,269 @@
+{
+  "date": "2026-11-15",
+  "category": "business",
+  "topic": "sw-kickoff",
+  "subject": "Kicking Off a Bounded DMA BUF Ownership Telemetry Pilot",
+  "title_ko": "제한된 DMA-BUF 소유권 텔레메트리 파일럿 착수",
+  "summary_ko": "가상의 Android 시스템 SW 착수 회의에서 혼합 카메라·화면 공유·동영상 워크로드 중 설명되지 않는 DMA-BUF 상주 메모리를 추적할 제한적 engineering 파일럿을 설계한다. 팀들은 boot-scoped object cookie, hash sampling, 장기 객체 승격, pressure-triggered flight recorder, reconciliation과 정량 overhead gate를 합의한다. 모든 인물·조직·단말·워크로드·커널·드라이버·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Ari Kim",
+      "team": "Platform and Release"
+    },
+    {
+      "name": "Leah Ortiz",
+      "team": "Camera Systems"
+    },
+    {
+      "name": "Mateo Singh",
+      "team": "Display and Media Drivers"
+    },
+    {
+      "name": "Noor Bennett",
+      "team": "Performance Quality"
+    },
+    {
+      "name": "June Park",
+      "team": "Platform and Release"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Pilot Goal",
+      "title_ko": "참석 확인과 파일럿 목표",
+      "turns": [
+        {
+          "speaker": "Ari Kim",
+          "en": "Good morning. We have Platform Memory, Camera Systems, Display and Media Drivers, Performance Quality, and Release Planning represented. Today is a kickoff, not a defect triage. We need to decide whether a bounded DMA-BUF ownership telemetry pilot can answer why available memory falls during mixed camera, screen-sharing, and video-playback sessions even though every individual process stays below its budget. Our current dashboards show aggregate heaps, but they cannot connect an allocation to the component that still holds the last reference. The outcome must be a narrow experiment with a measurable question, explicit privacy limits, engineering owners, and a stop rule. We are not approving permanent instrumentation or changing production reclaim policy today.",
+          "ko": "좋은 아침입니다. 플랫폼 메모리, 카메라 시스템, 디스플레이·미디어 드라이버, 성능 품질, 릴리스 기획 팀이 참석했습니다. 오늘은 결함 분류가 아니라 착수 회의입니다. 카메라·화면 공유·동영상 재생이 섞인 세션에서 각 프로세스는 예산 이하인데 가용 메모리가 줄어드는 이유를 제한된 DMA-BUF 소유권 텔레메트리 파일럿으로 밝힐 수 있는지 결정해야 합니다. 현재 대시보드는 전체 heap은 보여주지만 할당을 마지막 참조를 쥔 구성 요소와 연결하지 못합니다. 결과물은 측정 가능한 질문, 명시적 개인정보 제한, 엔지니어링 담당자, 중단 규칙이 있는 좁은 실험이어야 합니다. 오늘 영구 계측이나 운영 reclaim 정책 변경을 승인하는 것은 아닙니다."
+        },
+        {
+          "speaker": "Leah Ortiz",
+          "en": "Camera Systems is here. The symptom is visible in our forty-minute creator workload: preview, 4K recording, background blur, and a remote presentation run together. Free memory declines by roughly 620 megabytes, then returns in uneven steps after recording stops. Camera service accounts for only 210 megabytes of the peak. We can list exported buffers, but once a buffer crosses into the compositor or codec, our logs lose the chain of custody. I support a pilot if it distinguishes legitimate pipeline depth from a reference that outlives its frame. I do not support tagging every frame in a way that changes scheduling enough to manufacture the very backlog we are investigating.",
+          "ko": "카메라 시스템 팀이 참석했습니다. 40분짜리 크리에이터 워크로드에서 증상이 보입니다. 미리보기, 4K 녹화, 배경 흐림, 원격 프레젠테이션을 함께 실행하면 가용 메모리가 약 620MB 감소하고 녹화 종료 뒤 고르지 않은 단계로 돌아옵니다. 카메라 서비스가 설명하는 최고치는 210MB뿐입니다. 내보낸 버퍼 목록은 볼 수 있지만 버퍼가 compositor나 codec으로 넘어가면 로그에서 소유권 연결 고리가 끊깁니다. 정상 파이프라인 깊이와 프레임보다 오래 사는 참조를 구분한다면 파일럿에 동의합니다. 모든 프레임을 태깅해 스케줄링을 바꾸고 조사 대상 backlog를 계측 자체가 만들어내는 방식은 반대합니다."
+        },
+        {
+          "speaker": "Mateo Singh",
+          "en": "The driver side is represented. I want to correct one assumption before it hardens: a large DMA-BUF total does not automatically mean a leak. The same physical pages may appear under several attachment views, and our current exporter report counts mappings differently from the framework dashboard. In three captures, 170 megabytes of the apparent gap came from aliasing, not retained pages. The pilot must establish one canonical object identity and separate allocation size, mapped size, and resident pages. Otherwise we will produce a confident graph that compares unlike numbers. My team can expose stable object cookies from the kernel tracepoint, but only on an engineering build and only if cookies are randomized at boot.",
+          "ko": "드라이버 측도 참석했습니다. 한 가지 가정이 굳기 전에 바로잡겠습니다. DMA-BUF 합계가 크다고 자동으로 누수를 뜻하지는 않습니다. 같은 물리 페이지가 여러 attachment view에 나타날 수 있고 현재 exporter 보고서와 프레임워크 대시보드는 매핑을 다르게 셉니다. 세 번의 캡처에서 겉으로 보인 차이 중 170MB는 유지된 페이지가 아니라 aliasing이었습니다. 파일럿은 하나의 정규 객체 ID를 세우고 할당 크기, 매핑 크기, 상주 페이지를 구분해야 합니다. 그렇지 않으면 서로 다른 수치를 비교하는 확신에 찬 그래프를 만들게 됩니다. 저희 팀은 커널 tracepoint에서 안정적인 object cookie를 노출할 수 있지만 engineering 빌드에서만, 그리고 부팅마다 cookie를 무작위화할 때만 가능합니다."
+        },
+        {
+          "speaker": "Noor Bennett",
+          "en": "Performance Quality is present. My concern is observer effect. The mixed workload already runs within two milliseconds of the frame deadline during thermal level three. A tracepoint that takes a global lock or writes a record on every attach could turn a healthy session into a stuttering one. We need two baselines: the uninstrumented build and an instrumented build with collection disabled. That separates code-path cost from record-volume cost. I also want the success question written plainly: can the pilot attribute at least ninety-five percent of resident DMA-BUF bytes to a current producer, current consumer, or a bounded handoff state while adding less than 0.4 percent CPU and one millisecond at the ninety-ninth percentile frame time?",
+          "ko": "성능 품질 팀이 참석했습니다. 제 우려는 관찰자 효과입니다. 혼합 워크로드는 열 레벨 3에서 이미 프레임 기한 2밀리초 이내로 동작합니다. 전역 잠금을 잡거나 모든 attach마다 레코드를 쓰는 tracepoint는 정상 세션을 끊기는 세션으로 바꿀 수 있습니다. 계측하지 않은 빌드와 코드가 있지만 수집을 끈 빌드, 두 기준선이 필요합니다. 그래야 코드 경로 비용과 레코드 양 비용을 분리할 수 있습니다. 성공 질문도 명확히 쓰고 싶습니다. 상주 DMA-BUF 바이트의 최소 95%를 현재 producer, 현재 consumer, 또는 제한된 handoff 상태에 귀속하면서 CPU 증가를 0.4% 미만, 99백분위 프레임 시간 증가를 1밀리초 미만으로 유지할 수 있는가입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Background and Competing Explanations",
+      "title_ko": "배경과 경쟁 가설",
+      "turns": [
+        {
+          "speaker": "Ari Kim",
+          "en": "The proposed model gives each exported object a boot-scoped cookie, an allocation class, and a transition ledger. We would record create, attach, map, unmap, detach, and final release, but no pixels, file names, application labels, or user identifiers. User space would translate process identifiers into coarse subsystem roles before upload, then discard the raw identifiers on the device. Three explanations are on the table. First, codec attachments may survive stream reconfiguration. Second, the compositor may keep a triple-buffer queue after the virtual display disappears. Third, the accounting gap may be mostly aliasing and delayed reclaim. The pilot earns its keep only if the evidence can distinguish those explanations rather than merely restating that memory is low.",
+          "ko": "제안 모델은 내보낸 객체마다 부팅 범위 cookie, 할당 class, 전환 ledger를 부여합니다. create, attach, map, unmap, detach, final release를 기록하지만 픽셀, 파일 이름, 애플리케이션 라벨, 사용자 식별자는 기록하지 않습니다. 사용자 공간은 업로드 전에 프로세스 ID를 거친 subsystem 역할로 변환하고 원시 ID를 단말에서 폐기합니다. 세 가지 가설이 있습니다. 첫째 codec attachment가 stream 재구성 뒤에도 남을 수 있습니다. 둘째 virtual display가 사라진 뒤 compositor가 triple-buffer queue를 유지할 수 있습니다. 셋째 accounting 차이의 대부분이 aliasing과 지연 reclaim일 수 있습니다. 파일럿은 단순히 메모리가 부족하다고 다시 말하는 게 아니라 이 가설을 구분할 수 있어야 가치가 있습니다."
+        },
+        {
+          "speaker": "Leah Ortiz",
+          "en": "I would add a fourth explanation. Camera graph replacement is asynchronous. When background blur changes resolution, the new graph starts before the old graph receives its final fence. For up to three frames, both graphs legitimately own buffers. Our service marks the old graph closed when the request queue drains, not when downstream consumers release every imported handle. That distinction is invisible today. The telemetry should preserve causal context with a graph generation and frame sequence, but the kernel should not understand camera semantics. Camera can emit a small side record that binds its graph generation to the randomized cookie. Keeping semantics at the edge will make the kernel mechanism reusable and reduce pressure to add vendor-specific fields.",
+          "ko": "네 번째 가설을 추가하겠습니다. 카메라 graph 교체는 비동기식입니다. 배경 흐림이 해상도를 바꾸면 이전 graph가 마지막 fence를 받기 전에 새 graph가 시작합니다. 최대 세 프레임 동안 두 graph가 정상적으로 버퍼를 소유합니다. 저희 서비스는 downstream consumer가 모든 imported handle을 해제할 때가 아니라 요청 queue가 비었을 때 이전 graph를 닫힌 것으로 표시합니다. 이 차이는 현재 보이지 않습니다. 텔레메트리는 graph generation과 frame sequence로 인과 맥락을 보존해야 하지만 커널이 카메라 의미를 이해해서는 안 됩니다. 카메라가 graph generation과 무작위 cookie를 연결하는 작은 side record를 내보낼 수 있습니다. 의미를 가장자리에 두면 커널 메커니즘을 재사용할 수 있고 공급사 전용 필드 추가 압력도 줄어듭니다."
+        },
+        {
+          "speaker": "Mateo Singh",
+          "en": "I disagree with recording every lifecycle verb. Map and unmap can occur thousands of times per second, especially when the GPU changes domains. Full fidelity would exceed the ring buffer and bias the trace toward the busiest client. I propose state snapshots plus sampled transitions. Creation and final release remain mandatory. Attach and detach are recorded once per device relationship. Repeated map cycles are summarized as counters every two seconds. A snapshot triggered by a memory-pressure threshold captures current attachments and resident-page estimates. That is enough to reconstruct who can keep pages resident without paying for every oscillation. We should design for the question we need answered, not collect everything because a tracepoint makes it possible.",
+          "ko": "모든 lifecycle 동사를 기록하는 데는 반대합니다. GPU가 domain을 바꿀 때 특히 map과 unmap은 초당 수천 번 발생할 수 있습니다. 완전 충실도는 ring buffer를 넘치게 하고 가장 바쁜 client 쪽으로 추적을 편향시킵니다. 상태 snapshot과 샘플링된 transition을 제안합니다. 생성과 final release는 필수로 유지합니다. attach와 detach는 device 관계마다 한 번 기록합니다. 반복 map 주기는 2초마다 counter로 요약합니다. 메모리 압력 임계값이 유발한 snapshot은 현재 attachment와 resident-page 추정치를 캡처합니다. 모든 진동 비용을 치르지 않고도 누가 페이지를 상주 상태로 둘 수 있는지 재구성하기에 충분합니다. tracepoint가 가능하다고 모든 것을 모으지 말고 답해야 할 질문에 맞춰 설계해야 합니다."
+        },
+        {
+          "speaker": "June Park",
+          "en": "Release Planning has joined. The calendar creates a practical boundary. The R78 kernel integration window opens November 23, but the production feature freeze is December 4. A kernel patch intended only for engineering images can enter R78 if review ends by November 20; any production telemetry would require a separate privacy and reliability review that cannot finish this cycle. I therefore want the pilot explicitly limited to twenty lab devices and four dogfood devices owned by the participating teams. No customer cohort, no automatic upload, and no dependency from release gating. The decision in December can be to stop, refine the method, or propose a later production-safe design. It cannot quietly convert the pilot into a shipping requirement.",
+          "ko": "릴리스 기획 팀도 참석했습니다. 일정이 현실적인 경계를 만듭니다. R78 커널 통합 창은 11월 23일에 열리지만 제품 기능 동결은 12월 4일입니다. engineering 이미지 전용 커널 패치는 검토가 11월 20일까지 끝나면 R78에 들어갈 수 있지만 운영 텔레메트리는 별도 개인정보·신뢰성 검토가 필요해 이번 주기에 끝낼 수 없습니다. 따라서 파일럿을 실험실 단말 20대와 참여 팀 소유 dogfood 단말 4대로 명시적으로 제한하고 싶습니다. 고객 코호트도, 자동 업로드도, 릴리스 게이트 의존도 없어야 합니다. 12월 결정은 중단, 방법 개선, 이후 운영 안전 설계 제안 중 하나가 될 수 있습니다. 파일럿이 조용히 출시 요구사항으로 변해서는 안 됩니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Technical Debate and Experiment Design",
+      "title_ko": "기술 토론과 실험 설계",
+      "turns": [
+        {
+          "speaker": "Noor Bennett",
+          "en": "Sampling alone worries me because the failure may live in a short reconfiguration window. If the snapshot arrives after the stale attachment is finally released, the trail goes cold. I suggest a flight recorder in reserved memory: mandatory lifecycle events for only the first sixty-four objects in each allocation class, plus summarized counters for the rest. When free memory crosses 1.1 gigabytes or frame time exceeds thirty milliseconds for three consecutive frames, freeze the previous eight seconds and next two seconds. This gives us temporal context without streaming everything. The cap must be enforced before allocation so telemetry cannot compete with the workload during pressure.",
+          "ko": "샘플링만으로는 실패가 짧은 재구성 창에 있을 수 있어 걱정됩니다. 오래된 attachment가 마침내 해제된 뒤 snapshot이 오면 흔적이 사라집니다. 예약 메모리의 flight recorder를 제안합니다. 할당 class별 첫 64개 객체에만 필수 lifecycle 이벤트를 기록하고 나머지는 요약 counter로 둡니다. 가용 메모리가 1.1GB 아래로 내려가거나 프레임 시간이 연속 세 프레임 30밀리초를 넘으면 이전 8초와 이후 2초를 동결합니다. 모든 것을 스트리밍하지 않고 시간 맥락을 얻을 수 있습니다. 압력 상황에서 텔레메트리가 워크로드와 경쟁하지 않도록 cap은 할당 전에 강제해야 합니다."
+        },
+        {
+          "speaker": "Mateo Singh",
+          "en": "That is workable if the recorder never takes a blocking path. We can reserve 768 kilobytes at boot, use per-CPU segments, and write fixed-size records with sequence numbers. A reader can merge segments later. If a segment wraps, it increments a loss counter rather than waiting. Object cookies will be ninety-six-bit random values generated by the kernel and will not persist across reboot. The exporter name becomes one of six enumerated roles; unknown remains unknown. I also want a consistency check: total pages represented by live cookies must reconcile with the heap resident-page counter within two percent at each snapshot. Without reconciliation, lineage coverage could look excellent while missing a whole allocator.",
+          "ko": "recorder가 blocking 경로를 전혀 사용하지 않는다면 가능합니다. 부팅 때 768KB를 예약하고 per-CPU segment를 사용하며 sequence number가 있는 고정 크기 record를 쓸 수 있습니다. reader가 나중에 segment를 병합합니다. segment가 순환하면 기다리지 않고 loss counter를 증가시킵니다. object cookie는 커널이 생성한 96비트 무작위 값이며 재부팅을 넘지 않습니다. exporter 이름은 여섯 개의 열거된 역할 중 하나로 바꾸고 unknown은 unknown으로 남깁니다. 일관성 검사도 원합니다. live cookie가 나타내는 총 페이지는 각 snapshot에서 heap resident-page counter와 2% 이내로 맞아야 합니다. 이 조정이 없으면 전체 allocator 하나를 놓치고도 lineage coverage가 훌륭해 보일 수 있습니다."
+        },
+        {
+          "speaker": "Leah Ortiz",
+          "en": "Camera can provide the side records, but I want to challenge the first-sixty-four rule. Object order correlates with session startup, while our suspected overlap happens during the third or fourth graph replacement. A deterministic prefix will systematically miss it. Let us select objects by a boot-random hash of cookie and allocation class, with a target of one in eight, then always include any object alive longer than three seconds. Long-lived promotion can begin when the threshold is crossed; we do not need its entire earlier map history because creation and attachments are mandatory. That gives late sessions a fair chance and directly captures objects that outlive normal frame depth.",
+          "ko": "카메라는 side record를 제공할 수 있지만 첫 64개 규칙에는 이의를 제기합니다. 객체 순서는 세션 시작과 상관관계가 있지만 의심하는 중첩은 세 번째나 네 번째 graph 교체 때 발생합니다. 결정적 prefix는 이를 체계적으로 놓칩니다. cookie와 allocation class의 부팅 무작위 hash로 객체를 선택해 8개 중 1개를 목표로 하고, 3초보다 오래 살아 있는 객체는 항상 포함합시다. 임계값을 넘을 때 장기 객체 승격을 시작할 수 있습니다. 생성과 attachment가 필수이므로 이전 전체 map 이력은 필요하지 않습니다. 그러면 늦은 세션도 공정하게 선택되고 정상 frame depth보다 오래 사는 객체를 직접 포착합니다."
+        },
+        {
+          "speaker": "Ari Kim",
+          "en": "I see a hybrid design. Every object gets a minimal create record, stable cookie, allocation class, size, and final release. One-in-eight hashed objects receive transition detail. Any object crossing three seconds is promoted for subsequent detail. Pressure freezes a bounded ten-second window, and each snapshot reconciles cookie pages against heap pages. The collector derives role labels locally and requires a cable command to export an encrypted bundle; nothing leaves a device automatically. This gives each team evidence it can trust while keeping the kernel vocabulary generic. The open question is whether mandatory create and release events alone fit the overhead budget. Mateo and Noor should measure that before camera semantics are added, so we fail fast if the foundation is too expensive.",
+          "ko": "하이브리드 설계가 보입니다. 모든 객체는 최소 create record, 안정적 cookie, allocation class, size, final release를 가집니다. 8개 중 1개로 hash 선택된 객체는 transition 상세를 받습니다. 3초를 넘는 객체는 이후 상세 기록 대상으로 승격합니다. 압력은 제한된 10초 창을 동결하고 각 snapshot은 cookie 페이지와 heap 페이지를 조정합니다. collector는 역할 라벨을 단말에서 파생하고 암호화 bundle을 내보내려면 케이블 명령이 필요합니다. 어떤 것도 자동으로 단말 밖으로 나가지 않습니다. 이 방식은 커널 어휘를 일반적으로 유지하면서 각 팀이 신뢰할 증거를 줍니다. 미해결 질문은 필수 create·release 이벤트만으로 overhead 예산을 지킬 수 있는가입니다. 카메라 의미를 추가하기 전에 마테오와 누르가 이를 측정해 토대가 너무 비싸면 빠르게 실패해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision, Owners, and Gates",
+      "title_ko": "결정, 담당자와 게이트",
+      "turns": [
+        {
+          "speaker": "June Park",
+          "en": "I will state the scope decision. We approve a four-week engineering pilot, not a production feature. Phase zero measures the minimal kernel path on November 18 and 19. Phase one adds hashed lineage and camera side records on November 23. Phase two runs the mixed workload and two controls from November 25 through December 4. The device set is capped at twenty-four, export is manual, and bundles stay in the restricted project store for fourteen days. No result from this pilot blocks R78. A proposal to expand device count, retention, fields, or automatic collection returns to this group for a new decision rather than being treated as implementation detail.",
+          "ko": "범위 결정을 선언하겠습니다. 운영 기능이 아니라 4주 engineering 파일럿을 승인합니다. 0단계는 11월 18일과 19일 최소 커널 경로를 측정합니다. 1단계는 11월 23일 hash lineage와 카메라 side record를 추가합니다. 2단계는 11월 25일부터 12월 4일까지 혼합 워크로드와 대조군 두 개를 실행합니다. 단말은 24대로 제한하고 export는 수동이며 bundle은 제한된 프로젝트 저장소에 14일 보관합니다. 이 파일럿 결과는 R78을 막지 않습니다. 단말 수, 보관 기간, 필드, 자동 수집을 늘리는 제안은 구현 세부 사항으로 취급하지 않고 새 결정을 위해 이 그룹으로 돌아옵니다."
+        },
+        {
+          "speaker": "Mateo Singh",
+          "en": "I own the kernel patch and schema. By 16:00 KST on November 17, I will publish the record layout, cookie lifecycle, per-CPU writer, wrap behavior, and reconciliation counter. By 18:00 on November 18, I will provide two engineering images: minimal events enabled and compiled-in but disabled. I will also write a decoder that rejects mixed schema versions instead of guessing. My exit criterion for phase zero is zero blocking calls, zero dynamic allocation in the trace path, less than 0.2 percent CPU overhead, and reconciliation within two percent in three allocator stress tests. If any criterion fails, we stop before adding camera records.",
+          "ko": "커널 패치와 schema는 제가 담당합니다. 11월 17일 16시(KST)까지 record layout, cookie lifecycle, per-CPU writer, wrap 동작, reconciliation counter를 게시합니다. 11월 18일 18시까지 최소 이벤트 활성 이미지와 코드에 포함됐지만 비활성인 이미지, 두 engineering 이미지를 제공합니다. 혼합 schema version을 추측하지 않고 거부하는 decoder도 작성합니다. 0단계 종료 기준은 blocking call 0건, trace 경로 동적 할당 0건, CPU overhead 0.2% 미만, allocator stress test 세 개에서 reconciliation 2% 이내입니다. 어느 기준이든 실패하면 카메라 record 추가 전에 중단합니다."
+        },
+        {
+          "speaker": "Leah Ortiz",
+          "en": "I own camera and workload integration. By noon KST on November 20, I will add graph-generation and frame-sequence side records without application identity. I will define three runs: the forty-minute creator workload, the same workload without background blur, and a synthetic graph replacement repeated two hundred times. Each run will have a written expected pipeline depth by allocation class. That expectation matters because a long-lived buffer is not automatically wrong; some encoder reference frames legitimately survive several output frames. I will flag only ownership that exceeds the documented bound or remains attached after its graph receives a terminal close marker. This keeps interpretation tied to system behavior rather than a visually alarming duration.",
+          "ko": "카메라와 워크로드 통합은 제가 담당합니다. 11월 20일 정오(KST)까지 애플리케이션 ID 없이 graph generation과 frame sequence side record를 추가합니다. 40분 크리에이터 워크로드, 배경 흐림 없는 같은 워크로드, graph 교체를 200회 반복하는 합성 워크로드 세 개를 정의합니다. 각 실행에는 allocation class별 예상 pipeline depth를 문서화합니다. 긴 수명 버퍼가 자동으로 잘못된 것은 아니므로 이 예상이 중요합니다. 일부 encoder reference frame은 여러 output frame 동안 정상적으로 살아 있습니다. 문서화된 경계를 넘거나 graph가 terminal close marker를 받은 뒤에도 붙은 소유권만 표시하겠습니다. 이렇게 하면 시각적으로 놀라운 수명이 아니라 시스템 동작에 해석을 연결할 수 있습니다."
+        },
+        {
+          "speaker": "Noor Bennett",
+          "en": "I own performance and evidence quality. By 15:00 KST on November 19, I will complete thirty repetitions on the uninstrumented, compiled-disabled, and minimal-enabled images at thermal levels zero and three. Phase one proceeds only if CPU, frame time, power, ring loss, and reconciliation all meet their gates. For the full pilot, success requires at least ninety-five percent role attribution, less than five percent unclassified resident bytes at the pressure snapshot, and the performance limits stated earlier. A finding is actionable only if it reproduces in at least eight of ten runs and disappears when the suspected consumer is removed. That last control keeps correlation from masquerading as ownership.",
+          "ko": "성능과 증거 품질은 제가 담당합니다. 11월 19일 15시(KST)까지 열 레벨 0과 3에서 비계측, 컴파일됐지만 비활성, 최소 활성 이미지로 각각 30회 반복을 마칩니다. CPU, frame time, power, ring loss, reconciliation이 모두 게이트를 충족할 때만 1단계로 진행합니다. 전체 파일럿 성공 기준은 역할 귀속률 최소 95%, 압력 snapshot에서 미분류 상주 바이트 5% 미만, 앞서 말한 성능 제한입니다. 발견 사항은 10회 중 최소 8회 재현되고 의심 consumer를 제거하면 사라질 때만 실행 가능하다고 봅니다. 마지막 대조군은 상관관계가 소유권인 척하는 것을 막습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Follow Up and Closing",
+      "title_ko": "후속 회의와 마무리",
+      "turns": [
+        {
+          "speaker": "Ari Kim",
+          "en": "I will own the user-space collector and the decision log. The collector will translate raw process identifiers to subsystem roles on the device, remove command lines, encrypt the bundle with the project key, and require a physical cable plus an explicit engineer command. I will publish a field inventory and a sample redacted bundle by 12:00 KST on November 21. I will also maintain a risk register covering observer effect, schema drift, allocator coverage, lost records, and accidental scope expansion. A risk without an owner and review date will be treated as a failed readiness item, not a note we hope to remember.",
+          "ko": "사용자 공간 collector와 결정 로그는 제가 담당합니다. collector는 단말에서 원시 process ID를 subsystem 역할로 변환하고 command line을 제거하며 프로젝트 키로 bundle을 암호화하고 물리 케이블과 명시적 엔지니어 명령을 요구합니다. 11월 21일 12시(KST)까지 field inventory와 샘플 redacted bundle을 게시합니다. 관찰자 효과, schema drift, allocator coverage, record 손실, 우발적 범위 확대를 다루는 risk register도 유지합니다. 담당자와 검토 날짜가 없는 위험은 기억하길 바라는 메모가 아니라 readiness 실패 항목으로 취급합니다."
+        },
+        {
+          "speaker": "Mateo Singh",
+          "en": "One final technical boundary: the cookie identifies a kernel object, not a frame, user, application, or business event. Side records may associate a graph generation with a cookie only inside the ten-second frozen window. The exported bundle must not contain a stable device identifier; Ari can assign a random experiment label that changes when the image is reflashed. I will add automated tests for cookie reuse, counter wrap, CPU hotplug, process death, exporter crash, and abrupt camera-service restart. If the decoder sees a sequence gap, it will mark the affected interval incomplete and lower coverage rather than infer missing ownership.",
+          "ko": "마지막 기술 경계가 하나 있습니다. cookie는 frame, 사용자, 애플리케이션, 업무 이벤트가 아니라 커널 객체를 식별합니다. side record는 10초 동결 창 안에서만 graph generation을 cookie와 연결할 수 있습니다. export bundle에는 안정적인 단말 식별자를 넣지 않아야 하며 아리는 이미지 재플래시 때 바뀌는 무작위 실험 라벨을 할당할 수 있습니다. cookie 재사용, counter wrap, CPU hotplug, process death, exporter crash, 갑작스러운 camera-service restart 자동 시험을 추가하겠습니다. decoder가 sequence gap을 보면 누락된 소유권을 추론하지 않고 해당 구간을 불완전으로 표시해 coverage를 낮춥니다."
+        },
+        {
+          "speaker": "June Park",
+          "en": "The first checkpoint is November 20 at 16:30 KST. Required evidence is Mateo's phase-zero patch and schema, Noor's baseline table, Leah's workload contract, and Ari's field inventory. The final pilot review is December 7 at 15:00 KST. At that meeting we will choose Stop, Refine, or Propose Production Design. Stop means removing the engineering patch from the next development branch. Refine requires a new question and budget. Propose Production Design starts privacy, security, power, and compatibility reviews from the beginning; it does not inherit approval from this pilot. I will send both invitations today and attach the fixed gates so calendar pressure cannot rewrite them.",
+          "ko": "첫 checkpoint는 11월 20일 16시 30분(KST)입니다. 필수 증거는 마테오의 0단계 patch와 schema, 누르의 baseline 표, 리아의 workload 계약, 아리의 field inventory입니다. 최종 파일럿 검토는 12월 7일 15시(KST)입니다. 그 회의에서 Stop, Refine, Propose Production Design 중 하나를 선택합니다. Stop은 다음 개발 브랜치에서 engineering patch를 제거한다는 뜻입니다. Refine에는 새 질문과 예산이 필요합니다. Propose Production Design은 개인정보, 보안, 전력, 호환성 검토를 처음부터 시작하며 이 파일럿 승인을 물려받지 않습니다. 오늘 두 초대장을 보내고 고정 게이트를 첨부해 일정 압력이 기준을 다시 쓰지 못하게 하겠습니다."
+        },
+        {
+          "speaker": "Ari Kim",
+          "en": "Let me close with the agreed experiment. We will test whether boot-scoped object lineage can explain resident DMA-BUF ownership during a mixed media workload without materially changing that workload. Minimal lifecycle records cover every object; hashed detail and long-lived promotion provide depth; pressure freezes a bounded window; reconciliation checks completeness. The pilot is manual, engineering-only, capped at twenty-four devices, and independent of R78 release gates. Owners, dates, performance budgets, privacy boundaries, and stop conditions are recorded. Our next decision point is November 20 at 16:30 KST, and no team should add fields or devices before that review. I will distribute these minutes and the decision log within one hour.",
+          "ko": "합의된 실험으로 마무리하겠습니다. 부팅 범위 object lineage가 혼합 미디어 워크로드를 실질적으로 바꾸지 않으면서 상주 DMA-BUF 소유권을 설명할 수 있는지 시험합니다. 최소 lifecycle record는 모든 객체를 다루고 hash 상세와 장기 객체 승격이 깊이를 제공하며 압력이 제한 창을 동결하고 reconciliation이 완전성을 검사합니다. 파일럿은 수동, engineering 전용, 단말 24대 제한이며 R78 릴리스 게이트와 독립적입니다. 담당자, 날짜, 성능 예산, 개인정보 경계, 중단 조건을 기록했습니다. 다음 결정 시점은 11월 20일 16시 30분(KST)이며 그 검토 전에는 어떤 팀도 필드나 단말을 추가해서는 안 됩니다. 한 시간 안에 회의록과 결정 로그를 배포하겠습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "connect an allocation to",
+      "meaning_ko": "할당을 특정 대상과 연결하다",
+      "usage_ko": "추적 가능성을 설명할 때",
+      "example": "Good morning. We have Platform Memory, Camera Systems, Display and Media Drivers, Performance Quality, and Release Planning represented. Today is a kickoff, not a defect triage. We need to decide whether a bounded DMA-BUF ownership telemetry pilot can answer why available memory falls during mixed camera, screen-sharing, and video-playback sessions even though every individual process stays below its budget. Our current dashboards show aggregate heaps, but they cannot connect an allocation to the component that still holds the last reference. The outcome must be a narrow experiment with a measurable question, explicit privacy limits, engineering owners, and a stop rule. We are not approving permanent instrumentation or changing production reclaim policy today.",
+      "practice": "We need to connect each retry to the transaction that created it."
+    },
+    {
+      "phrase": "chain of custody",
+      "meaning_ko": "관리·소유권의 연속 기록",
+      "usage_ko": "소유권 인계 기록을 말할 때",
+      "example": "Camera Systems is here. The symptom is visible in our forty-minute creator workload: preview, 4K recording, background blur, and a remote presentation run together. Free memory declines by roughly 620 megabytes, then returns in uneven steps after recording stops. Camera service accounts for only 210 megabytes of the peak. We can list exported buffers, but once a buffer crosses into the compositor or codec, our logs lose the chain of custody. I support a pilot if it distinguishes legitimate pipeline depth from a reference that outlives its frame. I do not support tagging every frame in a way that changes scheduling enough to manufacture the very backlog we are investigating.",
+      "practice": "The audit preserves the chain of custody across service boundaries."
+    },
+    {
+      "phrase": "before it hardens",
+      "meaning_ko": "가정이 굳어지기 전에",
+      "usage_ko": "잘못된 전제를 조기에 바로잡을 때",
+      "example": "The driver side is represented. I want to correct one assumption before it hardens: a large DMA-BUF total does not automatically mean a leak. The same physical pages may appear under several attachment views, and our current exporter report counts mappings differently from the framework dashboard. In three captures, 170 megabytes of the apparent gap came from aliasing, not retained pages. The pilot must establish one canonical object identity and separate allocation size, mapped size, and resident pages. Otherwise we will produce a confident graph that compares unlike numbers. My team can expose stable object cookies from the kernel tracepoint, but only on an engineering build and only if cookies are randomized at boot.",
+      "practice": "Let me challenge that assumption before it hardens."
+    },
+    {
+      "phrase": "observer effect",
+      "meaning_ko": "관찰 자체가 결과에 미치는 영향",
+      "usage_ko": "계측 부작용을 우려할 때",
+      "example": "Performance Quality is present. My concern is observer effect. The mixed workload already runs within two milliseconds of the frame deadline during thermal level three. A tracepoint that takes a global lock or writes a record on every attach could turn a healthy session into a stuttering one. We need two baselines: the uninstrumented build and an instrumented build with collection disabled. That separates code-path cost from record-volume cost. I also want the success question written plainly: can the pilot attribute at least ninety-five percent of resident DMA-BUF bytes to a current producer, current consumer, or a bounded handoff state while adding less than 0.4 percent CPU and one millisecond at the ninety-ninth percentile frame time?",
+      "practice": "A control build helps us measure the observer effect."
+    },
+    {
+      "phrase": "earns its keep",
+      "meaning_ko": "실질적인 가치를 증명하다",
+      "usage_ko": "실험의 가치 조건을 말할 때",
+      "example": "The proposed model gives each exported object a boot-scoped cookie, an allocation class, and a transition ledger. We would record create, attach, map, unmap, detach, and final release, but no pixels, file names, application labels, or user identifiers. User space would translate process identifiers into coarse subsystem roles before upload, then discard the raw identifiers on the device. Three explanations are on the table. First, codec attachments may survive stream reconfiguration. Second, the compositor may keep a triple-buffer queue after the virtual display disappears. Third, the accounting gap may be mostly aliasing and delayed reclaim. The pilot earns its keep only if the evidence can distinguish those explanations rather than merely restating that memory is low.",
+      "practice": "The dashboard earns its keep only if owners can act on it."
+    },
+    {
+      "phrase": "semantics at the edge",
+      "meaning_ko": "의미 해석을 경계 계층에 두는 것",
+      "usage_ko": "계층 책임을 분리할 때",
+      "example": "I would add a fourth explanation. Camera graph replacement is asynchronous. When background blur changes resolution, the new graph starts before the old graph receives its final fence. For up to three frames, both graphs legitimately own buffers. Our service marks the old graph closed when the request queue drains, not when downstream consumers release every imported handle. That distinction is invisible today. The telemetry should preserve causal context with a graph generation and frame sequence, but the kernel should not understand camera semantics. Camera can emit a small side record that binds its graph generation to the randomized cookie. Keeping semantics at the edge will make the kernel mechanism reusable and reduce pressure to add vendor-specific fields.",
+      "practice": "Keeping semantics at the edge prevents protocol coupling."
+    },
+    {
+      "phrase": "design for the question",
+      "meaning_ko": "답할 질문에 맞춰 설계하다",
+      "usage_ko": "과도한 수집을 제한할 때",
+      "example": "I disagree with recording every lifecycle verb. Map and unmap can occur thousands of times per second, especially when the GPU changes domains. Full fidelity would exceed the ring buffer and bias the trace toward the busiest client. I propose state snapshots plus sampled transitions. Creation and final release remain mandatory. Attach and detach are recorded once per device relationship. Repeated map cycles are summarized as counters every two seconds. A snapshot triggered by a memory-pressure threshold captures current attachments and resident-page estimates. That is enough to reconstruct who can keep pages resident without paying for every oscillation. We should design for the question we need answered, not collect everything because a tracepoint makes it possible.",
+      "practice": "Design for the question instead of collecting every available signal."
+    },
+    {
+      "phrase": "practical boundary",
+      "meaning_ko": "현실적인 경계 조건",
+      "usage_ko": "일정상 범위를 설정할 때",
+      "example": "Release Planning has joined. The calendar creates a practical boundary. The R78 kernel integration window opens November 23, but the production feature freeze is December 4. A kernel patch intended only for engineering images can enter R78 if review ends by November 20; any production telemetry would require a separate privacy and reliability review that cannot finish this cycle. I therefore want the pilot explicitly limited to twenty lab devices and four dogfood devices owned by the participating teams. No customer cohort, no automatic upload, and no dependency from release gating. The decision in December can be to stop, refine the method, or propose a later production-safe design. It cannot quietly convert the pilot into a shipping requirement.",
+      "practice": "The certification date creates a practical boundary for the patch."
+    },
+    {
+      "phrase": "the trail goes cold",
+      "meaning_ko": "추적 단서가 사라지다",
+      "usage_ko": "증거가 사라지는 위험을 말할 때",
+      "example": "Sampling alone worries me because the failure may live in a short reconfiguration window. If the snapshot arrives after the stale attachment is finally released, the trail goes cold. I suggest a flight recorder in reserved memory: mandatory lifecycle events for only the first sixty-four objects in each allocation class, plus summarized counters for the rest. When free memory crosses 1.1 gigabytes or frame time exceeds thirty milliseconds for three consecutive frames, freeze the previous eight seconds and next two seconds. This gives us temporal context without streaming everything. The cap must be enforced before allocation so telemetry cannot compete with the workload during pressure.",
+      "practice": "Without the final event, the trail goes cold after restart."
+    },
+    {
+      "phrase": "consistency check",
+      "meaning_ko": "일관성 검사",
+      "usage_ko": "측정값 검증을 추가할 때",
+      "example": "That is workable if the recorder never takes a blocking path. We can reserve 768 kilobytes at boot, use per-CPU segments, and write fixed-size records with sequence numbers. A reader can merge segments later. If a segment wraps, it increments a loss counter rather than waiting. Object cookies will be ninety-six-bit random values generated by the kernel and will not persist across reboot. The exporter name becomes one of six enumerated roles; unknown remains unknown. I also want a consistency check: total pages represented by live cookies must reconcile with the heap resident-page counter within two percent at each snapshot. Without reconciliation, lineage coverage could look excellent while missing a whole allocator.",
+      "practice": "Add a consistency check between the queue and the database."
+    },
+    {
+      "phrase": "a fair chance",
+      "meaning_ko": "공정한 기회",
+      "usage_ko": "샘플링 공정성을 말할 때",
+      "example": "Camera can provide the side records, but I want to challenge the first-sixty-four rule. Object order correlates with session startup, while our suspected overlap happens during the third or fourth graph replacement. A deterministic prefix will systematically miss it. Let us select objects by a boot-random hash of cookie and allocation class, with a target of one in eight, then always include any object alive longer than three seconds. Long-lived promotion can begin when the threshold is crossed; we do not need its entire earlier map history because creation and attachments are mandatory. That gives late sessions a fair chance and directly captures objects that outlive normal frame depth.",
+      "practice": "Random selection gives late jobs a fair chance."
+    },
+    {
+      "phrase": "fail fast",
+      "meaning_ko": "비용이 큰 문제를 조기에 확인하다",
+      "usage_ko": "초기 단계에서 중단 조건을 둘 때",
+      "example": "I see a hybrid design. Every object gets a minimal create record, stable cookie, allocation class, size, and final release. One-in-eight hashed objects receive transition detail. Any object crossing three seconds is promoted for subsequent detail. Pressure freezes a bounded ten-second window, and each snapshot reconciles cookie pages against heap pages. The collector derives role labels locally and requires a cable command to export an encrypted bundle; nothing leaves a device automatically. This gives each team evidence it can trust while keeping the kernel vocabulary generic. The open question is whether mandatory create and release events alone fit the overhead budget. Mateo and Noor should measure that before camera semantics are added, so we fail fast if the foundation is too expensive.",
+      "practice": "Run the smallest benchmark first so we can fail fast."
+    },
+    {
+      "phrase": "rather than being treated as implementation detail",
+      "meaning_ko": "구현 세부로 취급하지 않고",
+      "usage_ko": "범위 변경에 새 승인을 요구할 때",
+      "example": "I will state the scope decision. We approve a four-week engineering pilot, not a production feature. Phase zero measures the minimal kernel path on November 18 and 19. Phase one adds hashed lineage and camera side records on November 23. Phase two runs the mixed workload and two controls from November 25 through December 4. The device set is capped at twenty-four, export is manual, and bundles stay in the restricted project store for fourteen days. No result from this pilot blocks R78. A proposal to expand device count, retention, fields, or automatic collection returns to this group for a new decision rather than being treated as implementation detail.",
+      "practice": "Scope increases need review rather than being treated as implementation detail."
+    },
+    {
+      "phrase": "correlation from masquerading as ownership",
+      "meaning_ko": "상관관계가 소유권으로 위장하지 못하게",
+      "usage_ko": "인과 검증 대조군을 설명할 때",
+      "example": "I own performance and evidence quality. By 15:00 KST on November 19, I will complete thirty repetitions on the uninstrumented, compiled-disabled, and minimal-enabled images at thermal levels zero and three. Phase one proceeds only if CPU, frame time, power, ring loss, and reconciliation all meet their gates. For the full pilot, success requires at least ninety-five percent role attribution, less than five percent unclassified resident bytes at the pressure snapshot, and the performance limits stated earlier. A finding is actionable only if it reproduces in at least eight of ten runs and disappears when the suspected consumer is removed. That last control keeps correlation from masquerading as ownership.",
+      "practice": "The removal test keeps correlation from masquerading as ownership."
+    },
+    {
+      "phrase": "calendar pressure cannot rewrite them",
+      "meaning_ko": "일정 압력이 기준을 바꾸지 못하게",
+      "usage_ko": "일정 때문에 기준을 낮추지 않을 때",
+      "example": "The first checkpoint is November 20 at 16:30 KST. Required evidence is Mateo's phase-zero patch and schema, Noor's baseline table, Leah's workload contract, and Ari's field inventory. The final pilot review is December 7 at 15:00 KST. At that meeting we will choose Stop, Refine, or Propose Production Design. Stop means removing the engineering patch from the next development branch. Refine requires a new question and budget. Propose Production Design starts privacy, security, power, and compatibility reviews from the beginning; it does not inherit approval from this pilot. I will send both invitations today and attach the fixed gates so calendar pressure cannot rewrite them.",
+      "practice": "We will freeze the gates so calendar pressure cannot rewrite them."
+    }
+  ]
+}
