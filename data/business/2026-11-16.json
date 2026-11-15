@@ -1,0 +1,273 @@
+{
+  "date": "2026-11-16",
+  "category": "business",
+  "topic": "sw-status",
+  "subject": "Reviewing Battery Gauge Jumps after Charge Limit Reboots",
+  "title_ko": "충전 제한 재부팅 후 배터리 게이지 점프 현황 검토",
+  "summary_ko": "가상의 Android 유지보수 릴리스 현황 회의에서 80% 충전 제한 상태로 재부팅한 뒤 표시 잔량이 급락하는 문제를 분석한다. 팀들은 실제 에너지 손실과 보고 불연속을 구분하고, boot package와 fuel-gauge provisional 상태의 race를 검증하며, qualified·recovering·unknown confidence 계약과 모델별 분리 롤아웃 게이트를 결정한다. 모든 인물·조직·단말·배터리·게이지·boot package·펌웨어·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Hana Cho",
+      "team": "Program and Release"
+    },
+    {
+      "name": "Elena Ruiz",
+      "team": "Android Power Software"
+    },
+    {
+      "name": "Vikram Nair",
+      "team": "Android Power Software"
+    },
+    {
+      "name": "Maya Laurent",
+      "team": "Fuel Gauge Firmware"
+    },
+    {
+      "name": "Owen Blake",
+      "team": "System Quality"
+    },
+    {
+      "name": "Rafael Costa",
+      "team": "Program and Release"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Release Status",
+      "title_ko": "참석 확인과 릴리스 현황",
+      "turns": [
+        {
+          "speaker": "Hana Cho",
+          "en": "Thanks for joining the Monday status review. Power Framework, Battery BSP, Fuel-Gauge Firmware, System Quality, and Release Management are represented. The immediate question is whether build R78.4 can continue staged rollout after users with the eighty-percent charging limit report a seven-to-nine-point battery drop following a normal reboot. We have no unexpected shutdowns, swelling, or thermal alarms, but a visible state-of-charge jump damages trust and can trigger unnecessary support returns. Today we need to separate display accuracy from real capacity loss, identify which persistence boundary is broken, choose a safe containment for the current train, and assign a permanent fix with dates. We will not change charging safety thresholds merely to make the icon look stable.",
+          "ko": "월요일 현황 검토에 참석해 주셔서 감사합니다. 전력 프레임워크, 배터리 BSP, 연료 게이지 펌웨어, 시스템 품질, 릴리스 관리 팀이 참석했습니다. 즉시 답해야 할 질문은 80% 충전 제한을 쓰는 사용자가 정상 재부팅 뒤 배터리가 7~9%포인트 떨어진다고 보고한 상황에서 R78.4 빌드 단계적 배포를 계속할 수 있는가입니다. 예기치 않은 종료, 팽창, 열 경보는 없지만 눈에 보이는 충전 상태 점프는 신뢰를 해치고 불필요한 지원 반품을 유발할 수 있습니다. 오늘 표시 정확도와 실제 용량 손실을 구분하고, 어떤 지속성 경계가 깨졌는지 밝히며, 현재 열차의 안전한 억제책과 영구 수정 담당·일정을 정해야 합니다. 아이콘을 안정적으로 보이게 하려고 충전 안전 임계값을 바꾸지는 않습니다."
+        },
+        {
+          "speaker": "Owen Blake",
+          "en": "System Quality is here. Our reproduction rate is thirty-two percent on the compact model and four percent on the large model across two hundred controlled reboots. The precondition is specific: charging stops at eighty percent, the phone remains plugged in for at least forty minutes, and it reboots before being unplugged. The displayed level returns between seventy-one and seventy-four percent, then climbs two points during the first ten minutes without drawing enough current to justify that increase. A precision power analyzer shows less than 0.2 percent of rated capacity moved across the cable during the reboot. That evidence strongly suggests a reporting discontinuity, but it does not tell us whether the lost state belongs to Android, the gauge, or boot firmware.",
+          "ko": "시스템 품질 팀이 참석했습니다. 통제된 재부팅 200회에서 소형 모델 재현율은 32%, 대형 모델은 4%입니다. 전제 조건은 구체적입니다. 충전이 80%에서 멈추고 단말이 최소 40분 동안 연결된 채 유지되며 케이블을 빼기 전에 재부팅합니다. 표시 수준은 71~74%로 돌아온 뒤 이를 정당화할 만큼 전류가 흐르지 않았는데도 처음 10분 동안 2%포인트 올라갑니다. 정밀 전력 분석기는 재부팅 중 케이블을 통해 정격 용량의 0.2% 미만만 이동했음을 보여줍니다. 이 증거는 보고 불연속을 강하게 시사하지만 잃어버린 상태가 Android, 게이지, 부트 펌웨어 중 어디에 속하는지는 알려주지 않습니다."
+        },
+        {
+          "speaker": "Vikram Nair",
+          "en": "Battery BSP is present. The kernel driver reads state of charge, learned full-charge capacity, coulomb count, temperature, and an update sequence from the gauge. On failing boots, the raw state of charge is already seventy-two percent before Android starts, so the framework is not inventing the drop. However, the coulomb counter differs by less than six milliamp-hours from its pre-reboot value. The learned full-charge capacity changes from 4,680 to 4,112 milliamp-hours, which mathematically explains the percentage. That value should survive reset in gauge nonvolatile memory. My first hypothesis is that the boot path accepts a default capacity before the gauge finishes validating its learned record, then writes the default back as if it were authoritative.",
+          "ko": "배터리 BSP 팀이 참석했습니다. 커널 드라이버는 게이지에서 충전 상태, 학습된 완전 충전 용량, coulomb count, 온도, update sequence를 읽습니다. 실패 부팅에서는 Android가 시작되기 전부터 원시 충전 상태가 72%이므로 프레임워크가 하락을 만들어내는 것은 아닙니다. 그러나 coulomb counter는 재부팅 전 값과 6mAh 미만 차이입니다. 학습된 완전 충전 용량은 4,680에서 4,112mAh로 바뀌며 수학적으로 그 비율을 설명합니다. 이 값은 게이지 비휘발성 메모리에서 reset을 견뎌야 합니다. 제 첫 가설은 부팅 경로가 게이지의 학습 레코드 검증 완료 전에 기본 용량을 받아들이고 그것을 권위 있는 값처럼 다시 써버린다는 것입니다."
+        },
+        {
+          "speaker": "Maya Laurent",
+          "en": "Fuel-Gauge Firmware is represented. I agree the capacity change is central, but the gauge does not write a default merely because the host reads early. It exposes a provisional flag until the learned record passes CRC and temperature normalization. The host is expected to avoid committing profile data while that flag is set. In the compact-model trace, I see a host profile command eighteen milliseconds after reset, while provisional remains true for another sixty-three milliseconds. That command includes the design capacity, not the learned capacity. We need to confirm whether it comes from the bootloader, the kernel probe, or a recovery daemon. Until we locate the writer, changing gauge timing would only make the race less frequent.",
+          "ko": "연료 게이지 펌웨어 팀이 참석했습니다. 용량 변경이 핵심이라는 데 동의하지만 호스트가 일찍 읽었다고 게이지가 기본값을 쓰는 것은 아닙니다. 학습 레코드가 CRC와 온도 정규화를 통과할 때까지 provisional flag를 노출합니다. 호스트는 그 flag가 설정된 동안 profile data를 커밋하지 않아야 합니다. 소형 모델 추적에는 reset 뒤 18밀리초에 host profile command가 보이며 provisional은 그 뒤 63밀리초 더 true입니다. 그 명령에는 학습 용량이 아니라 설계 용량이 들어 있습니다. 작성자가 bootloader, kernel probe, recovery daemon 중 어디인지 확인해야 합니다. 작성자를 찾기 전 게이지 timing을 바꾸는 것은 race 빈도만 낮출 뿐입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and Root Cause Branches",
+      "title_ko": "증거와 원인 분기",
+      "turns": [
+        {
+          "speaker": "Hana Cho",
+          "en": "Let us organize the evidence into branches. Branch one is a true energy loss, which the analyzer and coulomb counter currently contradict. Branch two is gauge record corruption, which would show a CRC failure or reset reason. Branch three is an authorized but premature host profile write. Branch four is a framework presentation bug after boot. We should avoid collapsing them into one battery issue. The affected customers all enabled the charging limit, yet that feature may only create the long plugged-in dwell that exposes the race. Correlation is not ownership. I want each team to name the signal that would falsify its preferred explanation, because a useful status review should reduce uncertainty rather than collect supportive anecdotes.",
+          "ko": "증거를 분기로 정리합시다. 1번은 실제 에너지 손실인데 현재 분석기와 coulomb counter가 반박합니다. 2번은 게이지 레코드 손상으로 CRC 실패나 reset reason이 나타나야 합니다. 3번은 허가됐지만 너무 이른 host profile write입니다. 4번은 부팅 뒤 프레임워크 표시 버그입니다. 이를 하나의 배터리 문제로 뭉개서는 안 됩니다. 영향받은 고객이 모두 충전 제한을 켰지만, 이 기능은 race를 노출하는 긴 연결 대기만 만들었을 수 있습니다. 상관관계가 소유권은 아닙니다. 유용한 현황 검토는 지지 일화를 모으는 게 아니라 불확실성을 줄여야 하므로 각 팀은 선호 가설을 반증할 신호를 말해 주십시오."
+        },
+        {
+          "speaker": "Elena Ruiz",
+          "en": "Power Framework can falsify the presentation branch. Android stores the last published level and boot identifier only to smooth minor gauge noise after userspace starts. It refuses to smooth a change larger than four points or any value marked provisional. In failing logs, the first health snapshot arrives as seventy-two percent with provisional false, so the framework correctly publishes it. We could hide the jump by holding the old value, but that would turn a known discontinuity into a plausible lie and could delay a real low-battery warning. I will support a temporary hold only if the lower layer supplies an explicit recovery state and a bounded confidence interval. Otherwise the framework must remain an honest messenger.",
+          "ko": "전력 프레임워크는 표시 분기를 반증할 수 있습니다. Android는 userspace 시작 뒤 작은 게이지 noise를 완화하려고 마지막 게시 수준과 boot ID만 저장합니다. 4%포인트보다 큰 변화나 provisional 표시 값은 완화하지 않습니다. 실패 로그에서 첫 health snapshot은 provisional false인 72%로 도착하므로 프레임워크는 올바르게 게시합니다. 이전 값을 유지해 점프를 숨길 수 있지만 알려진 불연속을 그럴듯한 거짓말로 바꾸고 실제 배터리 부족 경고를 늦출 수 있습니다. 하위 계층이 명시적 recovery state와 제한된 confidence interval을 제공할 때만 임시 hold를 지지하겠습니다. 그렇지 않으면 프레임워크는 정직한 전달자로 남아야 합니다."
+        },
+        {
+          "speaker": "Maya Laurent",
+          "en": "The gauge record itself passes CRC in all twelve complete failing traces, which weakens corruption. More importantly, the update sequence advances exactly once at the early host command. Its command source tag is zero, a legacy value used before the kernel assigns tags. That points toward the bootloader, but I do not want to overstate it. The large model runs boot package 9.4 and waits for the ready interrupt; the compact model runs 9.2 and polls a status bit that changed meaning in gauge firmware 3.7. If boot 9.2 interprets provisional as ready, it would send the profile immediately. A controlled cross-flash can put that theory on solid ground.",
+          "ko": "게이지 레코드는 완전한 실패 추적 12건 모두 CRC를 통과해 손상 가능성을 약화합니다. 더 중요한 점은 초기 host command에서 update sequence가 정확히 한 번 증가한다는 것입니다. command source tag는 커널이 tag를 할당하기 전에 쓰는 legacy 값 0입니다. 이는 bootloader를 가리키지만 과장하고 싶지는 않습니다. 대형 모델은 boot package 9.4를 실행하고 ready interrupt를 기다립니다. 소형 모델은 9.2를 실행하고 게이지 펌웨어 3.7에서 의미가 바뀐 status bit를 polling합니다. boot 9.2가 provisional을 ready로 해석하면 즉시 profile을 보낼 것입니다. 통제된 cross-flash가 이 이론을 확실한 근거 위에 놓을 수 있습니다."
+        },
+        {
+          "speaker": "Owen Blake",
+          "en": "Quality can run four cells today: compact hardware with boot 9.2 and 9.4, each paired with gauge 3.6 and 3.7. We will repeat the capped-charge reboot fifty times per cell and collect command source, provisional duration, learned capacity, coulomb delta, and visible level. I also want an uncapped-charge control and a cold-reboot control. If boot 9.2 plus gauge 3.7 is the only failing cell, interaction is demonstrated. If 9.2 fails on both gauge versions, the status-bit interpretation is not the whole story. If 9.4 fails anywhere, waiting for the interrupt is insufficient. We should let the matrix narrow the field before anyone writes a workaround around a favorite theory.",
+          "ko": "품질팀은 오늘 네 셀을 실행할 수 있습니다. 소형 하드웨어에서 boot 9.2와 9.4를 각각 gauge 3.6과 3.7에 조합합니다. 셀마다 제한 충전 재부팅을 50회 반복하고 command source, provisional duration, 학습 용량, coulomb delta, 표시 수준을 수집합니다. 비제한 충전 대조군과 cold reboot 대조군도 원합니다. boot 9.2와 gauge 3.7 조합만 실패하면 상호작용이 입증됩니다. 9.2가 두 gauge 버전 모두 실패하면 status bit 해석이 전부는 아닙니다. 9.4가 어디서든 실패하면 interrupt 대기만으로 부족합니다. 누군가 선호 이론 주위에 우회책을 쓰기 전에 매트릭스가 범위를 좁히게 합시다."
+        }
+      ]
+    },
+    {
+      "title_en": "Technical Debate and Containment",
+      "title_ko": "기술 토론과 억제책",
+      "turns": [
+        {
+          "speaker": "Vikram Nair",
+          "en": "For immediate containment, the kernel could reject a profile write while the gauge reports provisional, regardless of source. I can add a write guard in the driver, but it will not protect commands sent before the kernel owns the bus. A bootloader fix is cleaner because it blocks the earliest writer. However, the maintenance image cannot replace boot package 9.2 without recertifying secure boot and factory recovery. Another option is a post-boot repair: if coulomb count is continuous, learned capacity suddenly equals design capacity, and the update sequence advanced before kernel probe, restore the previous learned capacity from a signed mirror. That has a narrower release path but raises questions about which copy is authoritative.",
+          "ko": "즉시 억제책으로 커널은 source와 관계없이 게이지가 provisional을 보고하는 동안 profile write를 거부할 수 있습니다. 드라이버에 write guard를 추가할 수 있지만 커널이 bus를 소유하기 전 명령은 막지 못합니다. 가장 이른 작성자를 막으므로 bootloader 수정이 더 깔끔합니다. 그러나 유지보수 이미지는 secure boot와 공장 복구를 재인증하지 않고 boot package 9.2를 교체할 수 없습니다. 다른 선택은 부팅 후 복구입니다. coulomb count가 연속이고 학습 용량이 갑자기 설계 용량과 같아졌으며 update sequence가 kernel probe 전에 증가했다면 서명된 mirror에서 이전 학습 용량을 복원합니다. 릴리스 경로는 좁지만 어느 사본이 권위 있는지 질문이 생깁니다."
+        },
+        {
+          "speaker": "Maya Laurent",
+          "en": "I oppose writing the mirrored capacity back automatically. Learned capacity is not just a display parameter; the gauge uses it for termination behavior and remaining-time estimates. A stale mirror from before cell aging could be internally consistent yet wrong. We can use the mirror as evidence, but the gauge should relearn rather than accept a host value without its own qualification. My safer containment is to preserve the coulomb-based absolute charge and mark capacity confidence low. The framework can derive a temporary level range from coulomb count and the last qualified capacity, then converge gradually after the gauge completes a controlled learning checkpoint. No safety limit changes, and no unqualified value is committed to nonvolatile memory.",
+          "ko": "mirror 용량을 자동으로 다시 쓰는 데 반대합니다. 학습 용량은 표시 매개변수만이 아니라 게이지가 충전 종료 동작과 잔여 시간 추정에도 사용합니다. 셀 노화 전의 오래된 mirror는 내부적으로 일관되면서도 틀릴 수 있습니다. mirror는 증거로 쓸 수 있지만 게이지는 자체 검증 없이 host 값을 받아들이기보다 다시 학습해야 합니다. 더 안전한 억제책은 coulomb 기반 절대 충전량을 보존하고 용량 confidence를 낮게 표시하는 것입니다. 프레임워크는 coulomb count와 마지막 검증 용량에서 임시 수준 범위를 파생한 뒤 게이지가 통제된 학습 checkpoint를 마치면 점진적으로 수렴할 수 있습니다. 안전 제한은 바꾸지 않고 검증되지 않은 값을 비휘발성 메모리에 커밋하지 않습니다."
+        },
+        {
+          "speaker": "Elena Ruiz",
+          "en": "That is acceptable if the contract is explicit. I propose three confidence states: qualified, recovering, and unknown. Qualified publishes the gauge level. Recovering includes absolute charge, last qualified capacity, lower and upper level bounds, and a deadline. Android may keep the displayed level within those bounds but must never increase it faster than measured incoming charge or suppress a lower bound that crosses the warning threshold. Unknown publishes the conservative gauge level immediately. Recovery ends when the gauge qualifies a capacity or after twenty minutes, whichever comes first. This contains the visible cliff without papering over uncertainty. It also gives support a diagnostic state instead of a mysterious number.",
+          "ko": "계약이 명시적이라면 수용할 수 있습니다. qualified, recovering, unknown 세 confidence state를 제안합니다. qualified는 게이지 수준을 게시합니다. recovering은 절대 충전량, 마지막 검증 용량, 수준 하한·상한, 기한을 포함합니다. Android는 표시 수준을 그 범위 안에 둘 수 있지만 측정된 유입 충전보다 빠르게 올리거나 경고 임계값을 넘는 하한을 억제해서는 안 됩니다. unknown은 보수적인 게이지 수준을 즉시 게시합니다. 게이지가 용량을 검증하거나 20분이 지나면 먼저 도달한 조건에서 recovery를 끝냅니다. 불확실성을 덮지 않으면서 눈에 보이는 절벽을 억제합니다. 지원팀에도 수수께끼 숫자 대신 진단 상태를 제공합니다."
+        },
+        {
+          "speaker": "Owen Blake",
+          "en": "I can validate that contract, but twenty minutes must not become a hiding place for bad convergence. We need adversarial cases: unplug during recovery, heavy gaming load, temperature crossing zero degrees, a second reboot, battery saver entry, and an actual low-charge state. The gate should require level error within two points of the reference analyzer after recovery, monotonic movement consistent with net current, no delayed fifteen-percent warning, and zero nonvolatile profile writes while provisional. We also need three hundred ordinary reboots with the charging limit disabled to prove the new state machine does not create a symptom where none existed. The containment passes only if both accuracy and warning timeliness hold.",
+          "ko": "그 계약을 검증할 수 있지만 20분이 나쁜 수렴을 숨기는 장소가 되어서는 안 됩니다. recovery 중 케이블 분리, 고부하 게임, 0도 통과 온도, 두 번째 재부팅, 배터리 절약 진입, 실제 저충전 상태 같은 적대적 사례가 필요합니다. 게이트는 recovery 뒤 기준 분석기 대비 수준 오차 2%포인트 이내, 순전류와 일치하는 단조 이동, 15% 경고 지연 0건, provisional 동안 비휘발성 profile write 0건을 요구해야 합니다. 새 상태 머신이 없던 증상을 만들지 않는지 확인하려면 충전 제한을 끈 일반 재부팅 300회도 필요합니다. 정확도와 경고 적시성이 모두 유지될 때만 억제책이 통과합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision, Owners, and Deadlines",
+      "title_ko": "결정, 담당자와 기한",
+      "turns": [
+        {
+          "speaker": "Rafael Costa",
+          "en": "Release Management is joining for the decision. We will pause R78.4 expansion for the compact model at twenty percent, while the large model may remain at fifty percent because its failure rate is below the predeclared hold threshold and no severe outcome is present. We approve development of the confidence-state containment behind a compact-model flag. We do not approve automatic restoration of learned capacity, a charging-limit change, or a boot package update in this maintenance train. The rollout decision will depend on Owen's cross-flash matrix and validation gate. This is a split decision by model and evidence, not a general battery rollback.",
+          "ko": "릴리스 관리 팀이 결정에 참여합니다. 소형 모델 R78.4 확대는 20%에서 중지하고, 대형 모델은 실패율이 사전 선언 보류 임계값보다 낮고 심각한 결과가 없으므로 50%를 유지할 수 있습니다. 소형 모델 플래그 뒤에서 confidence-state 억제책 개발을 승인합니다. 학습 용량 자동 복원, 충전 제한 변경, 이번 유지보수 열차의 boot package 업데이트는 승인하지 않습니다. 롤아웃 결정은 오웬의 cross-flash 매트릭스와 검증 게이트에 달려 있습니다. 이는 일반 배터리 롤백이 아니라 모델과 증거에 따른 분리 결정입니다."
+        },
+        {
+          "speaker": "Vikram Nair",
+          "en": "I own the lower-layer implementation. By 13:00 KST on November 17, I will add command-source tagging, a kernel write guard after probe, and the confidence payload containing absolute charge, last qualified capacity, bounds, sequence, and deadline. I will post a reviewable patch and two fault-injection scripts by 18:00 the same day. The scripts will emulate early profile write and delayed gauge qualification without modifying real charging thresholds. I will also produce a boot-team issue with the exact status-bit semantic change, trace timestamps, and requested fix for package 9.5. The maintenance patch remains useful even after boot is fixed because it makes ownership and confidence observable.",
+          "ko": "하위 계층 구현은 제가 담당합니다. 11월 17일 13시(KST)까지 command-source tagging, probe 후 kernel write guard, 절대 충전량·마지막 검증 용량·bounds·sequence·deadline을 담는 confidence payload를 추가합니다. 같은 날 18시까지 검토 가능한 patch와 fault-injection script 두 개를 게시합니다. script는 실제 충전 임계값을 바꾸지 않고 초기 profile write와 지연된 게이지 검증을 모사합니다. status-bit 의미 변경, 추적 timestamp, package 9.5 요청 수정이 정확히 담긴 boot-team issue도 만들겠습니다. 유지보수 patch는 소유권과 confidence를 관찰 가능하게 하므로 boot 수정 뒤에도 유용합니다."
+        },
+        {
+          "speaker": "Elena Ruiz",
+          "en": "I own the framework state machine and user-visible behavior. By noon KST on November 18, I will implement qualified, recovering, and unknown handling behind the model flag. The UI will not add a new icon in this train; support diagnostics will expose the state, bounds, and remaining deadline. I will add unit tests for all state transitions and ensure process restart does not extend recovery. The deadline is anchored to elapsed realtime and the boot identifier, so wall-clock correction cannot reset it. If recovery expires without qualification, Android publishes the conservative lower bound and records one structured reason code. There will be no repeated notifications or silent deadline renewal.",
+          "ko": "프레임워크 상태 머신과 사용자 표시 동작은 제가 담당합니다. 11월 18일 정오(KST)까지 모델 플래그 뒤에서 qualified, recovering, unknown 처리를 구현합니다. 이번 열차에서는 UI에 새 아이콘을 넣지 않고 지원 진단에서 state, bounds, 남은 기한을 노출합니다. 모든 상태 전환 unit test를 추가하고 process restart가 recovery를 연장하지 않게 하겠습니다. 기한은 elapsed realtime과 boot identifier에 고정해 wall-clock 보정이 재설정하지 못하게 합니다. 검증 없이 recovery가 만료되면 Android는 보수적인 하한을 게시하고 구조화 reason code 하나를 기록합니다. 반복 알림이나 조용한 기한 갱신은 없습니다."
+        },
+        {
+          "speaker": "Owen Blake",
+          "en": "I own the matrix and release report. The two-hundred cross-flash runs finish by 11:00 KST on November 17. Full containment validation starts when both patches land and finishes by 09:00 on November 20. Results will be separated by model, boot package, gauge version, temperature band, and charging-limit state. A single missed low-battery warning, nonvolatile write during provisional, error above two points after recovery, or process restart that extends the deadline is a hard failure. I will publish raw run counts as well as rates so a small denominator cannot make the large model look safer than it is. The control build and analyzer trace will remain linked to every conclusion.",
+          "ko": "매트릭스와 릴리스 보고서는 제가 담당합니다. cross-flash 200회는 11월 17일 11시(KST)까지 끝냅니다. 전체 억제책 검증은 두 patch가 들어오면 시작해 11월 20일 9시까지 마칩니다. 결과는 모델, boot package, gauge version, 온도 대역, 충전 제한 상태별로 분리합니다. 저배터리 경고 누락 1건, provisional 중 비휘발성 write, recovery 뒤 2%포인트 초과 오차, 기한을 연장하는 process restart는 모두 즉시 실패입니다. 작은 분모가 대형 모델을 실제보다 안전하게 보이게 하지 않도록 비율과 원시 실행 횟수를 함께 게시합니다. 모든 결론에 control build와 analyzer trace를 계속 연결합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Follow Up and Closing",
+      "title_ko": "후속 회의와 마무리",
+      "turns": [
+        {
+          "speaker": "Maya Laurent",
+          "en": "I will deliver a gauge diagnostic firmware by 15:00 KST on November 17. It will expose qualification milestones, CRC result, provisional duration, and the reason any profile command was accepted or rejected. It will not change charge control. By November 19, I will also propose a firmware-side protection that requires two independent ready conditions before accepting a host profile after reset. That proposal needs endurance testing because extra nonvolatile checks can affect startup time. For the maintenance decision, my team will review every failing matrix trace within four hours of upload and state whether the gauge followed its documented contract. We will keep symptom ownership separate from corrective ownership.",
+          "ko": "11월 17일 15시(KST)까지 게이지 진단 펌웨어를 제공하겠습니다. qualification milestone, CRC 결과, provisional duration, profile command가 수락·거부된 이유를 노출합니다. 충전 제어는 바꾸지 않습니다. 11월 19일까지 reset 뒤 host profile을 받기 전에 독립적인 ready 조건 두 개를 요구하는 펌웨어 측 보호안도 제안합니다. 추가 비휘발성 검사는 시작 시간에 영향을 줄 수 있어 내구 시험이 필요합니다. 유지보수 결정과 관련해 저희 팀은 업로드된 모든 실패 매트릭스 추적을 4시간 안에 검토하고 게이지가 문서화 계약을 따랐는지 밝히겠습니다. 증상 소유권과 수정 소유권을 분리해 유지하겠습니다."
+        },
+        {
+          "speaker": "Hana Cho",
+          "en": "I will maintain the incident ledger and customer narrative. Support guidance will say that the displayed drop after reboot is under investigation, that measured energy does not show an equivalent sudden loss, and that users should not repeatedly reboot or disable safety features. We will not promise that every report is cosmetic. By 10:00 KST today, I will publish a query for model, boot package, gauge version, charging-limit dwell, reboot type, and post-boot confidence state. Field reports lacking those fields remain unclassified rather than being forced into this incident. That discipline protects us from broadening the denominator with unrelated battery complaints.",
+          "ko": "incident ledger와 고객 설명은 제가 유지합니다. 지원 지침에는 재부팅 뒤 표시 하락을 조사 중이고 측정 에너지는 그와 동등한 갑작스러운 손실을 보이지 않으며 사용자가 반복 재부팅하거나 안전 기능을 끄지 말아야 한다고 적습니다. 모든 보고가 표시 문제라고 약속하지는 않습니다. 오늘 10시(KST)까지 모델, boot package, gauge version, 충전 제한 dwell, reboot type, 부팅 뒤 confidence state를 조회하는 query를 게시합니다. 그 필드가 없는 현장 보고는 이 incident에 억지로 넣지 않고 미분류로 남깁니다. 이 규율은 관련 없는 배터리 불만으로 분모가 넓어지는 것을 막습니다."
+        },
+        {
+          "speaker": "Rafael Costa",
+          "en": "The release decision meeting is scheduled for November 20 at 14:30 KST. Required attendees are the six people here. The packet is due by noon and must include the cross-flash matrix, containment gate table, framework rollback steps, boot-package root-cause note, gauge contract assessment, and field trend by model. We will choose among resuming compact rollout at five percent, holding R78.4 for that model, or issuing a model-specific rollback. If rollout resumes, it pauses for twenty-four hours at each of five, twenty-five, and fifty percent. Expansion requires zero hard-gate failures and a state-of-charge jump rate below 0.5 percent.",
+          "ko": "릴리스 결정 회의는 11월 20일 14시 30분(KST)으로 정합니다. 필수 참석자는 오늘 여섯 명입니다. 자료는 정오까지 제출하며 cross-flash 매트릭스, 억제책 게이트 표, 프레임워크 롤백 절차, boot-package 근본 원인 노트, 게이지 계약 평가, 모델별 현장 추세를 포함해야 합니다. 소형 롤아웃을 5%에서 재개, 해당 모델 R78.4 보류, 모델 전용 롤백 중 하나를 선택합니다. 롤아웃을 재개하면 5%, 25%, 50% 각 단계에서 24시간 멈춥니다. hard-gate 실패 0건과 충전 상태 점프율 0.5% 미만일 때만 확대합니다."
+        },
+        {
+          "speaker": "Hana Cho",
+          "en": "I will read back the decision. Compact-model expansion stays paused at twenty percent; the large model remains at fifty percent with enhanced monitoring. We will test the boot-and-gauge interaction, build a three-state confidence contract, and never write an unqualified learned capacity back automatically. Vikram owns lower-layer evidence and payload, Elena owns presentation behavior, Owen owns the matrix and validation, Maya owns gauge diagnostics, and I own field classification. Hard gates protect warning timeliness as well as display accuracy. The next decision is November 20 at 14:30 KST. I will circulate minutes in thirty minutes, and any disagreement about these boundaries must be recorded today rather than discovered during rollout.",
+          "ko": "결정을 다시 읽겠습니다. 소형 모델 확대는 20%에서 중지하고 대형 모델은 강화 모니터링과 함께 50%를 유지합니다. boot와 gauge 상호작용을 시험하고 3상태 confidence 계약을 만들며 검증되지 않은 학습 용량을 자동으로 다시 쓰지 않습니다. 비크람은 하위 계층 증거와 payload, 엘레나는 표시 동작, 오웬은 매트릭스와 검증, 마야는 게이지 진단, 저는 현장 분류를 담당합니다. hard gate는 표시 정확도뿐 아니라 경고 적시성도 보호합니다. 다음 결정은 11월 20일 14시 30분(KST)입니다. 30분 안에 회의록을 배포하며 이 경계에 대한 이견은 롤아웃 중 발견하지 말고 오늘 기록해야 합니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "separate display accuracy from real capacity loss",
+      "meaning_ko": "표시 정확도와 실제 용량 손실을 구분하다",
+      "usage_ko": "현상과 실제 손실을 구분할 때",
+      "example": "Thanks for joining the Monday status review. Power Framework, Battery BSP, Fuel-Gauge Firmware, System Quality, and Release Management are represented. The immediate question is whether build R78.4 can continue staged rollout after users with the eighty-percent charging limit report a seven-to-nine-point battery drop following a normal reboot. We have no unexpected shutdowns, swelling, or thermal alarms, but a visible state-of-charge jump damages trust and can trigger unnecessary support returns. Today we need to separate display accuracy from real capacity loss, identify which persistence boundary is broken, choose a safe containment for the current train, and assign a permanent fix with dates. We will not change charging safety thresholds merely to make the icon look stable.",
+      "practice": "We must separate alert severity from actual service impact."
+    },
+    {
+      "phrase": "strongly suggests a reporting discontinuity",
+      "meaning_ko": "보고 값의 불연속을 강하게 시사하다",
+      "usage_ko": "측정 근거로 보고 오류를 설명할 때",
+      "example": "System Quality is here. Our reproduction rate is thirty-two percent on the compact model and four percent on the large model across two hundred controlled reboots. The precondition is specific: charging stops at eighty percent, the phone remains plugged in for at least forty minutes, and it reboots before being unplugged. The displayed level returns between seventy-one and seventy-four percent, then climbs two points during the first ten minutes without drawing enough current to justify that increase. A precision power analyzer shows less than 0.2 percent of rated capacity moved across the cable during the reboot. That evidence strongly suggests a reporting discontinuity, but it does not tell us whether the lost state belongs to Android, the gauge, or boot firmware.",
+      "practice": "The stable counter strongly suggests a reporting discontinuity."
+    },
+    {
+      "phrase": "before the gauge finishes validating",
+      "meaning_ko": "검증을 마치기 전에",
+      "usage_ko": "초기화 순서 문제를 설명할 때",
+      "example": "Battery BSP is present. The kernel driver reads state of charge, learned full-charge capacity, coulomb count, temperature, and an update sequence from the gauge. On failing boots, the raw state of charge is already seventy-two percent before Android starts, so the framework is not inventing the drop. However, the coulomb counter differs by less than six milliamp-hours from its pre-reboot value. The learned full-charge capacity changes from 4,680 to 4,112 milliamp-hours, which mathematically explains the percentage. That value should survive reset in gauge nonvolatile memory. My first hypothesis is that the boot path accepts a default capacity before the gauge finishes validating its learned record, then writes the default back as if it were authoritative.",
+      "practice": "Do not publish the cache before it finishes validating the index."
+    },
+    {
+      "phrase": "locate the writer",
+      "meaning_ko": "작성 주체를 찾아내다",
+      "usage_ko": "알 수 없는 변경 주체를 추적할 때",
+      "example": "Fuel-Gauge Firmware is represented. I agree the capacity change is central, but the gauge does not write a default merely because the host reads early. It exposes a provisional flag until the learned record passes CRC and temperature normalization. The host is expected to avoid committing profile data while that flag is set. In the compact-model trace, I see a host profile command eighteen milliseconds after reset, while provisional remains true for another sixty-three milliseconds. That command includes the design capacity, not the learned capacity. We need to confirm whether it comes from the bootloader, the kernel probe, or a recovery daemon. Until we locate the writer, changing gauge timing would only make the race less frequent.",
+      "practice": "The trace identifier will help us locate the writer."
+    },
+    {
+      "phrase": "Correlation is not ownership",
+      "meaning_ko": "상관관계가 소유권은 아니다",
+      "usage_ko": "원인 귀속을 신중히 할 때",
+      "example": "Let us organize the evidence into branches. Branch one is a true energy loss, which the analyzer and coulomb counter currently contradict. Branch two is gauge record corruption, which would show a CRC failure or reset reason. Branch three is an authorized but premature host profile write. Branch four is a framework presentation bug after boot. We should avoid collapsing them into one battery issue. The affected customers all enabled the charging limit, yet that feature may only create the long plugged-in dwell that exposes the race. Correlation is not ownership. I want each team to name the signal that would falsify its preferred explanation, because a useful status review should reduce uncertainty rather than collect supportive anecdotes.",
+      "practice": "Correlation is not ownership, so we still need a removal test."
+    },
+    {
+      "phrase": "an honest messenger",
+      "meaning_ko": "사실을 왜곡하지 않는 전달자",
+      "usage_ko": "상위 계층이 사실을 그대로 표시해야 할 때",
+      "example": "Power Framework can falsify the presentation branch. Android stores the last published level and boot identifier only to smooth minor gauge noise after userspace starts. It refuses to smooth a change larger than four points or any value marked provisional. In failing logs, the first health snapshot arrives as seventy-two percent with provisional false, so the framework correctly publishes it. We could hide the jump by holding the old value, but that would turn a known discontinuity into a plausible lie and could delay a real low-battery warning. I will support a temporary hold only if the lower layer supplies an explicit recovery state and a bounded confidence interval. Otherwise the framework must remain an honest messenger.",
+      "practice": "The dashboard should remain an honest messenger during recovery."
+    },
+    {
+      "phrase": "put that theory on solid ground",
+      "meaning_ko": "이론을 확실한 근거 위에 놓다",
+      "usage_ko": "통제 실험의 가치를 말할 때",
+      "example": "The gauge record itself passes CRC in all twelve complete failing traces, which weakens corruption. More importantly, the update sequence advances exactly once at the early host command. Its command source tag is zero, a legacy value used before the kernel assigns tags. That points toward the bootloader, but I do not want to overstate it. The large model runs boot package 9.4 and waits for the ready interrupt; the compact model runs 9.2 and polls a status bit that changed meaning in gauge firmware 3.7. If boot 9.2 interprets provisional as ready, it would send the profile immediately. A controlled cross-flash can put that theory on solid ground.",
+      "practice": "A cross-version test will put that theory on solid ground."
+    },
+    {
+      "phrase": "narrow the field",
+      "meaning_ko": "가능성의 범위를 좁히다",
+      "usage_ko": "실험으로 가설을 줄일 때",
+      "example": "Quality can run four cells today: compact hardware with boot 9.2 and 9.4, each paired with gauge 3.6 and 3.7. We will repeat the capped-charge reboot fifty times per cell and collect command source, provisional duration, learned capacity, coulomb delta, and visible level. I also want an uncapped-charge control and a cold-reboot control. If boot 9.2 plus gauge 3.7 is the only failing cell, interaction is demonstrated. If 9.2 fails on both gauge versions, the status-bit interpretation is not the whole story. If 9.4 fails anywhere, waiting for the interrupt is insufficient. We should let the matrix narrow the field before anyone writes a workaround around a favorite theory.",
+      "practice": "The four-cell experiment should narrow the field quickly."
+    },
+    {
+      "phrase": "which copy is authoritative",
+      "meaning_ko": "어느 사본이 권위 있는지",
+      "usage_ko": "복제 상태의 기준을 정할 때",
+      "example": "For immediate containment, the kernel could reject a profile write while the gauge reports provisional, regardless of source. I can add a write guard in the driver, but it will not protect commands sent before the kernel owns the bus. A bootloader fix is cleaner because it blocks the earliest writer. However, the maintenance image cannot replace boot package 9.2 without recertifying secure boot and factory recovery. Another option is a post-boot repair: if coulomb count is continuous, learned capacity suddenly equals design capacity, and the update sequence advanced before kernel probe, restore the previous learned capacity from a signed mirror. That has a narrower release path but raises questions about which copy is authoritative.",
+      "practice": "The reconciliation rule decides which copy is authoritative."
+    },
+    {
+      "phrase": "papering over uncertainty",
+      "meaning_ko": "불확실성을 덮어 감추는 것",
+      "usage_ko": "임시 완화가 문제를 숨기지 않게 할 때",
+      "example": "That is acceptable if the contract is explicit. I propose three confidence states: qualified, recovering, and unknown. Qualified publishes the gauge level. Recovering includes absolute charge, last qualified capacity, lower and upper level bounds, and a deadline. Android may keep the displayed level within those bounds but must never increase it faster than measured incoming charge or suppress a lower bound that crosses the warning threshold. Unknown publishes the conservative gauge level immediately. Recovery ends when the gauge qualifies a capacity or after twenty minutes, whichever comes first. This contains the visible cliff without papering over uncertainty. It also gives support a diagnostic state instead of a mysterious number.",
+      "practice": "Expose confidence instead of papering over uncertainty."
+    },
+    {
+      "phrase": "a hiding place for bad convergence",
+      "meaning_ko": "나쁜 수렴을 숨기는 장소",
+      "usage_ko": "긴 timeout의 위험을 경계할 때",
+      "example": "I can validate that contract, but twenty minutes must not become a hiding place for bad convergence. We need adversarial cases: unplug during recovery, heavy gaming load, temperature crossing zero degrees, a second reboot, battery saver entry, and an actual low-charge state. The gate should require level error within two points of the reference analyzer after recovery, monotonic movement consistent with net current, no delayed fifteen-percent warning, and zero nonvolatile profile writes while provisional. We also need three hundred ordinary reboots with the charging limit disabled to prove the new state machine does not create a symptom where none existed. The containment passes only if both accuracy and warning timeliness hold.",
+      "practice": "A long retry window can become a hiding place for bad convergence."
+    },
+    {
+      "phrase": "a split decision by model and evidence",
+      "meaning_ko": "모델과 증거에 따른 분리 결정",
+      "usage_ko": "제품군별 다른 결정을 설명할 때",
+      "example": "Release Management is joining for the decision. We will pause R78.4 expansion for the compact model at twenty percent, while the large model may remain at fifty percent because its failure rate is below the predeclared hold threshold and no severe outcome is present. We approve development of the confidence-state containment behind a compact-model flag. We do not approve automatic restoration of learned capacity, a charging-limit change, or a boot package update in this maintenance train. The rollout decision will depend on Owen's cross-flash matrix and validation gate. This is a split decision by model and evidence, not a general battery rollback.",
+      "practice": "This is a split decision by model and evidence."
+    },
+    {
+      "phrase": "a small denominator",
+      "meaning_ko": "작은 표본 분모",
+      "usage_ko": "비율 해석의 함정을 말할 때",
+      "example": "I own the matrix and release report. The two-hundred cross-flash runs finish by 11:00 KST on November 17. Full containment validation starts when both patches land and finishes by 09:00 on November 20. Results will be separated by model, boot package, gauge version, temperature band, and charging-limit state. A single missed low-battery warning, nonvolatile write during provisional, error above two points after recovery, or process restart that extends the deadline is a hard failure. I will publish raw run counts as well as rates so a small denominator cannot make the large model look safer than it is. The control build and analyzer trace will remain linked to every conclusion.",
+      "practice": "Publish raw counts so a small denominator cannot distort the rate."
+    },
+    {
+      "phrase": "keep symptom ownership separate from corrective ownership",
+      "meaning_ko": "증상 담당과 수정 담당을 구분해 유지하다",
+      "usage_ko": "여러 팀의 책임을 분리할 때",
+      "example": "I will deliver a gauge diagnostic firmware by 15:00 KST on November 17. It will expose qualification milestones, CRC result, provisional duration, and the reason any profile command was accepted or rejected. It will not change charge control. By November 19, I will also propose a firmware-side protection that requires two independent ready conditions before accepting a host profile after reset. That proposal needs endurance testing because extra nonvolatile checks can affect startup time. For the maintenance decision, my team will review every failing matrix trace within four hours of upload and state whether the gauge followed its documented contract. We will keep symptom ownership separate from corrective ownership.",
+      "practice": "Keep symptom ownership separate from corrective ownership in the incident log."
+    },
+    {
+      "phrase": "read back the decision",
+      "meaning_ko": "결정을 다시 확인해 읽다",
+      "usage_ko": "회의 결론을 정확히 확인할 때",
+      "example": "I will read back the decision. Compact-model expansion stays paused at twenty percent; the large model remains at fifty percent with enhanced monitoring. We will test the boot-and-gauge interaction, build a three-state confidence contract, and never write an unqualified learned capacity back automatically. Vikram owns lower-layer evidence and payload, Elena owns presentation behavior, Owen owns the matrix and validation, Maya owns gauge diagnostics, and I own field classification. Hard gates protect warning timeliness as well as display accuracy. The next decision is November 20 at 14:30 KST. I will circulate minutes in thirty minutes, and any disagreement about these boundaries must be recorded today rather than discovered during rollout.",
+      "practice": "Let me read back the decision before we close."
+    }
+  ]
+}
