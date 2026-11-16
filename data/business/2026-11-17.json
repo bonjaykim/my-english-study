@@ -1,0 +1,273 @@
+{
+  "date": "2026-11-17",
+  "category": "business",
+  "topic": "sw-release",
+  "subject": "Gating Vendor Property Namespace Cleanup across Mixed Android Builds",
+  "title_ko": "혼합 Android 빌드의 Vendor Property Namespace 정리 게이트 검토",
+  "summary_ko": "가상의 Android 17 BSP 릴리스 회의에서 vendor property alias 정리가 R80 vendor와 R81 system 혼합 빌드의 무선 프로비저닝·카메라 보정 계약을 깨는 문제를 검토한다. 팀들은 네 개 핵심 key에 한정된 단방향 translation bridge, identity·generation·값 형태 검증, 제거 기준과 정량 릴리스 게이트를 결정한다. 모든 인물·조직·단말·partition·property·빌드·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Jisoo Han",
+      "team": "Program Management"
+    },
+    {
+      "name": "Lena Park",
+      "team": "Android Platform"
+    },
+    {
+      "name": "Marco Silva",
+      "team": "BSP Integration"
+    },
+    {
+      "name": "Priya Raman",
+      "team": "Compatibility and Security"
+    },
+    {
+      "name": "Daniel Cho",
+      "team": "Program Management"
+    },
+    {
+      "name": "Amina Yusuf",
+      "team": "Compatibility and Security"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Release Objective",
+      "title_ko": "참석 확인과 릴리스 목표",
+      "turns": [
+        {
+          "speaker": "Jisoo Han",
+          "en": "Thanks for joining the R81 baseline review. Android Platform, BSP Integration, Compatibility Quality, Security Architecture, and Release Governance are represented. We must decide whether the vendor property namespace cleanup can enter this week's integration build. The cleanup removes forty-two aliases created before the current ownership rules. A pure R81 image passes, but mixed builds used by repair centers lose radio provisioning and camera calibration after userspace restart. We need to distinguish a legitimate compatibility dependency from an undocumented shortcut, agree on a bounded bridge, and assign evidence with deadlines. We will not weaken property access control or keep every alias indefinitely merely to make the dashboard green. Each team should identify the evidence that could overturn its current position.",
+          "ko": "R81 기준선 검토에 참석해 주셔서 감사합니다. Android 플랫폼, BSP 통합, 호환성 품질, 보안 아키텍처, 릴리스 거버넌스 팀이 참석했습니다. vendor property namespace 정리를 이번 주 통합 빌드에 넣을지 결정해야 합니다. 이 정리는 현재 소유권 규칙 이전에 만들어진 alias 42개를 제거합니다. 순수 R81 이미지는 통과하지만 수리 센터가 쓰는 혼합 빌드는 userspace 재시작 뒤 무선 프로비저닝과 카메라 보정 정보를 잃습니다. 정당한 호환성 의존성과 문서화되지 않은 지름길을 구분하고 제한된 bridge와 증거 담당·기한에 합의해야 합니다. 대시보드를 초록색으로 만들기 위해 접근 제어를 약화하거나 alias를 무기한 유지하지는 않겠습니다. 각 팀은 현재 입장을 뒤집을 수 있는 증거를 밝혀 주십시오."
+        },
+        {
+          "speaker": "Lena Park",
+          "en": "Platform Property Services is present. The proposed change moves readable values from vendor.legacy.radio_config and vendor.legacy.camera_cal into owner-specific names, while write access remains with the same signed components. On a full R81 stack, every caller reads the new keys and the aliases are unused. The failure appears only when the R80 vendor partition is paired with the R81 system partition. After userspace restart, two R80 daemons republish values under the old names, but R81 consumers no longer subscribe. Initial boot works because an early migration copies both directions once. That difference makes restart behavior the first place where the contract breaks, not the original cold boot. No value is missing from storage; the publication path and consumer expectation diverge.",
+          "ko": "플랫폼 Property Services 팀이 참석했습니다. 제안 변경은 읽기 값을 기존 property에서 소유자별 이름으로 옮기며 쓰기 권한은 같은 서명 구성 요소에 남깁니다. 전체 R81 스택에서는 모든 호출자가 새 key를 읽고 alias는 쓰이지 않습니다. 실패는 R80 vendor partition과 R81 system partition을 조합할 때만 나타납니다. userspace 재시작 뒤 R80 daemon 두 개가 기존 이름으로 값을 다시 게시하지만 R81 consumer는 더 이상 구독하지 않습니다. 초기 부팅은 조기 migration이 양방향으로 한 번 복사하므로 동작합니다. 이 차이는 계약이 처음 깨지는 지점이 cold boot가 아니라 재시작 동작임을 보여줍니다. 저장소에서 값이 사라진 것이 아니라 게시 경로와 consumer 기대가 갈라집니다."
+        },
+        {
+          "speaker": "Marco Silva",
+          "en": "BSP Integration is here. Repair centers do not create that mixed build accidentally. Their recovery flow preserves vendor while updating system because rewriting factory calibration adds nineteen minutes and increases service risk. The supported matrix includes current system with one previous vendor baseline for thirty days after launch. Therefore mixed-version behavior is not an exotic laboratory case. The release contract says critical provisioning must survive userspace restart and rollback rehearsal. If cleanup cannot honor that window, either the change waits or we ship a compatibility mechanism with an explicit removal date and measurable use. I also need the solution to tolerate an individual R80 radio package restored onto an R81 vendor image, because service tools can replace packages independently of the partition label.",
+          "ko": "BSP 통합 팀이 참석했습니다. 수리 센터가 그 혼합 빌드를 우연히 만드는 것은 아닙니다. 복구 절차는 공장 보정을 다시 쓰는 데 19분이 추가되고 서비스 위험이 커지므로 system을 업데이트하면서 vendor를 보존합니다. 지원 매트릭스에는 출시 뒤 30일 동안 현재 system과 이전 vendor 기준선 하나의 조합이 포함됩니다. 따라서 혼합 버전 동작은 특이한 실험실 사례가 아닙니다. 릴리스 계약은 핵심 프로비저닝이 userspace 재시작과 rollback rehearsal을 견뎌야 한다고 규정합니다. 정리가 그 기간을 지키지 못하면 변경을 기다리거나 명시적 제거일과 측정 가능한 사용량이 있는 호환성 장치를 배포해야 합니다. 서비스 도구가 partition label과 독립적으로 package를 교체할 수 있으므로 R81 vendor에 복원된 개별 R80 radio package도 견뎌야 합니다."
+        },
+        {
+          "speaker": "Priya Raman",
+          "en": "Compatibility Quality is represented. We reproduced the failure on eleven of twelve mixed-build devices and zero of sixty full-stack devices. Radio provisioning disappears within eight seconds of restart. Camera calibration remains cached until the provider is killed, which explains inconsistent field reports. No value is corrupted on disk. Old properties are present, new properties are absent, and SELinux denials are not involved. Our test checks cold boot and factory reset but not userspace restart between partition versions. That is a coverage gap we own. I will add restart, provider death, slot rollback, repair update, and malformed publication paths. Still, the release decision needs a product contract rather than a test-only workaround, and every pass must be traceable to an exact image manifest.",
+          "ko": "호환성 품질 팀이 참석했습니다. 혼합 빌드 단말 12대 중 11대에서 실패를 재현했고 전체 스택 단말 60대에서는 0건이었습니다. 무선 프로비저닝은 재시작 8초 안에 사라집니다. 카메라 보정은 provider가 종료될 때까지 cache에 남아 있어 현장 보고가 일관되지 않았습니다. 디스크 값은 손상되지 않았고 기존 property는 있으며 새 property는 없고 SELinux 거부도 관련 없습니다. 현재 시험은 cold boot와 factory reset을 확인하지만 partition 버전 간 userspace restart는 확인하지 않습니다. 이는 저희가 책임질 coverage gap입니다. restart, provider death, slot rollback, repair update, malformed publication 경로를 추가하겠습니다. 그래도 릴리스 결정에는 시험 전용 우회책이 아닌 제품 계약이 필요하며 모든 통과 결과는 정확한 image manifest로 추적되어야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and Contract Boundaries",
+      "title_ko": "증거와 계약 경계",
+      "turns": [
+        {
+          "speaker": "Daniel Cho",
+          "en": "Release Governance is here. A missing cosmetic property is not equivalent to losing emergency radio provisioning or applying default camera calibration. We need a criticality list tied to consumer behavior, not to how long a name has existed. I want the compatibility window written as a version relationship: system N must operate with vendor N and N minus one for the declared service period. Calendar language alone is ambiguous when a model launches late. The burden of proof sits with the team removing an interface, but each consumer owner must show whether absence is fail-safe, recoverable, or user-visible. We also need a removal criterion now, while the cost is visible, rather than asking a future team to infer why a bridge exists.",
+          "ko": "릴리스 거버넌스 팀이 참석했습니다. 미관용 property 하나가 없는 것은 긴급 무선 프로비저닝 상실이나 기본 카메라 보정 적용과 같지 않습니다. 이름이 존재한 기간이 아니라 consumer 동작과 연결된 중요도 목록이 필요합니다. 호환성 기간은 버전 관계로 기록해야 합니다. 선언된 서비스 기간 동안 system N은 vendor N과 N-1과 동작해야 합니다. 모델 출시가 늦으면 달력 문구만으로는 모호합니다. 입증 책임은 interface를 제거하는 팀에 있지만 각 consumer owner는 값 부재가 fail-safe인지, 복구 가능한지, 사용자에게 보이는지 밝혀야 합니다. 또한 비용이 보이는 지금 제거 기준을 정해야 하며 미래 팀이 bridge 존재 이유를 추측하게 해서는 안 됩니다."
+        },
+        {
+          "speaker": "Lena Park",
+          "en": "I mapped all forty-two aliases. Thirty-one are telemetry or duplicated descriptors and can disappear without runtime effect. Seven have consumers that already negotiate a schema version. Four are critical and lack negotiation: two radio provisioning values, one camera lens-shading identifier, and one touch-panel region code. My proposal is not a general alias service. It is a four-key translation bridge activated only for a legacy owner. The bridge copies old to new after a valid source publication, never new to old, and exposes a counter plus source generation. That makes the compatibility debt visible instead of preserving a silent bidirectional mirror. New callers cannot request arbitrary names, and the table is compiled rather than loaded from a writable configuration file.",
+          "ko": "alias 42개를 모두 매핑했습니다. 31개는 telemetry 또는 중복 descriptor이므로 runtime 영향 없이 사라질 수 있습니다. 7개는 이미 schema version을 협상합니다. 4개는 중요하지만 협상이 없습니다. 무선 프로비저닝 값 2개, 카메라 lens-shading 식별자 1개, touch-panel region code 1개입니다. 제안은 일반 alias service가 아닙니다. legacy owner에서만 활성화되는 4개 key 번역 bridge입니다. bridge는 유효한 source 게시 뒤 old에서 new로만 복사하고 반대 방향은 하지 않으며 counter와 source generation을 노출합니다. 이렇게 하면 조용한 양방향 mirror 대신 호환성 부채가 보입니다. 새 caller는 임의 이름을 요청할 수 없고 table은 쓰기 가능한 설정 파일이 아니라 compile됩니다."
+        },
+        {
+          "speaker": "Marco Silva",
+          "en": "I support one-way translation, but manifest version alone is insufficient. Engineering images sometimes carry an R80 manifest with an R81 daemon, and repair tools may restore one radio package. If the bridge activates solely by partition label, it can overwrite a valid new value with a stale old publication. The trigger should combine vendor baseline, owner protocol capability, publication generation, and source identity. The destination must be empty for the current boot generation. We need deterministic precedence under late daemon restart. Otherwise a temporary bridge becomes another race. I can add a capability bit to the owner handshake, but it must default to legacy when absent so existing R80 binaries remain supported. A new-capability owner must permanently suppress legacy translation for that boot.",
+          "ko": "단방향 번역은 지지하지만 manifest version만으로는 부족합니다. engineering image가 R80 manifest에 R81 daemon을 담기도 하고 수리 도구가 radio package 하나를 복원할 수도 있습니다. bridge가 partition label만으로 활성화되면 유효한 새 값을 오래된 게시로 덮어쓸 수 있습니다. trigger는 vendor baseline, owner protocol capability, publication generation, source identity를 결합해야 합니다. destination은 현재 boot generation에서 비어 있어야 합니다. 늦은 daemon restart에서도 결정적인 우선순위가 필요합니다. 그렇지 않으면 임시 bridge가 또 다른 race가 됩니다. owner handshake에 capability bit를 추가하되 기존 R80 binary를 지원하도록 값이 없으면 legacy가 기본이어야 합니다. 새 capability owner는 해당 boot에서 legacy translation을 영구 억제해야 합니다."
+        },
+        {
+          "speaker": "Amina Yusuf",
+          "en": "Security Architecture has joined. A four-key bridge is acceptable only if it cannot become a confused deputy. It may read labels already readable by the translation domain, write only four compiled destinations, reject dynamic property names, and verify the publisher identity. It must not grant vendor processes direct write access to system-owned properties. I also require value-shape validation: a fixed enumeration for region code, bounded identifiers for calibration, and an allowlisted radio profile format. Translation must fail closed and emit a reason code. If validation fails, the device enters the existing provisioning-degraded state rather than guessing or copying opaque bytes across ownership boundaries. Diagnostic records may contain a truncated digest, generation, and reason, but never the raw value.",
+          "ko": "보안 아키텍처 팀이 참여했습니다. 4개 key bridge는 confused deputy가 될 수 없을 때만 허용됩니다. translation domain이 이미 읽을 수 있는 label에서 읽고 compile된 destination 4개에만 쓰며 동적 property 이름을 거부하고 publisher identity를 검증해야 합니다. vendor process에 system 소유 property 직접 쓰기 권한을 주어서는 안 됩니다. 값 형태 검증도 필요합니다. region code는 고정 enumeration, calibration은 길이 제한 identifier, radio profile은 allowlist 형식이어야 합니다. 번역은 fail closed하고 reason code를 내야 합니다. 검증 실패 시 opaque byte를 추측하거나 경계를 넘어 복사하지 말고 기존 provisioning-degraded 상태로 들어갑니다. 진단 기록에는 잘린 digest, generation, reason만 담고 raw value는 담지 않습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Technical Disagreement and Experiment",
+      "title_ko": "기술 이견과 실험",
+      "turns": [
+        {
+          "speaker": "Priya Raman",
+          "en": "The bridge is testable, but I disagree with treating every missing critical value as an immediate persistent failure. During restart, a source daemon may legitimately publish after twelve seconds. Entering a permanent degraded state at second three could cause more disruption than the original gap. Quality needs a bounded waiting contract: which owner signals readiness, how long each consumer waits, and what happens if the owner restarts twice. I propose a fifteen-second acquisition window with a monotonic generation token. Consumers may delay feature activation during that window, but emergency calling must retain its last qualified profile. After the deadline, absence becomes an explicit failure, not an endlessly renewable grace period. A process restart must never mint a fresh deadline.",
+          "ko": "bridge는 시험할 수 있지만 중요 값 누락을 모두 즉시 지속 실패로 처리하는 데는 반대합니다. 재시작 중 source daemon이 정상적으로 12초 뒤 게시할 수 있습니다. 3초 시점에 영구 degraded 상태로 들어가면 원래 gap보다 더 큰 중단을 만들 수 있습니다. 품질팀에는 제한된 대기 계약이 필요합니다. 어떤 owner가 readiness를 알리고 consumer가 얼마나 기다리며 owner가 두 번 재시작하면 어떻게 되는지 정해야 합니다. monotonic generation token을 쓰는 15초 acquisition window를 제안합니다. 그 기간 feature 활성화를 늦출 수 있지만 긴급 통화는 마지막 검증 profile을 유지해야 합니다. 기한 뒤 부재는 끝없이 갱신되는 유예가 아니라 명시적 실패가 됩니다. process restart가 새 기한을 발급해서는 안 됩니다."
+        },
+        {
+          "speaker": "Lena Park",
+          "en": "Fifteen seconds is reasonable for camera and touch, but radio cannot wait that long when modem service already requests configuration. I suggest per-key deadlines: five seconds for the two radio values and fifteen for camera and touch. The bridge subscribes before owners start, records the first valid publication in the boot generation, and ignores later legacy publications after a new-capability owner declares readiness. Last qualified radio data can remain active only when its carrier identity matches the current subscription. We should not confuse availability continuity with permission to reuse data under a different identity. If the identity changed during an eSIM switch, radio uses the conservative unprovisioned path until a matching value arrives or the deadline expires.",
+          "ko": "15초는 camera와 touch에는 합리적이지만 modem service가 이미 설정을 요청하면 radio는 그렇게 오래 기다릴 수 없습니다. radio 값 2개는 5초, camera와 touch는 15초의 key별 기한을 제안합니다. bridge는 owner 시작 전에 subscribe하고 boot generation의 첫 유효 게시를 기록하며 새 capability owner가 readiness를 선언한 뒤의 legacy 게시를 무시합니다. 마지막 검증 radio 데이터는 carrier identity가 현재 subscription과 일치할 때만 유지할 수 있습니다. 가용성 연속성과 다른 identity에서 데이터를 재사용할 권한을 혼동해서는 안 됩니다. eSIM 전환 중 identity가 바뀌면 일치 값이 오거나 기한이 끝날 때까지 보수적인 unprovisioned 경로를 씁니다."
+        },
+        {
+          "speaker": "Marco Silva",
+          "en": "Consumers must not own separate timers. A camera-provider restart at second fourteen could reset its local timer and extend the compatibility window. The deadline must be minted once by the bridge from elapsed realtime and boot generation, then included with the translated value. Consumers may choose stricter behavior but cannot extend it. I will build four combinations: R80 vendor with R81 system, R81 with R81, restored R80 radio package on R81 vendor, and slot rollback during an active bridge window. We will inject owner delays, duplicate publications, malformed values, and two userspace restarts. That matrix should expose precedence mistakes rather than merely confirm the happy path. Each lane will include a no-bridge control image.",
+          "ko": "consumer가 별도 timer를 소유하면 안 됩니다. 14초 시점의 camera-provider 재시작이 local timer를 초기화해 호환성 기간을 늘릴 수 있습니다. 기한은 bridge가 elapsed realtime과 boot generation에서 한 번만 발급하고 번역 값에 포함해야 합니다. consumer는 더 엄격하게 동작할 수 있지만 연장할 수 없습니다. R80 vendor와 R81 system, R81과 R81, R81 vendor에 복원한 R80 radio package, 활성 bridge 기간 중 slot rollback의 네 조합을 만들겠습니다. owner 지연, 중복 게시, malformed 값, 두 번의 userspace restart를 주입합니다. 그 matrix는 happy path 확인이 아니라 우선순위 실수를 드러내야 합니다. 각 lane에는 bridge 없는 control image를 포함합니다."
+        },
+        {
+          "speaker": "Amina Yusuf",
+          "en": "The matrix also needs an authorization-negative lane. Run an untrusted vendor test process that can publish the legacy label but lacks the expected owner identity. If the bridge translates its value, the design fails regardless of functional success. Add attempts to exceed length bounds, use embedded separators, change the property between validation and copy, and replay a publication from the previous boot generation. The bridge must capture source identity and value digest atomically before validation. This gives us forensic evidence without turning compatibility telemetry into a new data exposure. I also want a denial burst test: one thousand malformed publications must not delay valid radio provisioning or create one log line per attempt.",
+          "ko": "matrix에는 authorization-negative lane도 필요합니다. legacy label을 게시할 수 있지만 예상 owner identity가 없는 신뢰되지 않은 vendor test process를 실행하십시오. bridge가 그 값을 번역하면 기능 성공과 무관하게 설계 실패입니다. 길이 제한 초과, embedded separator 사용, 검증과 복사 사이 property 변경, 이전 boot generation 게시 재생을 추가합니다. bridge는 검증 전에 source identity와 value digest를 원자적으로 capture해야 합니다. 그러면 호환성 telemetry를 새 데이터 노출로 만들지 않으면서 forensic evidence를 얻습니다. malformed publication 1,000건의 denial burst가 유효한 radio provisioning을 늦추거나 시도마다 log 한 줄을 만들지 않는지도 시험해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision Owners and Gates",
+      "title_ko": "결정, 담당자와 게이트",
+      "turns": [
+        {
+          "speaker": "Daniel Cho",
+          "en": "Here is the release decision for R81. We will not land the forty-two-alias deletion as written. We approve a revision that removes thirty-eight aliases and introduces a compiled, four-key, one-way bridge for vendor N minus one. Activation requires the declared baseline, missing owner capability, matching source identity, valid value shape, and an empty destination for the boot generation. The bridge carries a nonrenewable deadline and never writes from new names back to old names. R81 integration remains open, but expansion beyond internal engineering devices is blocked until functional, rollback, and authorization-negative gates pass. This preserves the service contract without converting temporary compatibility into a permanent public interface. Any fifth key requires a new governance decision.",
+          "ko": "릴리스 결정입니다. 현재 작성된 42개 alias 삭제는 반영하지 않습니다. 38개 alias를 제거하고 vendor N-1용 compile된 4개 key 단방향 bridge를 도입하는 수정안을 승인합니다. 활성화에는 선언된 baseline, owner capability 부재, 일치하는 source identity, 유효한 값 형태, 해당 boot generation의 빈 destination이 필요합니다. bridge는 갱신 불가 기한을 전달하고 새 이름에서 기존 이름으로 쓰지 않습니다. R81 통합은 계속 열어 두지만 기능, rollback, authorization-negative gate를 통과하기 전에는 내부 engineering 단말을 넘어 확대할 수 없습니다. 이 결정은 임시 호환성을 영구 public interface로 만들지 않으면서 서비스 계약을 지킵니다. 다섯 번째 key는 새 거버넌스 결정이 필요합니다."
+        },
+        {
+          "speaker": "Lena Park",
+          "en": "I own the platform implementation. By 16:00 KST on November 18, I will upload the bridge patch, four-key compile-time table, atomic source capture, validation reason codes, and boot-generation deadline handling. By 11:00 on November 19, I will add counters for attempted, translated, rejected, expired, and bypassed publications, split by key and vendor baseline without recording values. I will update the ownership document with the N and N minus one rule and state that the bridge is unavailable to new callers. Code review includes Security Architecture and both consumer owners. A request for a fifth key returns to Release Governance instead of expanding the table informally. The patch will include a kill switch that defaults off outside the declared matrix.",
+          "ko": "platform 구현은 제가 담당합니다. 11월 18일 16시(KST)까지 bridge patch, 4개 key compile-time table, 원자적 source capture, validation reason code, boot-generation deadline 처리를 올립니다. 11월 19일 11시까지 값을 기록하지 않고 key와 vendor baseline별 attempted, translated, rejected, expired, bypassed counter를 추가합니다. ownership 문서에 N 및 N-1 규칙과 bridge를 새 caller가 쓸 수 없다는 내용을 적겠습니다. code review에는 보안 아키텍처와 consumer owner 두 팀이 참여합니다. 다섯 번째 key 요청은 table을 비공식적으로 늘리지 않고 릴리스 거버넌스로 돌아갑니다. patch에는 선언된 matrix 밖에서 기본 off인 kill switch를 포함합니다."
+        },
+        {
+          "speaker": "Marco Silva",
+          "en": "I own the BSP handshake and mixed-build images. The capability bit, owner identity claim, and legacy-default behavior will be ready by 13:00 KST on November 18. I will produce four matrix images and signed manifests by 18:00. On rollback, R80 must ignore the additional handshake field and continue publishing old properties; R81 must not retain translated values across slot change. I will attach trace points for owner start, capability declaration, publication generation, bridge decision, and consumer acknowledgement. If any trace cannot be joined by boot generation and source identity, the evidence is incomplete even when the visible feature works. I will also document exactly which repair-tool version creates each supported mixed image.",
+          "ko": "BSP handshake와 혼합 빌드 image는 제가 담당합니다. capability bit, owner identity claim, legacy-default 동작은 11월 18일 13시(KST)까지 준비합니다. 네 matrix image와 signed manifest는 18시까지 만듭니다. rollback에서 R80은 추가 handshake field를 무시하고 기존 property를 계속 게시해야 하며 R81은 slot 변경을 넘어 번역 값을 유지하면 안 됩니다. owner start, capability declaration, publication generation, bridge decision, consumer acknowledgement trace point를 붙입니다. 어떤 trace든 boot generation과 source identity로 연결할 수 없다면 눈에 보이는 feature가 동작해도 증거는 불완전합니다. 각 지원 혼합 image를 만드는 repair-tool version도 정확히 문서화합니다."
+        },
+        {
+          "speaker": "Priya Raman",
+          "en": "I own qualification and the release report. The first two hundred matrix cycles finish by 12:00 KST on November 20, and the extended six-hundred-cycle run finishes by 09:00 on November 23. Hard failures are loss of emergency provisioning, default camera calibration after provider restart, unauthorized translation, stale generation acceptance, timer renewal, raw value exposure, or regression on the full R81 stack. The target is one hundred percent correct translation for valid legacy publications and one hundred percent rejection for invalid or unauthorized ones. I will publish raw counts, not only percentages, and keep every conclusion linked to its image manifest, injected condition, and trace bundle. A missing trace is a failed run, not an excluded sample.",
+          "ko": "qualification과 릴리스 보고서는 제가 담당합니다. 첫 matrix cycle 200회는 11월 20일 12시(KST)까지, 확장 600회는 11월 23일 9시까지 끝냅니다. hard failure는 긴급 프로비저닝 상실, provider 재시작 뒤 기본 camera calibration, 무단 번역, 오래된 generation 수락, timer 갱신, raw value 노출, 전체 R81 stack regression입니다. 목표는 유효 legacy publication의 정확한 번역 100%, 유효하지 않거나 권한 없는 publication 거부 100%입니다. percentage뿐 아니라 raw count를 게시하고 모든 결론을 image manifest, 주입 조건, trace bundle에 연결합니다. trace 누락은 제외 표본이 아니라 실패한 run입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Follow Up and Removal Plan",
+      "title_ko": "후속 회의와 제거 계획",
+      "turns": [
+        {
+          "speaker": "Amina Yusuf",
+          "en": "I own security review and negative tests. I will deliver the threat-model delta by 15:00 KST on November 18 and review atomic capture the same day. My test package is due at 10:00 on November 19. Approval requires a fixed destination table, verified publisher identity, bounded parsing, no raw values in telemetry, and no direct vendor write permission to the new namespace. I will verify that rejected input cannot keep the bridge busy enough to delay valid radio provisioning. A burst of one thousand malformed publications must stay below three milliseconds of total CPU time and produce rate-limited diagnostics rather than one entry per attempt. Any dynamic destination or unbounded parser is an immediate rejection.",
+          "ko": "보안 검토와 negative test는 제가 담당합니다. threat-model delta는 11월 18일 15시(KST)까지 제공하고 같은 날 atomic capture를 검토합니다. test package는 11월 19일 10시까지 제출합니다. 승인에는 고정 destination table, 검증된 publisher identity, 제한된 parsing, telemetry의 raw value 부재, 새 namespace에 대한 vendor 직접 쓰기 권한 부재가 필요합니다. 거부된 입력이 bridge를 바쁘게 만들어 유효한 radio provisioning을 늦출 수 없는지도 확인합니다. malformed publication 1,000건 burst는 총 CPU time 3밀리초 미만이며 시도마다 entry를 남기지 않고 rate-limited diagnostics를 만들어야 합니다. 동적 destination이나 무제한 parser는 즉시 거부입니다."
+        },
+        {
+          "speaker": "Jisoo Han",
+          "en": "I own the program ledger and consumer sign-off. By noon KST on November 19, radio, camera, and touch owners will classify absence behavior, approve per-key deadlines, and document the user-visible fallback. I will reject sign-off that merely says no issue observed. Each owner must state the invariant, evidence source, and rollback action. For service operations, I will publish a repair-center note explaining that R81 system with R80 vendor remains supported, while arbitrary older combinations do not. The note includes diagnostic reason codes and the escalation bundle but will not encourage technicians to edit properties manually. Manual repair would bypass the ownership evidence we are adding and make later incident classification unreliable.",
+          "ko": "프로그램 ledger와 consumer sign-off는 제가 담당합니다. 11월 19일 정오(KST)까지 radio, camera, touch owner가 값 부재 동작을 분류하고 key별 기한을 승인하며 사용자에게 보이는 fallback을 문서화합니다. 단순히 문제가 관찰되지 않았다고 쓰는 sign-off는 거부합니다. 각 owner는 invariant, evidence source, rollback action을 밝혀야 합니다. 서비스 운영을 위해 R81 system과 R80 vendor는 계속 지원되지만 임의의 더 오래된 조합은 지원되지 않는다는 repair-center note를 게시합니다. note에는 reason code와 escalation bundle을 포함하지만 technician에게 property 수동 편집을 권하지 않습니다. 수동 repair는 추가한 ownership evidence를 우회하고 이후 incident 분류를 신뢰할 수 없게 만듭니다."
+        },
+        {
+          "speaker": "Daniel Cho",
+          "en": "The integration checkpoint is November 20 at 16:30 KST. We will review the two-hundred-cycle matrix, security-negative results, consumer sign-offs, and rollback trace before enabling five percent of internal devices. The release gate meeting is November 23 at 14:00 KST with the six participants here. Options are expand to service pilots, hold cleanup, or revert the namespace change. The removal checkpoint for the four-key bridge is R83 planning on January 12 at 10:00 KST. Removal requires thirty consecutive days with zero successful translations on supported images and confirmed repair-tool adoption. Low use is evidence to investigate, not automatic permission to delete. A single supported repair flow still using translation blocks removal until its owner presents a migration date.",
+          "ko": "통합 checkpoint는 11월 20일 16시 30분(KST)입니다. 내부 단말 5%에서 활성화하기 전에 200-cycle matrix, security-negative 결과, consumer sign-off, rollback trace를 검토합니다. 릴리스 gate 회의는 여기 여섯 명이 참석해 11월 23일 14시(KST)에 진행합니다. 선택지는 service pilot 확대, cleanup 보류, namespace 변경 revert입니다. 4개 key bridge 제거 checkpoint는 1월 12일 10시(KST)의 R83 planning입니다. 제거에는 지원 image에서 30일 연속 성공 번역 0건과 repair-tool adoption 확인이 필요합니다. 낮은 사용량은 조사할 증거이지 자동 삭제 허가는 아닙니다. 지원 repair flow 하나라도 번역을 쓰면 owner가 migration date를 제시할 때까지 제거가 막힙니다."
+        },
+        {
+          "speaker": "Jisoo Han",
+          "en": "I will read back the agreement. We remove thirty-eight aliases now and protect four critical keys through a one-way, identity-checked, generation-bound bridge. The bridge supports vendor N minus one, has per-key nonrenewable deadlines, validates shapes, and never exposes raw values in diagnostics. Lena owns platform code, Marco owns the BSP handshake and images, Priya owns qualification, Amina owns security gates, Daniel owns release decisions, and I own consumer and service alignment. No team may add keys or extend deadlines without returning to this group. The first checkpoint is November 20 at 16:30 KST, and the release decision is November 23 at 14:00 KST. Minutes and the action ledger will be circulated within thirty minutes.",
+          "ko": "합의를 다시 읽겠습니다. 지금 alias 38개를 제거하고 중요 key 4개만 identity 확인 및 generation 제한 단방향 bridge로 보호합니다. bridge는 vendor N-1을 지원하고 key별 갱신 불가 기한을 가지며 값 형태를 검증하고 diagnostics에 raw value를 노출하지 않습니다. Lena는 platform code, Marco는 BSP handshake와 image, Priya는 qualification, Amina는 security gate, Daniel은 release decision, 저는 consumer와 service alignment를 담당합니다. 어느 팀도 이 그룹으로 돌아오지 않고 key를 추가하거나 기한을 연장할 수 없습니다. 첫 checkpoint는 11월 20일 16시 30분(KST), 릴리스 결정은 11월 23일 14시(KST)입니다. 30분 안에 회의록과 action ledger를 배포하겠습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "distinguish a legitimate compatibility dependency from an undocumented shortcut",
+      "meaning_ko": "정당한 호환성 의존성과 문서화되지 않은 지름길을 구분하다",
+      "usage_ko": "의존성의 정당성을 판별할 때",
+      "example": "We need to distinguish a legitimate compatibility dependency from an undocumented shortcut, agree on a bounded bridge, and assign evidence with deadlines.",
+      "practice": "We must distinguish a supported dependency from a convenient shortcut."
+    },
+    {
+      "phrase": "the first place where the contract breaks",
+      "meaning_ko": "계약이 처음 깨지는 지점",
+      "usage_ko": "실패 경계를 특정할 때",
+      "example": "That difference makes restart behavior the first place where the contract breaks, not the original cold boot.",
+      "practice": "The retry path is the first place where the contract breaks."
+    },
+    {
+      "phrase": "not an exotic laboratory case",
+      "meaning_ko": "특이한 실험실 사례가 아니다",
+      "usage_ko": "실제 지원 범위임을 강조할 때",
+      "example": "Therefore mixed-version behavior is not an exotic laboratory case.",
+      "practice": "This sequence is not an exotic laboratory case; support sees it weekly."
+    },
+    {
+      "phrase": "a coverage gap we own",
+      "meaning_ko": "우리가 책임질 테스트 공백",
+      "usage_ko": "검증 누락을 인정할 때",
+      "example": "That is a coverage gap we own.",
+      "practice": "The missing rollback lane is a coverage gap we own."
+    },
+    {
+      "phrase": "The burden of proof sits with",
+      "meaning_ko": "입증 책임은 ~에 있다",
+      "usage_ko": "변경 책임을 분명히 할 때",
+      "example": "The burden of proof sits with the team removing an interface, but each consumer owner must show whether absence is fail-safe, recoverable, or user-visible.",
+      "practice": "The burden of proof sits with the team changing the format."
+    },
+    {
+      "phrase": "not a general alias service",
+      "meaning_ko": "일반적인 별칭 서비스가 아니다",
+      "usage_ko": "범위를 제한할 때",
+      "example": "My proposal is not a general alias service.",
+      "practice": "The adapter is not a general alias service."
+    },
+    {
+      "phrase": "makes the compatibility debt visible",
+      "meaning_ko": "호환성 부채를 가시화하다",
+      "usage_ko": "임시 장치의 사용을 측정할 때",
+      "example": "That makes the compatibility debt visible instead of preserving a silent bidirectional mirror.",
+      "practice": "A counter makes the compatibility debt visible."
+    },
+    {
+      "phrase": "becomes another race",
+      "meaning_ko": "또 다른 경합 조건이 되다",
+      "usage_ko": "임시 수정의 위험을 경고할 때",
+      "example": "Otherwise a temporary bridge becomes another race.",
+      "practice": "Without a generation token, recovery becomes another race."
+    },
+    {
+      "phrase": "fail closed and emit a reason code",
+      "meaning_ko": "안전하게 거부하고 사유 코드를 내다",
+      "usage_ko": "검증 실패 동작을 정할 때",
+      "example": "Translation must fail closed and emit a reason code.",
+      "practice": "The parser must fail closed and emit a reason code."
+    },
+    {
+      "phrase": "an endlessly renewable grace period",
+      "meaning_ko": "끝없이 갱신되는 유예 기간",
+      "usage_ko": "기한 연장을 금지할 때",
+      "example": "After the deadline, absence becomes an explicit failure, not an endlessly renewable grace period.",
+      "practice": "A restart must not create an endlessly renewable grace period."
+    },
+    {
+      "phrase": "confuse availability continuity with permission",
+      "meaning_ko": "가용성 연속성과 권한을 혼동하다",
+      "usage_ko": "데이터 재사용 경계를 설명할 때",
+      "example": "We should not confuse availability continuity with permission to reuse data under a different identity.",
+      "practice": "Do not confuse availability continuity with permission to reuse credentials."
+    },
+    {
+      "phrase": "expose precedence mistakes",
+      "meaning_ko": "우선순위 오류를 드러내다",
+      "usage_ko": "실험 목적을 설명할 때",
+      "example": "That matrix should expose precedence mistakes rather than merely confirm the happy path.",
+      "practice": "The mixed-version test should expose precedence mistakes."
+    },
+    {
+      "phrase": "forensic evidence without turning compatibility telemetry into a new data exposure",
+      "meaning_ko": "호환성 원격 측정을 새 정보 노출로 만들지 않는 포렌식 증거",
+      "usage_ko": "진단 정보 최소화를 설명할 때",
+      "example": "This gives us forensic evidence without turning compatibility telemetry into a new data exposure.",
+      "practice": "Store digests to retain forensic evidence without turning compatibility telemetry into a new data exposure."
+    },
+    {
+      "phrase": "the evidence is incomplete",
+      "meaning_ko": "증거가 불완전하다",
+      "usage_ko": "추적 연결이 부족할 때",
+      "example": "If any trace cannot be joined by boot generation and source identity, the evidence is incomplete even when the visible feature works.",
+      "practice": "If the manifest is missing, the evidence is incomplete."
+    },
+    {
+      "phrase": "Low use is evidence to investigate",
+      "meaning_ko": "낮은 사용량은 조사할 증거다",
+      "usage_ko": "제거 기준을 신중히 다룰 때",
+      "example": "Low use is evidence to investigate, not automatic permission to delete.",
+      "practice": "Low use is evidence to investigate, not permission to remove the fallback."
+    }
+  ]
+}
