@@ -1,0 +1,269 @@
+{
+  "date": "2026-11-18",
+  "category": "business",
+  "topic": "sw-debug",
+  "subject": "Tracing UFS Write Booster Stalls after Runtime Suspend Resume",
+  "title_ko": "Runtime Suspend 복귀 후 UFS Write Booster 정지 원인 추적",
+  "summary_ko": "가상의 Android 저장장치 디버깅 회의에서 runtime suspend 복귀 중 Write Booster commit·discard·flush가 겹치며 UFS queue가 멈추는 문제를 분석한다. 팀들은 host lock order와 F31 firmware watchdog의 양쪽 실패 증거를 검토하고, phase 기반 제한 복구·모델별 억제책·독립 수정과 정량 릴리스 게이트를 결정한다. 모든 인물·조직·단말·저장장치·controller·firmware·빌드·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Minseo Lee",
+      "team": "Program and Release"
+    },
+    {
+      "name": "Grace Chen",
+      "team": "Program and Release"
+    },
+    {
+      "name": "Arjun Mehta",
+      "team": "Kernel Storage"
+    },
+    {
+      "name": "Sofia Marin",
+      "team": "UFS Firmware"
+    },
+    {
+      "name": "Noah Kim",
+      "team": "Performance Reliability"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Incident Scope",
+      "title_ko": "참석 확인과 장애 범위",
+      "turns": [
+        {
+          "speaker": "Minseo Lee",
+          "en": "Thanks for joining the storage escalation. Kernel Storage, UFS Firmware, Performance Reliability, and Release Management are represented. We need to decide whether build S82.6 can continue internal rollout after three devices stopped completing writes following a runtime-suspend resume. The user-visible symptom is a frozen camera preview followed by a system watchdog reboot, but the first blocked tasks are in the filesystem journal and package database. No data loss has been confirmed. Today we must separate a controller queue freeze from an upper-layer lock, identify the trigger sequence, choose a containment that does not disable storage acceleration for every model, and assign a fix with measurable gates. Please challenge assumptions with trace evidence rather than team ownership.",
+          "ko": "저장장치 긴급 회의에 참석해 주셔서 감사합니다. 커널 저장장치, UFS 펌웨어, 성능 신뢰성, 릴리스 관리 팀이 참석했습니다. runtime suspend 복귀 뒤 쓰기 완료가 멈춘 단말 3대 때문에 S82.6 빌드의 내부 배포를 계속할지 결정해야 합니다. 사용자가 보는 증상은 카메라 미리보기 정지 뒤 시스템 watchdog 재부팅이지만 처음 막힌 task는 filesystem journal과 package database입니다. 데이터 손실은 확인되지 않았습니다. 오늘 controller queue freeze와 상위 계층 lock을 구분하고 trigger sequence를 찾으며 모든 모델의 저장장치 가속을 끄지 않는 억제책과 정량 gate를 정해야 합니다. 팀 소유권이 아니라 trace 증거로 가정에 이의를 제기해 주십시오."
+        },
+        {
+          "speaker": "Arjun Mehta",
+          "en": "Kernel Storage is here. All three failures share a narrow sequence: Write Booster is active, the filesystem issues a flush with force-unit-access, the host enters runtime suspend within thirty milliseconds, and a background discard arrives during resume. The block layer submits new reads, but command completion stops for every queue. The host controller doorbell remains nonzero, interrupt counters stay flat, and the recovery thread waits on a power-mode transition lock. A software-only lock inversion remains possible, yet the last trace event before silence is a vendor query that asks the device to commit the booster buffer. We need synchronized host and device timelines before calling either side the root cause.",
+          "ko": "커널 저장장치 팀이 참석했습니다. 실패 3건 모두 좁은 순서를 공유합니다. Write Booster가 활성화되고 filesystem이 force-unit-access가 있는 flush를 발행하며 30밀리초 안에 host가 runtime suspend에 들어가고 resume 중 background discard가 도착합니다. block layer는 새 read를 제출하지만 모든 queue에서 command completion이 멈춥니다. host controller doorbell은 0이 아니고 interrupt counter는 증가하지 않으며 recovery thread는 power-mode transition lock을 기다립니다. software-only lock inversion 가능성은 남지만 침묵 전 마지막 trace event는 device에 booster buffer commit을 요청하는 vendor query입니다. 어느 쪽이 원인이라고 부르기 전에 host와 device timeline을 동기화해야 합니다."
+        },
+        {
+          "speaker": "Sofia Marin",
+          "en": "UFS Firmware is represented. The controller log shows that the device accepted the commit query but never received the matching hibernation-exit acknowledgement. From firmware's view, the host changed link state while a nonvolatile booster commit was still pending. Our specification allows the device to delay new commands for up to eighty milliseconds, not indefinitely. A device-side watchdog should abort the commit at one hundred milliseconds, but it did not fire in the failing build. I disagree that the missing interrupt proves a firmware hang, because the host masks the completion interrupt during power-mode reconfiguration. We must determine whether the device failed to signal or the host failed to unmask before the evidence goes dark.",
+          "ko": "UFS 펌웨어 팀이 참석했습니다. controller log는 device가 commit query를 수락했지만 대응하는 hibernation-exit acknowledgement를 받지 못했음을 보여줍니다. 펌웨어 관점에서는 비휘발성 booster commit이 진행 중인데 host가 link state를 바꿨습니다. 규격상 device는 새 command를 최대 80밀리초 지연할 수 있지만 무기한은 아닙니다. device-side watchdog은 100밀리초에 commit을 abort해야 하지만 실패 빌드에서는 동작하지 않았습니다. power-mode 재구성 중 host가 completion interrupt를 mask하므로 interrupt 부재가 펌웨어 hang을 증명한다는 데는 동의하지 않습니다. 증거가 끊기기 전에 device가 signal하지 않았는지 host가 unmask하지 않았는지 판단해야 합니다."
+        },
+        {
+          "speaker": "Noah Kim",
+          "en": "Performance Reliability is present. We reproduced one stall in four hundred and eighty cycles on the compact model and none in six hundred cycles on the premium model. The compact model uses firmware F31 and a two-gigabyte booster allocation; the premium model uses F32 and four gigabytes. Temperature, free space, and battery state were not predictive. Removing discard prevents the stall, but so does adding a five-millisecond delay before runtime suspend, so neither result identifies ownership. Our reference workload combines burst photography, application update, and screen-off. It produces the flush, discard, and suspend overlap without artificial commands. I want the fix evaluated against that workload, because a synthetic queue test can miss the scheduling pressure that creates the race.",
+          "ko": "성능 신뢰성 팀이 참석했습니다. 소형 모델 480회 중 1회 stall을 재현했고 프리미엄 모델 600회에서는 0건이었습니다. 소형은 F31 펌웨어와 2GB booster allocation, 프리미엄은 F32와 4GB를 씁니다. 온도, 여유 공간, 배터리 상태는 예측 요인이 아니었습니다. discard를 제거하면 stall이 사라지지만 runtime suspend 전에 5밀리초 delay를 넣어도 사라지므로 어느 결과도 소유권을 특정하지 않습니다. 기준 workload는 burst 촬영, 앱 업데이트, 화면 꺼짐을 결합해 인위적 command 없이 flush, discard, suspend 중첩을 만듭니다. 합성 queue test는 race를 만드는 scheduling pressure를 놓칠 수 있으므로 이 workload로 수정을 평가해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence Reconstruction",
+      "title_ko": "증거 재구성",
+      "turns": [
+        {
+          "speaker": "Grace Chen",
+          "en": "Release Management is joining. Before debating fixes, I want a shared failure clock. The host trace uses monotonic nanoseconds, firmware records device ticks, and the power controller reports a third counter. A two-millisecond alignment error is larger than the disputed interval. Each team should name an event visible on both sides. We also need to separate trigger, vulnerability, and consequence. Discard may trigger the overlap, a missed state transition may be the vulnerability, and the watchdog reboot is only the consequence. If we collapse those roles, we will disable the easiest trigger and leave the underlying deadlock available to another command. The release decision depends on causal evidence, not on which workaround produces the fastest green run.",
+          "ko": "릴리스 관리 팀이 참여합니다. 수정안을 논의하기 전에 공통 failure clock이 필요합니다. host trace는 monotonic nanosecond, 펌웨어는 device tick, power controller는 세 번째 counter를 씁니다. 2밀리초 정렬 오차가 논쟁 구간보다 큽니다. 각 팀은 양쪽에서 보이는 event 하나를 지정해야 합니다. 또한 trigger, vulnerability, consequence를 분리해야 합니다. discard는 중첩을 촉발할 수 있고 누락된 state transition이 취약점일 수 있으며 watchdog reboot는 결과일 뿐입니다. 이 역할을 뭉치면 가장 쉬운 trigger만 끄고 다른 command가 같은 deadlock을 일으킬 여지를 남깁니다. 릴리스 결정은 가장 빨리 초록색 run을 만드는 workaround가 아니라 인과 증거에 달려 있습니다."
+        },
+        {
+          "speaker": "Arjun Mehta",
+          "en": "The common event can be the Write Booster commit query sequence number. The host logs it before issuing the query, and firmware logs it after decoding. I can add a resume epoch and interrupt-mask state to the same record. In the failing trace, the host sets hibernation exit, waits for link-up, and then takes the transition lock before unmasking the completion interrupt. Meanwhile the error handler needs that lock to clear a timed-out query. That is a credible lock cycle, but it still requires the query to exceed its normal latency. My working theory is a two-sided failure: F31 misses its commit watchdog, while the host recovery order turns a bounded firmware delay into an indefinite queue freeze. Either side alone should have recovered.",
+          "ko": "공통 event는 Write Booster commit query sequence number로 정할 수 있습니다. host는 query 발행 전에 기록하고 펌웨어는 decode 뒤 기록합니다. 같은 record에 resume epoch와 interrupt-mask state를 추가할 수 있습니다. 실패 trace에서 host는 hibernation exit를 설정하고 link-up을 기다린 뒤 completion interrupt를 unmask하기 전에 transition lock을 잡습니다. 동시에 error handler는 timeout query를 정리하려고 그 lock이 필요합니다. 이는 신뢰할 만한 lock cycle이지만 query가 정상 latency를 넘는 조건이 여전히 필요합니다. 제 가설은 양쪽 실패입니다. F31은 commit watchdog을 놓치고 host recovery 순서가 제한된 펌웨어 지연을 무기한 queue freeze로 바꿉니다. 어느 한쪽만 정상이어도 복구됐어야 합니다."
+        },
+        {
+          "speaker": "Sofia Marin",
+          "en": "That theory fits the device log. F31 starts the watchdog from the moment flash programming begins, but the timer is paused when link state becomes transitional. It resumes only after hibernation exit completes. If the host waits for the query while the device waits for exit completion, the timer never advances. F32 changed the watchdog to an always-on clock for an unrelated power issue, which may explain the model difference. I can create an F31 diagnostic build that records pause reason, remaining budget, and abort action without changing timing. I oppose immediately backporting the F32 timer because the newer branch also changed flash wear accounting. We should isolate the watchdog patch and prove that it does not alter booster durability behavior.",
+          "ko": "그 가설은 device log와 맞습니다. F31은 flash programming이 시작될 때 watchdog을 시작하지만 link state가 transitional이면 timer를 멈춥니다. hibernation exit가 완료된 뒤에만 재개합니다. host가 query를 기다리고 device가 exit 완료를 기다리면 timer가 진행하지 않습니다. F32는 다른 전력 문제 때문에 watchdog을 always-on clock으로 바꿨으며 이것이 모델 차이를 설명할 수 있습니다. timing을 바꾸지 않고 pause reason, remaining budget, abort action을 기록하는 F31 diagnostic build를 만들 수 있습니다. 새 branch는 flash wear accounting도 바꿨으므로 F32 timer를 즉시 backport하는 데 반대합니다. watchdog patch를 분리하고 booster 내구 동작을 바꾸지 않음을 입증해야 합니다."
+        },
+        {
+          "speaker": "Noah Kim",
+          "en": "We can test the two-sided theory with a four-cell matrix. Cell A is current host with F31, cell B is reordered host recovery with F31, cell C is current host with the isolated always-on watchdog, and cell D combines both fixes. Each cell runs the reference workload two thousand times plus a forced query delay sweep from forty to one hundred and forty milliseconds. If either single fix eliminates indefinite stalls while preserving bounded recovery, it is independently protective. If only cell D passes, we have hidden coupling and should not ship under schedule pressure. We will measure queue recovery time, booster flush latency, write amplification, energy, and camera frame loss. A non-stall result is insufficient if the containment silently destroys user performance.",
+          "ko": "양쪽 실패 가설은 4개 cell matrix로 시험할 수 있습니다. A는 현재 host와 F31, B는 recovery 순서를 바꾼 host와 F31, C는 현재 host와 분리된 always-on watchdog, D는 두 수정을 결합합니다. 각 cell은 기준 workload를 2,000회 실행하고 query delay를 40~140밀리초로 강제 sweep합니다. 단일 수정이 bounded recovery를 유지하면서 indefinite stall을 없애면 독립적인 보호책입니다. D만 통과하면 숨은 coupling이 있으므로 일정 압박으로 배포해서는 안 됩니다. queue recovery time, booster flush latency, write amplification, energy, camera frame loss를 측정합니다. stall이 없더라도 억제책이 사용자 성능을 조용히 망가뜨리면 충분하지 않습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Containment Debate",
+      "title_ko": "억제책 이견",
+      "turns": [
+        {
+          "speaker": "Minseo Lee",
+          "en": "We need a containment for tonight's build before permanent patches are ready. One option disables Write Booster on the compact model. Another blocks runtime suspend while a commit query is outstanding. A third defers discard until resume reaches a stable epoch. I do not want three simultaneous changes because we would lose diagnostic value. The containment must be reversible, narrow, and observable. My preference is to hold a temporary power reference only around the commit query, capped at two hundred milliseconds, then force recovery if the cap expires. That targets the disputed window without changing filesystem semantics. However, I need Performance Reliability to quantify energy impact and Firmware to confirm that forced recovery cannot interrupt flash programming unsafely.",
+          "ko": "영구 patch가 준비되기 전 오늘 밤 빌드에 넣을 억제책이 필요합니다. 한 선택은 소형 모델에서 Write Booster를 끄는 것입니다. 다른 선택은 commit query가 진행 중일 때 runtime suspend를 막는 것입니다. 세 번째는 resume이 stable epoch에 도달할 때까지 discard를 미루는 것입니다. 진단 가치를 잃으므로 세 변경을 동시에 넣고 싶지 않습니다. 억제책은 되돌릴 수 있고 좁으며 관찰 가능해야 합니다. 제 선호는 commit query 주변에서만 최대 200밀리초의 임시 power reference를 유지하고 cap 만료 시 recovery를 강제하는 것입니다. filesystem semantics를 바꾸지 않고 논쟁 구간을 겨냥합니다. 다만 성능 신뢰성 팀은 energy 영향을 정량화하고 펌웨어 팀은 강제 recovery가 flash programming을 위험하게 중단하지 않는지 확인해야 합니다."
+        },
+        {
+          "speaker": "Sofia Marin",
+          "en": "Holding power is safe only if the host does not reset the device while the nonvolatile commit marker is half-written. The query status register exposes three phases: accepted, programming, and committed. Recovery may abort in accepted, must wait in programming, and may complete normally in committed. I propose that the two-hundred-millisecond cap trigger a phase check rather than an unconditional reset. If programming persists beyond another one hundred milliseconds, the host escalates to a full device reset and records a durability-risk flag for post-boot verification. This is more complex than a simple timeout, but it protects metadata integrity. The diagnostic firmware will expose the phase through an existing read-only query, so no new persistent interface is required.",
+          "ko": "power 유지가 안전하려면 비휘발성 commit marker가 절반만 쓰인 상태에서 host가 device를 reset하면 안 됩니다. query status register는 accepted, programming, committed 세 phase를 노출합니다. accepted에서는 recovery가 abort할 수 있고 programming에서는 기다려야 하며 committed에서는 정상 완료할 수 있습니다. 200밀리초 cap이 무조건 reset이 아니라 phase check를 촉발하게 제안합니다. programming이 추가 100밀리초를 넘으면 host가 full device reset으로 escalate하고 부팅 후 검증을 위한 durability-risk flag를 기록합니다. 단순 timeout보다 복잡하지만 metadata integrity를 보호합니다. diagnostic firmware는 기존 read-only query로 phase를 노출하므로 새 persistent interface가 필요하지 않습니다."
+        },
+        {
+          "speaker": "Arjun Mehta",
+          "en": "I can implement that state machine, but I object to waiting three hundred milliseconds while all foreground I/O is blocked. The host can freeze new booster writes, preserve the commit command, and release normal reads to a separate hardware queue after the first two hundred milliseconds. The device specification permits reads during programming if they do not target booster metadata. We need firmware confirmation for F31, because the generic specification is not enough. If confirmed, camera and launcher reads can continue while the commit resolves. If not, the containment should fail visibly into bounded recovery rather than pretend the system is responsive. I will never replay the commit automatically after reset; replay requires evidence that the previous transaction did not reach committed phase.",
+          "ko": "그 state machine을 구현할 수 있지만 foreground I/O가 모두 막힌 채 300밀리초를 기다리는 데는 반대합니다. host는 새 booster write를 freeze하고 commit command를 보존하며 첫 200밀리초 뒤 정상 read를 별도 hardware queue로 보낼 수 있습니다. device 규격은 booster metadata를 대상으로 하지 않는 read를 programming 중 허용합니다. 일반 규격만으로는 부족하므로 F31 확인이 필요합니다. 확인되면 commit이 해결되는 동안 camera와 launcher read를 계속할 수 있습니다. 확인되지 않으면 responsive한 척하지 말고 bounded recovery로 명확히 실패해야 합니다. reset 뒤 commit을 자동 replay하지 않겠습니다. replay에는 이전 transaction이 committed phase에 도달하지 않았다는 증거가 필요합니다."
+        },
+        {
+          "speaker": "Noah Kim",
+          "en": "For the temporary build, I recommend the narrower power-reference containment without read bypass. The bypass adds queue routing that has not been stress-tested and could create ordering surprises. Our measurements show that a two-hundred-millisecond pause drops one camera frame, while the current deadlock loses the session and reboots the device. Energy cost is 0.06 milliamp-hours per triggered cycle, and the sequence occurs in fewer than three per ten thousand screen-off events. We can accept that for an internal cohort. The gate should reject any cap renewal, any pause above three hundred milliseconds, or any storage reset without a phase record. We can evaluate read bypass separately after the root-cause fixes are stable.",
+          "ko": "임시 빌드에는 read bypass 없이 더 좁은 power-reference 억제책을 권합니다. bypass는 stress test되지 않은 queue routing을 추가해 ordering surprise를 만들 수 있습니다. 측정상 200밀리초 pause는 camera frame 1개를 떨어뜨리지만 현재 deadlock은 session을 잃고 device를 재부팅합니다. energy cost는 trigger cycle당 0.06mAh이고 sequence는 screen-off event 10,000건당 3건 미만입니다. 내부 cohort에서는 수용할 수 있습니다. cap 갱신, 300밀리초 초과 pause, phase record 없는 storage reset은 모두 gate에서 거부해야 합니다. read bypass는 root-cause 수정이 안정된 뒤 별도로 평가할 수 있습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision Owners and Deadlines",
+      "title_ko": "결정, 담당자와 기한",
+      "turns": [
+        {
+          "speaker": "Grace Chen",
+          "en": "The decision is to pause compact-model expansion at fifteen percent while keeping the premium model at fifty percent with enhanced telemetry. We approve the nonrenewable two-hundred-millisecond power reference around booster commit for the compact model only. At expiry, the host reads phase, follows the accepted-programming-committed recovery table, and never replays without transaction evidence. We do not disable Write Booster globally, defer discard, or add read bypass in this maintenance build. Permanent work proceeds on two independent protections: host recovery must unmask before taking the transition lock, and F31 watchdog time must advance through transitional link state. Expansion requires both protections to pass separately and together, because a single passing combination could conceal mutual dependency.",
+          "ko": "결정은 소형 모델 확대를 15%에서 멈추고 프리미엄 모델은 강화 telemetry와 함께 50%를 유지하는 것입니다. 소형 모델에만 booster commit 주변의 갱신 불가 200밀리초 power reference를 승인합니다. 만료 시 host는 phase를 읽고 accepted-programming-committed recovery table을 따르며 transaction 증거 없이 replay하지 않습니다. 이 maintenance build에서 Write Booster를 전역으로 끄거나 discard를 미루거나 read bypass를 추가하지 않습니다. 영구 작업은 두 독립 보호책으로 진행합니다. host recovery는 transition lock을 잡기 전에 unmask해야 하고 F31 watchdog 시간은 transitional link state에서도 진행해야 합니다. 단일 통과 조합이 상호 의존성을 숨길 수 있으므로 두 보호책은 각각 및 함께 통과해야 합니다."
+        },
+        {
+          "speaker": "Arjun Mehta",
+          "en": "I own the host patch and containment. By 14:00 KST on November 18, I will post the power-reference state machine, phase-based recovery table, single deadline anchored to elapsed realtime, and structured trace fields. By 18:00, I will post the permanent lock-order patch and fault injection that delays query completion at five-millisecond increments. Unit tests will prove that process restart, error-handler retry, and a second discard cannot renew the deadline. I will also provide a rollback switch scoped to the compact model and build fingerprint. If a phase read itself times out, the code takes the durability-risk reset path once and prevents further booster use until post-boot verification succeeds.",
+          "ko": "host patch와 억제책은 제가 담당합니다. 11월 18일 14시(KST)까지 power-reference state machine, phase 기반 recovery table, elapsed realtime에 고정된 단일 deadline, structured trace field를 게시합니다. 18시까지 permanent lock-order patch와 query completion을 5밀리초 간격으로 지연하는 fault injection을 올립니다. unit test는 process restart, error-handler retry, 두 번째 discard가 deadline을 갱신하지 못함을 입증합니다. 소형 모델과 build fingerprint 범위의 rollback switch도 제공합니다. phase read 자체가 timeout되면 durability-risk reset 경로를 한 번 실행하고 post-boot verification이 성공할 때까지 추가 booster 사용을 막습니다."
+        },
+        {
+          "speaker": "Sofia Marin",
+          "en": "I own the diagnostic firmware and isolated watchdog correction. The diagnostic F31 image is due at 12:00 KST on November 18 with phase, pause reason, watchdog budget, and abort outcome. The isolated always-on watchdog patch is due at 10:00 on November 19. I will run ten thousand commit cycles with forced link transitions and compare write amplification, metadata checksum, and flash wear counters against stock F31. A single checksum mismatch, double commit, or wear-counter divergence above 0.5 percent is a hard failure. I will provide a signed compatibility note confirming whether normal reads are safe during programming, but that note will not authorize read bypass for this build. Firmware and host traces will share the query sequence and resume epoch.",
+          "ko": "diagnostic firmware와 분리된 watchdog 수정은 제가 담당합니다. phase, pause reason, watchdog budget, abort outcome을 포함한 diagnostic F31 image는 11월 18일 12시(KST)까지 제공합니다. isolated always-on watchdog patch는 11월 19일 10시까지 제출합니다. forced link transition이 있는 commit cycle 10,000회를 실행하고 write amplification, metadata checksum, flash wear counter를 stock F31과 비교합니다. checksum mismatch 1건, double commit, wear-counter divergence 0.5% 초과는 hard failure입니다. programming 중 normal read 안전 여부를 확인하는 signed compatibility note를 제공하지만 이번 빌드의 read bypass를 승인하지는 않습니다. 펌웨어와 host trace는 query sequence와 resume epoch를 공유합니다."
+        },
+        {
+          "speaker": "Noah Kim",
+          "en": "I own the matrix, performance gates, and long run. The four-cell two-thousand-cycle matrix finishes by 09:00 KST on November 20. The combined eight-thousand-cycle endurance run finishes by noon on November 23. Hard gates are any indefinite stall, lost committed write, deadline renewal, recovery above three hundred milliseconds, reset without phase evidence, write-amplification increase above two percent, or energy increase above 0.1 milliamp-hours per trigger. I will publish raw counts by model, firmware, host patch, delay bucket, and recovery phase. Camera frame loss is a secondary metric but still capped at two frames per trigger. Every failed run keeps its trace bundle; missing evidence counts as failure rather than an excluded sample.",
+          "ko": "matrix, performance gate, long run은 제가 담당합니다. 4개 cell 2,000-cycle matrix는 11월 20일 9시(KST)까지 끝냅니다. 결합 8,000-cycle endurance run은 11월 23일 정오까지 마칩니다. hard gate는 indefinite stall, committed write 상실, deadline 갱신, 300밀리초 초과 recovery, phase 증거 없는 reset, write amplification 2% 초과 증가, trigger당 energy 0.1mAh 초과 증가입니다. model, firmware, host patch, delay bucket, recovery phase별 raw count를 게시합니다. camera frame loss는 2차 metric이지만 trigger당 2 frame으로 제한합니다. 실패 run은 trace bundle을 유지하며 evidence 누락은 제외 표본이 아니라 실패로 계산합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Follow Up and Closing",
+      "title_ko": "후속 회의와 마무리",
+      "turns": [
+        {
+          "speaker": "Minseo Lee",
+          "en": "I own the incident ledger and rollout communication. By 10:30 KST today, I will publish a query for model, firmware, booster allocation, query sequence, resume epoch, recovery phase, and deadline outcome. Field reports without those fields remain unclassified. Support guidance will state that the observed freeze is under investigation and that users should not repeatedly force reboot during storage activity. It will not claim that every camera freeze is this incident. I will also maintain a decision log separating containment evidence from permanent-fix evidence. That distinction matters because a successful power hold proves the race window is bounded, not that either root cause has been removed. Owners must link every conclusion to the exact build and trace.",
+          "ko": "incident ledger와 rollout communication은 제가 담당합니다. 오늘 10시 30분(KST)까지 model, firmware, booster allocation, query sequence, resume epoch, recovery phase, deadline outcome을 조회하는 query를 게시합니다. 해당 field가 없는 field report는 미분류로 남깁니다. 지원 지침에는 관찰된 freeze를 조사 중이며 storage activity 중 반복 force reboot를 피해야 한다고 적습니다. 모든 camera freeze가 이 incident라고 주장하지는 않습니다. 억제책 evidence와 permanent-fix evidence를 분리하는 decision log도 유지합니다. 성공한 power hold는 race window가 제한됨을 입증할 뿐 어느 root cause가 제거됐음을 뜻하지 않으므로 이 구분이 중요합니다. owner는 모든 결론을 정확한 build와 trace에 연결해야 합니다."
+        },
+        {
+          "speaker": "Grace Chen",
+          "en": "The containment checkpoint is November 20 at 15:30 KST. Required evidence is the two-thousand-cycle matrix, firmware durability report, host unit tests, energy results, and rollback rehearsal. If it passes, compact rollout may resume at five percent for twenty-four hours, then fifteen percent. The permanent-fix meeting is November 23 at 16:00 KST with the six participants here. We will choose among expanding to fifty percent, holding S82.6, or issuing a compact-model rollback. Expansion requires zero hard-gate failures and no unexplained queue recovery above two hundred milliseconds. A workaround that merely reduces reproduction rate is not a pass. The packet is due two hours before each meeting in KST.",
+          "ko": "억제책 checkpoint는 11월 20일 15시 30분(KST)입니다. 필요한 evidence는 2,000-cycle matrix, firmware durability report, host unit test, energy result, rollback rehearsal입니다. 통과하면 소형 rollout을 5%에서 24시간 재개한 뒤 15%로 올릴 수 있습니다. permanent-fix 회의는 여기 여섯 명이 참석해 11월 23일 16시(KST)에 진행합니다. 선택지는 50% 확대, S82.6 보류, 소형 모델 rollback입니다. 확대에는 hard-gate 실패 0건과 설명되지 않은 200밀리초 초과 queue recovery 0건이 필요합니다. 재현율만 낮추는 workaround는 통과가 아닙니다. packet은 각 회의 2시간 전까지 KST 기준으로 제출합니다."
+        },
+        {
+          "speaker": "Arjun Mehta",
+          "en": "For clarity, the host rollback is independent from the firmware rollback. If containment causes regression, we can disable the model-scoped power hold without changing F31. If the watchdog patch fails durability, we retain the host lock-order protection and keep firmware stock. The boot trace identifies both states so a mixed deployment remains diagnosable. I will add an assertion that prevents enabling read bypass in S82.6, because an unused experimental flag can still be activated accidentally. I will also document why discard was not deferred: removing a trigger would hide the vulnerability and could accumulate cleanup debt. The final design should recover correctly even when flush, discard, and suspend overlap again under a different workload.",
+          "ko": "명확히 하자면 host rollback은 firmware rollback과 독립적입니다. 억제책이 regression을 만들면 F31을 바꾸지 않고 model-scoped power hold를 끌 수 있습니다. watchdog patch가 durability에서 실패하면 host lock-order protection은 유지하고 firmware는 stock으로 둡니다. boot trace는 두 상태를 모두 식별해 mixed deployment도 진단 가능하게 합니다. 사용하지 않는 experimental flag도 실수로 켜질 수 있으므로 S82.6에서 read bypass 활성화를 막는 assertion을 추가합니다. trigger 제거는 취약점을 숨기고 cleanup debt를 쌓을 수 있으므로 discard를 미루지 않은 이유도 문서화합니다. 최종 설계는 다른 workload에서 flush, discard, suspend가 다시 겹쳐도 올바르게 복구해야 합니다."
+        },
+        {
+          "speaker": "Minseo Lee",
+          "en": "Let me read back our storage decision and ownership. Compact rollout pauses at fifteen percent; premium remains at fifty percent with enhanced telemetry. The temporary containment holds power for one nonrenewable two-hundred-millisecond window, checks commit phase at expiry, and never replays without transaction evidence. Arjun owns host containment and lock order, Sofia owns diagnostic firmware and watchdog correction, Noah owns the matrix and performance gates, Grace owns release decisions, and I own field classification. We are not disabling Write Booster globally, deferring discard, or adding read bypass. The containment checkpoint is November 20 at 15:30 KST, and the permanent decision is November 23 at 16:00 KST. I will circulate minutes and the action ledger within thirty minutes.",
+          "ko": "합의를 다시 읽겠습니다. 소형 rollout은 15%에서 멈추고 프리미엄은 강화 telemetry와 함께 50%를 유지합니다. 임시 억제책은 갱신 불가 200밀리초 window 한 번 동안 power를 유지하고 만료 시 commit phase를 확인하며 transaction evidence 없이 replay하지 않습니다. Arjun은 host 억제책과 lock order, Sofia는 diagnostic firmware와 watchdog 수정, Noah는 matrix와 performance gate, Grace는 release decision, 저는 field classification을 담당합니다. Write Booster를 전역으로 끄거나 discard를 미루거나 read bypass를 추가하지 않습니다. 억제책 checkpoint는 11월 20일 15시 30분(KST), permanent decision은 11월 23일 16시(KST)입니다. 30분 안에 회의록과 action ledger를 배포하겠습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "separate a controller queue freeze from an upper-layer lock",
+      "meaning_ko": "controller queue freeze와 상위 계층 lock을 구분하다",
+      "usage_ko": "원인 계층을 분리할 때",
+      "example": "Today we must separate a controller queue freeze from an upper-layer lock, identify the trigger sequence, choose a containment that does not disable storage acceleration for every model, and assign a fix with measurable gates.",
+      "practice": "We must separate a transport timeout from an application lock."
+    },
+    {
+      "phrase": "synchronized host and device timelines",
+      "meaning_ko": "동기화된 host와 device timeline",
+      "usage_ko": "서로 다른 clock의 trace를 맞출 때",
+      "example": "We need synchronized host and device timelines before calling either side the root cause.",
+      "practice": "Build synchronized client and server timelines before assigning ownership."
+    },
+    {
+      "phrase": "the evidence goes dark",
+      "meaning_ko": "증거가 끊기다",
+      "usage_ko": "trace가 사라지는 경계를 말할 때",
+      "example": "We must determine whether the device failed to signal or the host failed to unmask before the evidence goes dark.",
+      "practice": "Capture the transition before the evidence goes dark."
+    },
+    {
+      "phrase": "neither result identifies ownership",
+      "meaning_ko": "어느 결과도 소유권을 특정하지 않는다",
+      "usage_ko": "상관관계의 한계를 말할 때",
+      "example": "Removing discard prevents the stall, but so does adding a five-millisecond delay before runtime suspend, so neither result identifies ownership.",
+      "practice": "Both workarounds help, but neither result identifies ownership."
+    },
+    {
+      "phrase": "separate trigger, vulnerability, and consequence",
+      "meaning_ko": "trigger, vulnerability, consequence를 분리하다",
+      "usage_ko": "장애 인과관계를 정리할 때",
+      "example": "We also need to separate trigger, vulnerability, and consequence.",
+      "practice": "The review should separate trigger, vulnerability, and consequence."
+    },
+    {
+      "phrase": "a two-sided failure",
+      "meaning_ko": "양쪽에서 동시에 발생한 실패",
+      "usage_ko": "복합 원인을 제시할 때",
+      "example": "My working theory is a two-sided failure: F31 misses its commit watchdog, while the host recovery order turns a bounded firmware delay into an indefinite queue freeze.",
+      "practice": "The traces point to a two-sided failure rather than one defective module."
+    },
+    {
+      "phrase": "isolate the watchdog patch",
+      "meaning_ko": "watchdog patch를 분리하다",
+      "usage_ko": "큰 변경에서 필요한 수정만 떼어낼 때",
+      "example": "We should isolate the watchdog patch and prove that it does not alter booster durability behavior.",
+      "practice": "Isolate the watchdog patch before changing wear accounting."
+    },
+    {
+      "phrase": "hidden coupling",
+      "meaning_ko": "숨겨진 결합 관계",
+      "usage_ko": "결합 시험만 통과하는 위험을 말할 때",
+      "example": "If only cell D passes, we have hidden coupling and should not ship under schedule pressure.",
+      "practice": "The combined test may hide hidden coupling between the fixes."
+    },
+    {
+      "phrase": "reversible, narrow, and observable",
+      "meaning_ko": "되돌릴 수 있고 범위가 좁으며 관찰 가능하다",
+      "usage_ko": "임시 억제책 조건을 정할 때",
+      "example": "The containment must be reversible, narrow, and observable.",
+      "practice": "A release workaround should be reversible, narrow, and observable."
+    },
+    {
+      "phrase": "protects metadata integrity",
+      "meaning_ko": "metadata 무결성을 보호하다",
+      "usage_ko": "복구 절차의 안전성을 설명할 때",
+      "example": "This is more complex than a simple timeout, but it protects metadata integrity.",
+      "practice": "The extra phase check protects metadata integrity."
+    },
+    {
+      "phrase": "bounded recovery",
+      "meaning_ko": "제한된 시간 안의 복구",
+      "usage_ko": "무기한 대기와 대비할 때",
+      "example": "If not, the containment should fail visibly into bounded recovery rather than pretend the system is responsive.",
+      "practice": "A failed handshake must enter bounded recovery."
+    },
+    {
+      "phrase": "could create ordering surprises",
+      "meaning_ko": "ordering 문제를 만들 수 있다",
+      "usage_ko": "새 queue 경로의 위험을 말할 때",
+      "example": "The bypass adds queue routing that has not been stress-tested and could create ordering surprises.",
+      "practice": "Parallel replay could create ordering surprises."
+    },
+    {
+      "phrase": "conceal mutual dependency",
+      "meaning_ko": "상호 의존성을 숨기다",
+      "usage_ko": "결합 시험만 통과하는 위험을 말할 때",
+      "example": "Expansion requires both protections to pass separately and together, because a single passing combination could conceal mutual dependency.",
+      "practice": "One combined test can conceal mutual dependency."
+    },
+    {
+      "phrase": "missing evidence counts as failure",
+      "meaning_ko": "증거 누락은 실패로 계산된다",
+      "usage_ko": "실험 데이터 누락 처리 기준을 정할 때",
+      "example": "Every failed run keeps its trace bundle; missing evidence counts as failure rather than an excluded sample.",
+      "practice": "In this gate, missing evidence counts as failure."
+    },
+    {
+      "phrase": "A workaround that merely reduces reproduction rate is not a pass",
+      "meaning_ko": "재현율만 낮추는 우회책은 통과가 아니다",
+      "usage_ko": "검증 기준을 엄격히 할 때",
+      "example": "A workaround that merely reduces reproduction rate is not a pass.",
+      "practice": "A workaround that merely reduces reproduction rate is not a pass."
+    }
+  ]
+}
