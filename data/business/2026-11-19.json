@@ -1,0 +1,274 @@
+{
+  "date": "2026-11-19",
+  "category": "business",
+  "topic": "sw-tech",
+  "subject": "Designing Reproducible Vendor Module Attestation across Remote Builds",
+  "title_ko": "원격 빌드 환경의 Vendor Module Attestation 재현성 설계",
+  "summary_ko": "가상의 Android 빌드·보안 기술 회의에서 동일한 vendor kernel module 소스가 원격 worker에 따라 서로 다른 attestation digest를 생성해 릴리스 provenance 검증이 실패하는 문제를 분석한다. 팀들은 서명 시각·BTF 순서·toolchain 경로를 분리하고, canonical manifest·hermetic signing·이중 재현 검증과 단계적 적용 gate를 결정한다. 모든 인물·조직·단말·모듈·toolchain·worker·빌드·로그·인증서·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Hana Park",
+      "team": "Build Infrastructure"
+    },
+    {
+      "name": "Mateo Ruiz",
+      "team": "Kernel and BSP"
+    },
+    {
+      "name": "Priya Nair",
+      "team": "Product Security"
+    },
+    {
+      "name": "Elliot Brooks",
+      "team": "Program and Release"
+    },
+    {
+      "name": "Yuna Choi",
+      "team": "Program and Release"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Decision Scope",
+      "title_ko": "참석 확인과 결정 범위",
+      "turns": [
+        {
+          "speaker": "Yuna Choi",
+          "en": "Thank you for joining. Build Infrastructure, Kernel and BSP, Product Security, Release Quality, and Program Management are represented. We are here because two release candidates built from commit 7c41 produced different attestation digests for the same six vendor kernel modules. Both images booted and passed functional smoke tests, yet the provenance gate rejected the second image. We must decide whether this is harmless packaging noise, a supply-chain integrity failure, or a weakness in our comparison method. Today’s outcome must define the trusted inputs, the canonical artifact, the containment for build R83.2, named owners, measurable acceptance gates, and a follow-up review. We will not waive the gate simply because the binaries appear to work.",
+          "ko": "참석해 주셔서 감사합니다. 빌드 인프라, 커널·BSP, 제품 보안, 릴리스 품질, 프로그램 관리 팀이 참석했습니다. commit 7c41에서 빌드한 두 릴리스 후보가 동일한 vendor kernel module 6개에 서로 다른 attestation digest를 생성했기 때문에 모였습니다. 두 image 모두 boot했고 기능 smoke test를 통과했지만 provenance gate는 두 번째 image를 거부했습니다. 이것이 무해한 packaging noise인지, supply-chain integrity 실패인지, 비교 방법의 약점인지 결정해야 합니다. 오늘은 신뢰할 입력, canonical artifact, R83.2 억제책, 담당자, 정량 acceptance gate, 후속 검토를 정의해야 합니다. binary가 동작한다는 이유만으로 gate를 면제하지 않겠습니다."
+        },
+        {
+          "speaker": "Hana Park",
+          "en": "Build Infrastructure is present. The first candidate ran on worker pool Cedar with toolchain container T19.4, while the rebuild ran on pool Juniper with the same container digest. Source revisions, declared environment variables, and dependency lockfiles match. The unsigned module payloads differ in three areas: BTF type identifiers, an embedded compilation directory, and section ordering inside the note segment. After we strip those fields, the executable instruction and relocation sections hash identically. The final signed modules still differ because the signature covers the entire file and includes a signing timestamp supplied by the remote key service. I do not consider that proof of compromise, but it proves our current build is not reproducible at the byte level.",
+          "ko": "빌드 인프라 팀이 참석했습니다. 첫 후보는 toolchain container T19.4를 사용하는 Cedar worker pool에서 실행됐고 재빌드는 동일한 container digest를 사용하는 Juniper pool에서 실행됐습니다. source revision, 선언된 환경 변수, dependency lockfile은 일치합니다. unsigned module payload는 BTF type identifier, 내장 compilation directory, note segment 내부 section ordering의 세 영역에서 다릅니다. 그 field를 제거하면 executable instruction section과 relocation section hash가 동일합니다. 하지만 signature가 전체 파일을 포함하고 원격 key service가 제공한 signing timestamp도 들어가므로 최종 signed module은 여전히 다릅니다. 이것이 침해 증거라고 보지는 않지만 현재 build가 byte level에서 reproducible하지 않다는 것은 입증합니다."
+        },
+        {
+          "speaker": "Mateo Ruiz",
+          "en": "Kernel and BSP is here. I want to challenge the assumption that every byte must match before we can establish code identity. BTF numbering can change when parallel debug-information jobs finish in a different order, and the compiler path is diagnostic metadata. Neither affects loaded instructions. However, section ordering is more serious because the loader and signature verifier consume the packaged file, not our normalized view. If we create a canonical manifest that excludes fields after the fact, we could accidentally normalize away a malicious addition. The safe question is not whether two outputs look equivalent after stripping data; it is whether a controlled build process produces one authorized representation from one declared input set.",
+          "ko": "커널·BSP 팀이 참석했습니다. code identity를 확립하기 전에 모든 byte가 같아야 한다는 가정에는 이의를 제기하고 싶습니다. 병렬 debug-information job이 다른 순서로 끝나면 BTF numbering이 바뀔 수 있고 compiler path는 진단 metadata입니다. 어느 것도 load되는 instruction에 영향을 주지 않습니다. 하지만 loader와 signature verifier는 정규화된 view가 아니라 packaged file을 소비하므로 section ordering은 더 중요합니다. 사후에 field를 제외하는 canonical manifest를 만들면 악의적인 추가 내용을 실수로 정규화에서 없앨 수 있습니다. 안전한 질문은 두 output이 data를 제거한 뒤 동등해 보이는지가 아니라 통제된 build process가 하나의 선언된 input set에서 하나의 승인된 representation을 만드는지입니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "Product Security is represented. I agree with Mateo’s distinction. Attestation must bind what the device verifies, not a convenient subset selected after a mismatch. At the same time, comparing signed bytes is unstable when the signing service adds time and certificate-chain order. We need two linked claims: a deterministic pre-signing module digest and a signing receipt that binds that digest to the approved key, policy, and build identity. The receipt may contain a time, but time must not change the claimed code identity. I also need evidence that workers cannot inject undeclared compiler flags or replace intermediate files between compilation and signing. Reproducibility without isolation can reproduce the same compromised artifact twice.",
+          "ko": "제품 보안 팀이 참석했습니다. Mateo의 구분에 동의합니다. attestation은 mismatch 뒤 편의상 고른 subset이 아니라 device가 검증하는 대상을 결속해야 합니다. 동시에 signing service가 시간과 certificate-chain order를 추가하면 signed byte 비교는 불안정합니다. 결정론적 pre-signing module digest와 그 digest를 승인된 key·policy·build identity에 결속하는 signing receipt라는 연결된 두 claim이 필요합니다. receipt에는 시간이 있을 수 있지만 그 시간이 주장되는 code identity를 바꾸면 안 됩니다. 또한 worker가 선언되지 않은 compiler flag를 주입하거나 compilation과 signing 사이 intermediate file을 바꿀 수 없다는 증거가 필요합니다. 격리 없는 reproducibility는 동일한 침해 artifact를 두 번 재현할 수도 있습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and Failure Boundary",
+      "title_ko": "증거와 실패 경계",
+      "turns": [
+        {
+          "speaker": "Elliot Brooks",
+          "en": "Release Quality is present. We repeated the build eight times: four on Cedar and four on Juniper. Every worker produced a unique signed hash. Within one pool, unsigned differences were limited to the embedded path and BTF identifiers. Across pools, two modules also changed note-section order because Juniper uses a newer filesystem image whose directory enumeration differs. Functional tests cannot resolve this; they exercise behavior, not provenance. Our current gate reports only a final hash mismatch, so operators cannot tell whether code, metadata, or signature envelope changed. I propose a layered report with explicit failure classes. A code-section mismatch must stop immediately, while a known metadata mismatch can proceed only during a bounded migration with evidence attached.",
+          "ko": "릴리스 품질 팀이 참석했습니다. 빌드를 8번 반복했습니다. Cedar와 Juniper에서 각각 4번 실행했고 모든 worker가 고유한 signed hash를 만들었습니다. 같은 pool 안에서 unsigned 차이는 embedded path와 BTF identifier에 한정됐습니다. pool 사이에서는 Juniper가 directory enumeration이 다른 더 새 filesystem image를 사용해 module 2개의 note-section order도 달라졌습니다. 기능 test는 behavior를 실행할 뿐 provenance를 검증하지 않으므로 이 문제를 해결할 수 없습니다. 현재 gate는 최종 hash mismatch만 보고해 operator가 code, metadata, signature envelope 중 무엇이 변했는지 알 수 없습니다. 명시적 failure class가 있는 layered report를 제안합니다. code-section mismatch는 즉시 중단하고 알려진 metadata mismatch는 증거가 첨부된 제한된 migration 기간에만 진행하도록 해야 합니다."
+        },
+        {
+          "speaker": "Hana Park",
+          "en": "I reconstructed the pipeline boundary. Compilation writes each module to a worker-local staging directory. A packaging action then runs pahole, sorts only allocatable sections, and sends the complete file to the signing proxy. The path leak originates before pahole because debug-prefix mapping covers the source tree but not the generated staging directory. BTF instability comes from parallel type deduplication. The note order changes because our packaging script expands a wildcard without sorting it. These are three independent causes, not one random-build problem. The signing proxy signs whatever bytes it receives and records only the final digest. That means we cannot currently prove which pre-signing digest was authorized. The missing link is between packaging completion and the key-service request.",
+          "ko": "pipeline boundary를 재구성했습니다. compilation은 각 module을 worker-local staging directory에 씁니다. packaging action은 pahole을 실행하고 allocatable section만 정렬한 뒤 전체 file을 signing proxy로 보냅니다. path leak은 debug-prefix mapping이 source tree만 포함하고 생성된 staging directory는 포함하지 않기 때문에 pahole 전에 시작됩니다. BTF 불안정성은 병렬 type deduplication에서 옵니다. note order는 packaging script가 wildcard를 정렬 없이 확장하기 때문에 바뀝니다. 이는 하나의 random-build 문제가 아니라 독립적인 세 원인입니다. signing proxy는 받은 byte를 그대로 서명하고 final digest만 기록합니다. 그래서 어떤 pre-signing digest가 승인됐는지 현재는 입증할 수 없습니다. 누락된 연결은 packaging 완료와 key-service request 사이입니다."
+        },
+        {
+          "speaker": "Mateo Ruiz",
+          "en": "The experiment should change one variable at a time. First, force a stable staging root and apply prefix mapping to generated files. Second, run deterministic BTF deduplication with a fixed input list rather than merely setting one worker thread. Third, sort every note input before linking. We should not solve this by deleting BTF or notes because field debugging and module compatibility checks rely on them. I can produce a module semantic map containing loadable sections, relocations, symbol versions, BTF content, and declared notes in canonical order. That map is for diagnosis, not the security decision. The security claim remains the hash of the complete deterministic pre-signing file. This keeps the analytical tool from becoming an alternate artifact definition.",
+          "ko": "실험은 한 번에 변수 하나만 바꿔야 합니다. 첫째, stable staging root를 강제하고 generated file에도 prefix mapping을 적용합니다. 둘째, worker thread 하나만 설정하는 대신 고정 input list로 deterministic BTF deduplication을 실행합니다. 셋째, linking 전에 모든 note input을 정렬합니다. 현장 debugging과 module compatibility check가 BTF와 note에 의존하므로 이를 삭제해서 해결하면 안 됩니다. loadable section, relocation, symbol version, BTF content, 선언된 note를 canonical order로 담는 module semantic map을 만들 수 있습니다. 그 map은 진단용이지 보안 결정용이 아닙니다. 보안 claim은 완전하고 결정론적인 pre-signing file의 hash로 유지합니다. 이렇게 하면 분석 tool이 대체 artifact 정의가 되는 것을 막을 수 있습니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "We also need to close the time-of-check to time-of-use gap. The packager should place the module and manifest in a content-addressed, read-only object. The signing request should reference that object digest, not upload a mutable path. The key service must return a receipt containing the object digest, approved key identifier, policy version, caller workload identity, and signature digest. A verifier then checks that the signed module payload still hashes to the referenced object before it accepts the receipt. Worker identity alone is insufficient because a compromised worker could still request a valid signature. Authorization should require the reviewed source commit, toolchain digest, packaging rule digest, and release intent recorded by the coordinator.",
+          "ko": "time-of-check와 time-of-use 사이 gap도 닫아야 합니다. packager는 module과 manifest를 content-addressed read-only object에 넣어야 합니다. signing request는 mutable path를 upload하지 말고 그 object digest를 참조해야 합니다. key service는 object digest, 승인된 key identifier, policy version, caller workload identity, signature digest가 포함된 receipt를 반환해야 합니다. verifier는 receipt를 수락하기 전에 signed module payload가 여전히 참조 object와 같은 hash인지 확인해야 합니다. 침해된 worker도 유효한 signature를 요청할 수 있으므로 worker identity만으로는 부족합니다. authorization에는 검토된 source commit, toolchain digest, packaging rule digest, coordinator가 기록한 release intent가 필요합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Containment and Design Disagreement",
+      "title_ko": "억제책과 설계 이견",
+      "turns": [
+        {
+          "speaker": "Yuna Choi",
+          "en": "R83.2 must enter carrier verification tomorrow, so we need a containment before the full redesign. The options are to pin all release builds to Cedar, disable the provenance gate for module-only mismatches, or require two matching unsigned builds on separate Cedar workers and sign only their shared digest. Pinning reduces variability but leaves a single environment dependency. Disabling the gate is unacceptable. My preference is the third option with Juniper removed from release eligibility until its base image is reconciled. That gives us independent execution without pretending the cross-pool problem is solved. I need Security to state whether two matching builds are enough, and Quality to define what happens when they disagree after business hours.",
+          "ko": "R83.2는 내일 통신사 검증에 들어가야 하므로 전체 재설계 전에 억제책이 필요합니다. 선택지는 모든 release build를 Cedar에 고정하거나, module-only mismatch에 provenance gate를 끄거나, 서로 다른 Cedar worker에서 unsigned build 2개가 일치하도록 요구하고 공통 digest만 서명하는 것입니다. 고정은 변동성을 줄이지만 단일 환경 dependency를 남깁니다. gate 비활성화는 받아들일 수 없습니다. 제 선호는 Juniper base image가 조정될 때까지 release eligibility에서 제외하고 세 번째 방안을 쓰는 것입니다. 이는 cross-pool 문제가 해결된 척하지 않으면서 독립 실행을 제공합니다. Security는 matching build 2개가 충분한지, Quality는 업무시간 이후 불일치 시 어떻게 할지 정해야 합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "Two matching Cedar builds are a reasonable temporary control only if they run on different physical hosts, start from freshly verified images, and cannot read each other’s outputs. The coordinator, not either worker, must compare digests and authorize signing. A match reduces accidental nondeterminism; it does not eliminate a common compromised image. Therefore the temporary receipt must label the control as same-pool dual reproduction, and the release dashboard must not present it as cross-environment assurance. If the builds disagree, signing stops automatically. No engineer may choose the preferred output manually. An emergency exception would require the security director and release director, plus a documented reason and an expiration before the next build. I expect zero such exceptions for R83.2.",
+          "ko": "서로 다른 physical host에서 실행되고 새로 검증된 image로 시작하며 서로의 output을 읽을 수 없다면 matching Cedar build 2개는 합리적인 임시 control입니다. 어느 worker도 아닌 coordinator가 digest를 비교하고 signing을 승인해야 합니다. match는 우발적 nondeterminism을 줄이지만 공통으로 침해된 image를 제거하지는 않습니다. 따라서 임시 receipt는 same-pool dual reproduction이라고 표시해야 하며 release dashboard가 이를 cross-environment assurance로 표현하면 안 됩니다. build가 다르면 signing은 자동 중단합니다. engineer가 선호 output을 수동 선택해서는 안 됩니다. 긴급 예외에는 security director와 release director의 승인, 문서화된 사유, 다음 build 전 만료가 필요합니다. R83.2에서는 그런 예외가 0건이어야 합니다."
+        },
+        {
+          "speaker": "Elliot Brooks",
+          "en": "Quality can operate that rule. A mismatch creates a blocked build record with both worker identities, input manifests, pre-signing hashes, and the first differing component from the semantic map. The record pages the build owner during supported hours and remains blocked overnight outside those hours. We will not restart until the owner classifies the cause and the coordinator creates a new attempt identifier. Reusing the same attempt would hide retry frequency. For the temporary gate, both Cedar builds must match byte for byte before signing, all six modules must be covered, and the signed payload must map back to the shared pre-signing digest. We will rehearse a deliberate path mismatch and confirm that the gate stops before any key-service request.",
+          "ko": "Quality가 그 규칙을 운영할 수 있습니다. mismatch가 발생하면 두 worker identity, input manifest, pre-signing hash, semantic map의 첫 차이 component가 포함된 blocked build record를 생성합니다. supported hour에는 build owner를 호출하고 그 외 시간에는 밤새 blocked 상태를 유지합니다. owner가 원인을 분류하고 coordinator가 새 attempt identifier를 만들기 전에는 restart하지 않습니다. 같은 attempt를 재사용하면 retry frequency가 숨겨집니다. 임시 gate에서는 signing 전 두 Cedar build가 byte-for-byte로 일치하고 module 6개가 모두 포함되며 signed payload가 공통 pre-signing digest로 다시 연결되어야 합니다. 의도적인 path mismatch를 연습해 key-service request 전에 gate가 멈추는지 확인하겠습니다."
+        },
+        {
+          "speaker": "Hana Park",
+          "en": "I support the containment, but I do not want Cedar pinning to become permanent by inertia. I propose a seven-day limit. During that period, Build Infrastructure will rebuild Cedar and Juniper from one versioned base-image recipe, remove mutable package mirrors, and record the kernel, filesystem, locale, and directory-enumeration behavior in the worker manifest. The orchestrator will select workers by verified capability rather than pool name. For the permanent flow, two builds must come from independently instantiated workers that satisfy the same manifest, and one daily canary must reproduce on a second infrastructure pool. A canary mismatch blocks promotion of the recipe even when the release pair matches. That makes environmental diversity an explicit test instead of accidental variability.",
+          "ko": "억제책을 지지하지만 Cedar 고정이 관성으로 영구화되는 것은 원하지 않습니다. 7일 제한을 제안합니다. 그동안 Build Infrastructure는 하나의 versioned base-image recipe로 Cedar와 Juniper를 다시 만들고 mutable package mirror를 제거하며 kernel, filesystem, locale, directory-enumeration behavior를 worker manifest에 기록합니다. orchestrator는 pool name이 아니라 검증된 capability로 worker를 선택합니다. 영구 flow에서는 같은 manifest를 만족하는 독립 생성 worker 2개에서 build해야 하고 매일 canary 1개는 두 번째 infrastructure pool에서 재현해야 합니다. release pair가 일치하더라도 canary mismatch는 recipe promotion을 막습니다. 이렇게 하면 environment diversity가 우발적 variability가 아니라 명시적 test가 됩니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision Owners and Quantitative Gates",
+      "title_ko": "결정·담당자와 정량 게이트",
+      "turns": [
+        {
+          "speaker": "Yuna Choi",
+          "en": "The decision is approved as follows. For R83.2, release modules will be built twice on isolated Cedar hosts from a freshly verified image. The coordinator compares complete pre-signing files, and only one shared digest may reach the signing service. Juniper is temporarily ineligible for release output but remains available for diagnostic canaries. We do not disable BTF, remove notes, compare only executable sections, or waive the provenance gate. The containment expires at 18:00 KST on November 26. Permanent adoption requires deterministic packaging, content-addressed handoff, linked signing receipts, independently instantiated workers, and a cross-pool canary. Any byte mismatch before signing or any receipt-to-payload mismatch is a hard stop, not a warning.",
+          "ko": "결정은 다음과 같이 승인합니다. R83.2 release module은 새로 검증된 image에서 격리된 Cedar host 2대로 각각 build합니다. coordinator가 완전한 pre-signing file을 비교하고 공통 digest 하나만 signing service에 전달할 수 있습니다. Juniper는 release output 자격에서 일시 제외하지만 diagnostic canary에는 계속 사용합니다. BTF를 끄거나 note를 제거하거나 executable section만 비교하거나 provenance gate를 면제하지 않습니다. 억제책은 11월 26일 18시(KST)에 만료됩니다. 영구 도입에는 deterministic packaging, content-addressed handoff, 연결된 signing receipt, 독립 생성 worker, cross-pool canary가 필요합니다. signing 전 byte mismatch나 receipt-to-payload mismatch는 warning이 아니라 hard stop입니다."
+        },
+        {
+          "speaker": "Hana Park",
+          "en": "I own the build changes. By 13:00 KST on November 19, I will sort every packaging input, map generated paths to a fixed root, and publish the deterministic BTF job with its input-order test. By 17:00, I will deploy the dual-build coordinator in audit-only mode and inject three mismatches: a path leak, a note-order change, and a modified relocation. The coordinator must classify all three and must never call the signing service. By 12:00 on November 21, I will deliver the content-addressed object handoff and worker-manifest prototype. Success means twenty consecutive dual builds match before signing, no worker can mutate a sealed object, and every attempt has a unique durable identifier.",
+          "ko": "build 변경은 제가 담당합니다. 11월 19일 13시(KST)까지 모든 packaging input을 정렬하고 generated path를 fixed root로 map하며 input-order test가 포함된 deterministic BTF job을 게시하겠습니다. 17시까지 dual-build coordinator를 audit-only mode로 배포하고 path leak, note-order change, modified relocation의 세 mismatch를 주입합니다. coordinator는 세 가지를 모두 분류하고 signing service를 절대 호출하지 않아야 합니다. 11월 21일 12시까지 content-addressed object handoff와 worker-manifest prototype을 제공하겠습니다. 연속 dual build 20회가 signing 전에 일치하고 어떤 worker도 sealed object를 변경할 수 없으며 모든 attempt가 고유한 durable identifier를 가지면 성공입니다."
+        },
+        {
+          "speaker": "Mateo Ruiz",
+          "en": "I own the module semantics and kernel-side verification. By 15:00 KST today, I will define the canonical packaging order for ELF sections, BTF inputs, symbol-version records, and declared notes. I will add tests that rebuild six representative modules under four job counts and two staging roots. The full pre-signing files must match exactly; the semantic map is used only to explain failures. By 11:00 on November 22, I will verify that signature insertion does not alter the payload region referenced by the receipt and that the device verifier rejects a module whose payload or receipt was substituted. The regression set includes load, unload, crash dump decoding, ABI checks, and a negative module with one changed relocation.",
+          "ko": "module semantics와 kernel-side verification은 제가 담당합니다. 오늘 15시(KST)까지 ELF section, BTF input, symbol-version record, 선언된 note의 canonical packaging order를 정의하겠습니다. 대표 module 6개를 job count 4개와 staging root 2개에서 다시 build하는 test를 추가합니다. 완전한 pre-signing file이 정확히 일치해야 하며 semantic map은 실패 설명에만 사용합니다. 11월 22일 11시까지 signature 삽입이 receipt가 참조하는 payload region을 바꾸지 않는지, device verifier가 payload나 receipt가 교체된 module을 거부하는지 검증하겠습니다. regression set에는 load, unload, crash dump decoding, ABI check, relocation 하나가 바뀐 negative module이 포함됩니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "I own the signing policy and threat review. The receipt schema is due at 16:00 KST on November 19. It will bind the sealed-object digest, source commit, toolchain and packaging-rule digests, worker-manifest hash, release intent, key identifier, policy version, and signature digest. By November 21 at 18:00, I will configure the test key service to reject mutable uploads, undeclared inputs, expired release intent, and a coordinator identity outside the approved workload. Security gates are zero unauthorized signing calls, zero receipts without all required fields, successful rejection of ten substitution tests, and a complete audit chain from reviewed commit to device-verifiable module. Same-pool dual reproduction remains visibly labeled until the cross-pool gate passes.",
+          "ko": "signing policy와 threat review는 제가 담당합니다. receipt schema는 11월 19일 16시(KST)까지 제공합니다. sealed-object digest, source commit, toolchain·packaging-rule digest, worker-manifest hash, release intent, key identifier, policy version, signature digest를 결속합니다. 11월 21일 18시까지 test key service가 mutable upload, undeclared input, 만료된 release intent, 승인 workload 밖의 coordinator identity를 거부하도록 설정하겠습니다. Security gate는 unauthorized signing call 0건, 필수 field가 없는 receipt 0건, substitution test 10건의 성공적 거부, reviewed commit에서 device-verifiable module까지 완전한 audit chain입니다. same-pool dual reproduction 표시는 cross-pool gate가 통과할 때까지 명확히 유지합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Follow Up and Closing",
+      "title_ko": "후속 회의와 마무리",
+      "turns": [
+        {
+          "speaker": "Elliot Brooks",
+          "en": "I own qualification and evidence retention. The R83.2 containment rehearsal starts November 19 at 18:30 KST and covers twenty matching builds, the three injected packaging mismatches, one stale release intent, one substituted receipt, and one worker termination after sealing. The report is due November 20 at 10:00. Hard gates are any mismatched pre-signing byte, any signing call after a mismatch, any mutable sealed object, any unclassified difference, or any missing audit field. Performance gates are less than a four-minute median build increase and less than six minutes at the ninety-fifth percentile. We will retain manifests and receipts for every attempt, including failures. Missing evidence counts as a failed qualification rather than a discarded sample.",
+          "ko": "qualification과 evidence retention은 제가 담당합니다. R83.2 억제책 rehearsal은 11월 19일 18시 30분(KST)에 시작하며 matching build 20회, 주입한 packaging mismatch 3건, stale release intent 1건, substituted receipt 1건, sealing 뒤 worker 종료 1건을 포함합니다. report는 11월 20일 10시까지 제출합니다. hard gate는 pre-signing byte mismatch, mismatch 뒤 signing call, 변경 가능한 sealed object, 분류되지 않은 차이, audit field 누락이 각각 한 건이라도 발생하는 것입니다. performance gate는 median build 증가 4분 미만, 95 percentile 6분 미만입니다. 실패를 포함한 모든 attempt의 manifest와 receipt를 보존합니다. evidence 누락은 폐기 표본이 아니라 qualification 실패로 계산합니다."
+        },
+        {
+          "speaker": "Yuna Choi",
+          "en": "The containment go-or-hold review is November 20 at 11:30 KST. Required evidence is the coordinator rehearsal, six-module regression, signing-policy rejection log, build-time distribution, and a rollback drill that returns to the last approved module set without reusing a receipt. If all hard gates pass, R83.2 may enter carrier verification with the temporary label. The permanent design review is November 24 at 16:00 KST, and the containment-expiry decision is November 26 at 15:30 KST. All times are Korea Standard Time. Review packets are due two hours before each meeting. If permanent evidence is incomplete on November 26, we extend the release hold; we do not silently extend Cedar-only signing.",
+          "ko": "억제책 go-or-hold review는 11월 20일 11시 30분(KST)입니다. 필요한 evidence는 coordinator rehearsal, module 6개 regression, signing-policy rejection log, build-time distribution, receipt를 재사용하지 않고 마지막 승인 module set으로 돌아가는 rollback drill입니다. 모든 hard gate가 통과하면 R83.2는 임시 label과 함께 통신사 검증에 들어갈 수 있습니다. 영구 설계 review는 11월 24일 16시(KST), 억제책 만료 결정은 11월 26일 15시 30분(KST)입니다. 모든 시간은 Korea Standard Time입니다. review packet은 각 회의 2시간 전까지 제출합니다. 11월 26일에 영구 evidence가 불완전하면 release hold를 연장하며 Cedar-only signing을 조용히 연장하지 않습니다."
+        },
+        {
+          "speaker": "Hana Park",
+          "en": "For rollback, the coordinator will reference the previously approved sealed object and request no new signature. The deployment manifest will point to the existing module set and its original receipt. If the original object or receipt cannot be retrieved and verified, rollback is blocked and the device image stays on the current approved set. We will not rebuild old source and call that the same artifact. I will also expose dashboard counters for reproduction attempts, mismatch class, signing requests prevented, pool diversity, and receipt verification. These counters will make drift visible before a deadline. A green build means the required independent executions agreed and the signed output maps to their shared object; it will no longer mean merely that compilation exited successfully.",
+          "ko": "rollback 시 coordinator는 이전에 승인된 sealed object를 참조하고 새 signature를 요청하지 않습니다. deployment manifest는 기존 module set과 original receipt를 가리킵니다. original object나 receipt를 가져와 검증할 수 없으면 rollback은 차단되고 device image는 현재 승인 set에 머뭅니다. 과거 source를 다시 build하고 같은 artifact라고 부르지 않겠습니다. reproduction attempt, mismatch class, 차단된 signing request, pool diversity, receipt verification dashboard counter도 노출합니다. 이 counter는 deadline 전에 drift를 보이게 합니다. green build는 단순히 compilation이 성공 종료했다는 뜻이 아니라 필요한 독립 실행이 일치했고 signed output이 공통 object로 연결된다는 뜻이 됩니다."
+        },
+        {
+          "speaker": "Mateo Ruiz",
+          "en": "One final boundary: reproducible output does not replace code review, dependency review, or runtime testing. It proves that the reviewed recipe produced the same artifact under the tested environments. Our documentation will state that claim precisely. The semantic map will highlight which component changed, but it will never downgrade a mismatch by itself. Only an approved rule change can alter the canonical artifact, and that rule change needs its own review digest. I will add a test that changes one harmless-looking note byte to prove the complete-file gate still stops. That protects us from gradually treating more metadata as irrelevant whenever a deadline is close. Determinism is a release property we design, not a cleanup step we run after failure.",
+          "ko": "마지막 경계를 말씀드리겠습니다. reproducible output은 code review, dependency review, runtime testing을 대체하지 않습니다. 검토된 recipe가 시험한 environment에서 같은 artifact를 만들었다는 것을 입증합니다. 문서에는 그 claim을 정확히 적겠습니다. semantic map은 바뀐 component를 강조하지만 스스로 mismatch 등급을 낮추지는 않습니다. 승인된 rule change만 canonical artifact를 바꿀 수 있고 그 rule change에는 별도 review digest가 필요합니다. 무해해 보이는 note byte 하나를 바꾸는 test를 추가해 complete-file gate가 여전히 중단하는지 입증하겠습니다. 이는 deadline이 가까울 때마다 더 많은 metadata를 무관하다고 취급하는 일을 막습니다. determinism은 실패 뒤 실행하는 cleanup이 아니라 설계하는 release property입니다."
+        },
+        {
+          "speaker": "Yuna Choi",
+          "en": "Let me close with the decision and ownership. R83.2 uses two isolated Cedar builds, a coordinator-owned byte comparison, one sealed shared digest, and no manual output selection. Juniper remains diagnostic only until the worker recipe is reconciled. Hana owns deterministic packaging, sealed handoff, and worker manifests; Mateo owns module ordering and verifier tests; Priya owns receipts and signing policy; Elliot owns qualification and evidence; I own release decisions and the expiration ledger. The containment review is November 20 at 11:30 KST, the design review is November 24 at 16:00, and the expiry decision is November 26 at 15:30. I will circulate minutes and the action ledger by 09:30 KST today.",
+          "ko": "결정과 담당자를 정리하며 마치겠습니다. R83.2는 격리된 Cedar build 2개, coordinator 소유의 byte 비교, sealed shared digest 하나를 사용하며 수동 output 선택은 없습니다. Juniper는 worker recipe가 조정될 때까지 diagnostic 전용입니다. Hana는 deterministic packaging·sealed handoff·worker manifest, Mateo는 module ordering·verifier test, Priya는 receipt·signing policy, Elliot은 qualification·evidence, 저는 release decision·expiration ledger를 담당합니다. 억제책 review는 11월 20일 11시 30분(KST), 설계 review는 11월 24일 16시, 만료 결정은 11월 26일 15시 30분입니다. 오늘 9시 30분(KST)까지 회의록과 action ledger를 배포하겠습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "the provenance gate rejected",
+      "meaning_ko": "provenance gate가 거부했다",
+      "usage_ko": "출처 검증 실패를 보고할 때",
+      "example": "Thank you for joining. Build Infrastructure, Kernel and BSP, Product Security, Release Quality, and Program Management are represented. We are here because two release candidates built from commit 7c41 produced different attestation digests for the same six vendor kernel modules. Both images booted and passed functional smoke tests, yet the provenance gate rejected the second image. We must decide whether this is harmless packaging noise, a supply-chain integrity failure, or a weakness in our comparison method. Today’s outcome must define the trusted inputs, the canonical artifact, the containment for build R83.2, named owners, measurable acceptance gates, and a follow-up review. We will not waive the gate simply because the binaries appear to work.",
+      "practice": "The provenance gate rejected the image before deployment."
+    },
+    {
+      "phrase": "not reproducible at the byte level",
+      "meaning_ko": "byte 수준에서 재현 가능하지 않다",
+      "usage_ko": "동일 입력의 산출물이 다를 때",
+      "example": "Build Infrastructure is present. The first candidate ran on worker pool Cedar with toolchain container T19.4, while the rebuild ran on pool Juniper with the same container digest. Source revisions, declared environment variables, and dependency lockfiles match. The unsigned module payloads differ in three areas: BTF type identifiers, an embedded compilation directory, and section ordering inside the note segment. After we strip those fields, the executable instruction and relocation sections hash identically. The final signed modules still differ because the signature covers the entire file and includes a signing timestamp supplied by the remote key service. I do not consider that proof of compromise, but it proves our current build is not reproducible at the byte level.",
+      "practice": "The archive is functionally equal but not reproducible at the byte level."
+    },
+    {
+      "phrase": "one authorized representation",
+      "meaning_ko": "하나의 승인된 표현",
+      "usage_ko": "canonical artifact를 정의할 때",
+      "example": "Kernel and BSP is here. I want to challenge the assumption that every byte must match before we can establish code identity. BTF numbering can change when parallel debug-information jobs finish in a different order, and the compiler path is diagnostic metadata. Neither affects loaded instructions. However, section ordering is more serious because the loader and signature verifier consume the packaged file, not our normalized view. If we create a canonical manifest that excludes fields after the fact, we could accidentally normalize away a malicious addition. The safe question is not whether two outputs look equivalent after stripping data; it is whether a controlled build process produces one authorized representation from one declared input set.",
+      "practice": "The policy permits one authorized representation of each package."
+    },
+    {
+      "phrase": "two linked claims",
+      "meaning_ko": "서로 연결된 두 주장",
+      "usage_ko": "attestation 구조를 분리해 설명할 때",
+      "example": "Product Security is represented. I agree with Mateo’s distinction. Attestation must bind what the device verifies, not a convenient subset selected after a mismatch. At the same time, comparing signed bytes is unstable when the signing service adds time and certificate-chain order. We need two linked claims: a deterministic pre-signing module digest and a signing receipt that binds that digest to the approved key, policy, and build identity. The receipt may contain a time, but time must not change the claimed code identity. I also need evidence that workers cannot inject undeclared compiler flags or replace intermediate files between compilation and signing. Reproducibility without isolation can reproduce the same compromised artifact twice.",
+      "practice": "The audit record needs two linked claims rather than one final hash."
+    },
+    {
+      "phrase": "a layered report with explicit failure classes",
+      "meaning_ko": "명시적 실패 분류가 있는 계층형 보고서",
+      "usage_ko": "차이 원인을 구분할 때",
+      "example": "Release Quality is present. We repeated the build eight times: four on Cedar and four on Juniper. Every worker produced a unique signed hash. Within one pool, unsigned differences were limited to the embedded path and BTF identifiers. Across pools, two modules also changed note-section order because Juniper uses a newer filesystem image whose directory enumeration differs. Functional tests cannot resolve this; they exercise behavior, not provenance. Our current gate reports only a final hash mismatch, so operators cannot tell whether code, metadata, or signature envelope changed. I propose a layered report with explicit failure classes. A code-section mismatch must stop immediately, while a known metadata mismatch can proceed only during a bounded migration with evidence attached.",
+      "practice": "Publish a layered report with explicit failure classes for operators."
+    },
+    {
+      "phrase": "three independent causes",
+      "meaning_ko": "서로 독립적인 세 원인",
+      "usage_ko": "복합 문제를 분해할 때",
+      "example": "I reconstructed the pipeline boundary. Compilation writes each module to a worker-local staging directory. A packaging action then runs pahole, sorts only allocatable sections, and sends the complete file to the signing proxy. The path leak originates before pahole because debug-prefix mapping covers the source tree but not the generated staging directory. BTF instability comes from parallel type deduplication. The note order changes because our packaging script expands a wildcard without sorting it. These are three independent causes, not one random-build problem. The signing proxy signs whatever bytes it receives and records only the final digest. That means we cannot currently prove which pre-signing digest was authorized. The missing link is between packaging completion and the key-service request.",
+      "practice": "The investigation found three independent causes behind the mismatch."
+    },
+    {
+      "phrase": "used only to explain failures",
+      "meaning_ko": "실패 설명에만 사용된다",
+      "usage_ko": "진단 도구의 권한을 제한할 때",
+      "example": "I own the module semantics and kernel-side verification. By 15:00 KST today, I will define the canonical packaging order for ELF sections, BTF inputs, symbol-version records, and declared notes. I will add tests that rebuild six representative modules under four job counts and two staging roots. The full pre-signing files must match exactly; the semantic map is used only to explain failures. By 11:00 on November 22, I will verify that signature insertion does not alter the payload region referenced by the receipt and that the device verifier rejects a module whose payload or receipt was substituted. The regression set includes load, unload, crash dump decoding, ABI checks, and a negative module with one changed relocation.",
+      "practice": "The normalized view is used only to explain failures."
+    },
+    {
+      "phrase": "close the time-of-check to time-of-use gap",
+      "meaning_ko": "검사와 사용 사이의 간극을 닫다",
+      "usage_ko": "TOCTOU 위험을 다룰 때",
+      "example": "We also need to close the time-of-check to time-of-use gap. The packager should place the module and manifest in a content-addressed, read-only object. The signing request should reference that object digest, not upload a mutable path. The key service must return a receipt containing the object digest, approved key identifier, policy version, caller workload identity, and signature digest. A verifier then checks that the signed module payload still hashes to the referenced object before it accepts the receipt. Worker identity alone is insufficient because a compromised worker could still request a valid signature. Authorization should require the reviewed source commit, toolchain digest, packaging rule digest, and release intent recorded by the coordinator.",
+      "practice": "A sealed object can close the time-of-check to time-of-use gap."
+    },
+    {
+      "phrase": "one variable at a time",
+      "meaning_ko": "한 번에 변수 하나",
+      "usage_ko": "통제 실험을 설계할 때",
+      "example": "The experiment should change one variable at a time. First, force a stable staging root and apply prefix mapping to generated files. Second, run deterministic BTF deduplication with a fixed input list rather than merely setting one worker thread. Third, sort every note input before linking. We should not solve this by deleting BTF or notes because field debugging and module compatibility checks rely on them. I can produce a module semantic map containing loadable sections, relocations, symbol versions, BTF content, and declared notes in canonical order. That map is for diagnosis, not the security decision. The security claim remains the hash of the complete deterministic pre-signing file. This keeps the analytical tool from becoming an alternate artifact definition.",
+      "practice": "Change one variable at a time during the reproduction test."
+    },
+    {
+      "phrase": "must not present it as cross-environment assurance",
+      "meaning_ko": "cross-environment 보장으로 표현하면 안 된다",
+      "usage_ko": "임시 통제의 한계를 명시할 때",
+      "example": "Two matching Cedar builds are a reasonable temporary control only if they run on different physical hosts, start from freshly verified images, and cannot read each other’s outputs. The coordinator, not either worker, must compare digests and authorize signing. A match reduces accidental nondeterminism; it does not eliminate a common compromised image. Therefore the temporary receipt must label the control as same-pool dual reproduction, and the release dashboard must not present it as cross-environment assurance. If the builds disagree, signing stops automatically. No engineer may choose the preferred output manually. An emergency exception would require the security director and release director, plus a documented reason and an expiration before the next build. I expect zero such exceptions for R83.2.",
+      "practice": "The dashboard must not present it as cross-environment assurance."
+    },
+    {
+      "phrase": "blocked overnight",
+      "meaning_ko": "밤새 차단된 상태",
+      "usage_ko": "지원 시간 밖의 실패 처리에 대해 말할 때",
+      "example": "Quality can operate that rule. A mismatch creates a blocked build record with both worker identities, input manifests, pre-signing hashes, and the first differing component from the semantic map. The record pages the build owner during supported hours and remains blocked overnight outside those hours. We will not restart until the owner classifies the cause and the coordinator creates a new attempt identifier. Reusing the same attempt would hide retry frequency. For the temporary gate, both Cedar builds must match byte for byte before signing, all six modules must be covered, and the signed payload must map back to the shared pre-signing digest. We will rehearse a deliberate path mismatch and confirm that the gate stops before any key-service request.",
+      "practice": "An unclassified release remains blocked overnight."
+    },
+    {
+      "phrase": "become permanent by inertia",
+      "meaning_ko": "관성으로 영구화되다",
+      "usage_ko": "임시 방안의 고착을 경계할 때",
+      "example": "I support the containment, but I do not want Cedar pinning to become permanent by inertia. I propose a seven-day limit. During that period, Build Infrastructure will rebuild Cedar and Juniper from one versioned base-image recipe, remove mutable package mirrors, and record the kernel, filesystem, locale, and directory-enumeration behavior in the worker manifest. The orchestrator will select workers by verified capability rather than pool name. For the permanent flow, two builds must come from independently instantiated workers that satisfy the same manifest, and one daily canary must reproduce on a second infrastructure pool. A canary mismatch blocks promotion of the recipe even when the release pair matches. That makes environmental diversity an explicit test instead of accidental variability.",
+      "practice": "A temporary exception should not become permanent by inertia."
+    },
+    {
+      "phrase": "a hard stop, not a warning",
+      "meaning_ko": "경고가 아니라 즉시 중단",
+      "usage_ko": "절대적인 gate를 정할 때",
+      "example": "The decision is approved as follows. For R83.2, release modules will be built twice on isolated Cedar hosts from a freshly verified image. The coordinator compares complete pre-signing files, and only one shared digest may reach the signing service. Juniper is temporarily ineligible for release output but remains available for diagnostic canaries. We do not disable BTF, remove notes, compare only executable sections, or waive the provenance gate. The containment expires at 18:00 KST on November 26. Permanent adoption requires deterministic packaging, content-addressed handoff, linked signing receipts, independently instantiated workers, and a cross-pool canary. Any byte mismatch before signing or any receipt-to-payload mismatch is a hard stop, not a warning.",
+      "practice": "An invalid receipt is a hard stop, not a warning."
+    },
+    {
+      "phrase": "Missing evidence counts as a failed qualification",
+      "meaning_ko": "증거 누락은 검증 실패로 계산된다",
+      "usage_ko": "누락 자료의 처리 원칙을 정할 때",
+      "example": "I own qualification and evidence retention. The R83.2 containment rehearsal starts November 19 at 18:30 KST and covers twenty matching builds, the three injected packaging mismatches, one stale release intent, one substituted receipt, and one worker termination after sealing. The report is due November 20 at 10:00. Hard gates are any mismatched pre-signing byte, any signing call after a mismatch, any mutable sealed object, any unclassified difference, or any missing audit field. Performance gates are less than a four-minute median build increase and less than six minutes at the ninety-fifth percentile. We will retain manifests and receipts for every attempt, including failures. Missing evidence counts as a failed qualification rather than a discarded sample.",
+      "practice": "Missing evidence counts as a failed qualification in this audit."
+    },
+    {
+      "phrase": "Determinism is a release property we design",
+      "meaning_ko": "결정론은 설계하는 릴리스 속성이다",
+      "usage_ko": "재현성을 사후 작업이 아닌 설계 목표로 강조할 때",
+      "example": "One final boundary: reproducible output does not replace code review, dependency review, or runtime testing. It proves that the reviewed recipe produced the same artifact under the tested environments. Our documentation will state that claim precisely. The semantic map will highlight which component changed, but it will never downgrade a mismatch by itself. Only an approved rule change can alter the canonical artifact, and that rule change needs its own review digest. I will add a test that changes one harmless-looking note byte to prove the complete-file gate still stops. That protects us from gradually treating more metadata as irrelevant whenever a deadline is close. Determinism is a release property we design, not a cleanup step we run after failure.",
+      "practice": "Determinism is a release property we design from the first build."
+    }
+  ]
+}
