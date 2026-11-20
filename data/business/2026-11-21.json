@@ -1,0 +1,279 @@
+{
+  "date": "2026-11-21",
+  "category": "business",
+  "topic": "sw-launch",
+  "subject": "Gating Launch after Silent LPDDR Training Fallbacks on Cold Boot",
+  "title_ko": "한랭 부팅 LPDDR Training 자동 Fallback에 따른 출시 Gate",
+  "summary_ko": "가상의 Android 단말 출시 회의에서 저온 cold boot 중 LPDDR training이 낮은 data rate로 fallback한 뒤 그 결과가 Android에 전달되지 않아, 성능 저하와 correctable memory error가 서로 다른 원인처럼 보이는 문제를 분석한다. 팀들은 실제 silicon margin과 boot handoff 유실을 분리하고, 생산 lot 격리·training 결과 보존·제한된 재시험·정량 출시 gate를 결정한다. 모든 인물·조직·단말·메모리·boot firmware·생산 lot·빌드·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않는다.",
+  "participants": [
+    {
+      "name": "Mina Park",
+      "team": "Launch Management"
+    },
+    {
+      "name": "Owen Brooks",
+      "team": "Boot and BSP"
+    },
+    {
+      "name": "Priya Nair",
+      "team": "Memory Reliability"
+    },
+    {
+      "name": "Leo Martins",
+      "team": "Manufacturing Quality"
+    },
+    {
+      "name": "Elena Rossi",
+      "team": "Boot and BSP"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Launch Question",
+      "title_ko": "참석 확인과 출시 쟁점",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "Good morning. Launch Management, Boot and BSP, Memory Reliability, Manufacturing Quality, and our boot firmware partner are all represented. We are twelve days from the retail ship date for model Northstar. Overnight reliability testing found that some units cold-booted at a lower LPDDR data rate without showing a boot failure. The affected units completed Android startup, but application launch time increased and correctable memory errors appeared later under camera and gaming loads. We need to determine whether this is weak hardware, an unsafe training policy, or missing state transfer between boot stages. Today’s outcome must be a launch decision, a bounded containment, named owners, measurable gates, and a follow-up time. We will not treat a successful Android boot as proof that memory training succeeded as intended.",
+          "ko": "좋은 아침입니다. 출시 관리, Boot·BSP, 메모리 신뢰성, 제조 품질, boot firmware 협력팀이 모두 참석했습니다. Northstar 모델의 소매 출시일까지 12일 남았습니다. 야간 신뢰성 시험에서 일부 단말이 boot failure를 표시하지 않은 채 더 낮은 LPDDR data rate로 cold boot했습니다. 영향 단말은 Android 시작을 완료했지만 앱 실행 시간이 늘고 camera·gaming 부하에서 나중에 correctable memory error가 나타났습니다. 이것이 약한 hardware인지, 안전하지 않은 training policy인지, boot stage 사이의 상태 전달 누락인지 판단해야 합니다. 오늘은 출시 결정, 제한된 억제책, 담당자, 정량 gate, 후속 시간을 확정해야 합니다. Android가 성공적으로 부팅됐다는 사실을 memory training이 의도대로 성공했다는 증거로 보지 않겠습니다."
+        },
+        {
+          "speaker": "Leo Martins",
+          "en": "Manufacturing Quality is present. The signal first appeared in the final audit sample from assembly lot M47. Seven of one hundred ninety-two units showed a memory bandwidth result about twenty-six percent below the nominal range after spending four hours at minus ten degrees Celsius. Six came from M47, and one came from the preceding lot M46. Warm reboot restored nominal bandwidth on all seven. Standard factory diagnostics passed because they run after a warm reset and read only the configured frequency, not the training path. We have quarantined the unshipped balance of M47, which is 3,840 units, but M46 has already supplied 2,100 review and employee devices. I need evidence before expanding the hold to every unit built with the same memory component.",
+          "ko": "제조 품질 팀이 참석했습니다. 이 신호는 조립 lot M47의 최종 audit sample에서 처음 나타났습니다. 단말 192대 중 7대가 영하 10도에서 4시간 둔 뒤 nominal range보다 약 26% 낮은 memory bandwidth 결과를 보였습니다. 6대는 M47, 1대는 앞선 lot M46이었습니다. 7대 모두 warm reboot 뒤 nominal bandwidth로 복구됐습니다. 표준 factory diagnostic은 warm reset 뒤 실행되고 training path가 아니라 설정된 frequency만 읽기 때문에 통과했습니다. 출하되지 않은 M47 잔량 3,840대는 격리했지만 M46은 review·employee device 2,100대를 이미 공급했습니다. 동일 memory component를 사용한 모든 단말로 hold를 확대하려면 증거가 필요합니다."
+        },
+        {
+          "speaker": "Owen Brooks",
+          "en": "Boot and BSP is here. The kernel receives the target memory rate from the device tree, so Android currently reports 4,266 megatransfers per second even when the controller is actually operating at 3,200. The early bootloader owns training, selects a fallback profile if the first eye-margin test fails, and writes a result code into a scratch register. Our second-stage loader resets that register while reinitializing the power-management block. Therefore the kernel cannot distinguish nominal training from fallback training. The bandwidth counter exposed the mismatch, but it arrives too late to explain why the fallback occurred. I can preserve the result in the signed boot handoff, yet that change only restores observability. It does not tell us whether the seven devices have marginal DRAM, a rail-ramp problem, or an overly conservative training threshold.",
+          "ko": "Boot·BSP 팀이 참석했습니다. kernel은 device tree에서 목표 memory rate를 받으므로 controller가 실제로 3,200 MT/s로 동작해도 Android는 현재 4,266 MT/s로 보고합니다. early bootloader는 training을 담당하고 첫 eye-margin test가 실패하면 fallback profile을 선택한 뒤 scratch register에 결과 code를 기록합니다. second-stage loader가 power-management block을 재초기화하면서 그 register를 reset합니다. 따라서 kernel은 nominal training과 fallback training을 구분할 수 없습니다. bandwidth counter가 불일치를 드러냈지만 fallback 원인을 설명하기에는 너무 늦게 제공됩니다. signed boot handoff에 결과를 보존할 수 있지만 그 변경은 observability만 복구합니다. 7대가 marginal DRAM인지, rail-ramp 문제인지, training threshold가 지나치게 보수적인지 알려주지는 않습니다."
+        },
+        {
+          "speaker": "Elena Rossi",
+          "en": "The boot firmware partner is represented. Firmware T9.4 introduced a colder-temperature guard requested after an earlier validation escape. If the first high-rate training attempt misses either read-eye or write-eye margin, T9.4 falls back once and continues boot at the lower rate. It does not retry high rate because repeated training can extend boot time and heat the memory package, masking the original margin. Our trace buffer records lane-level margins, voltage, temperature, fallback reason, and training duration, but production builds discard it after handoff. The fallback is a protective response, not the primary defect. I disagree with disabling it to make performance look normal. We should expose the decision and investigate why M47 crosses the guard more often, while keeping the safe lower-rate path available.",
+          "ko": "boot firmware 협력팀이 참석했습니다. Firmware T9.4는 이전 validation escape 뒤 요청받은 저온 guard를 도입했습니다. 첫 high-rate training attempt가 read-eye 또는 write-eye margin 중 하나라도 충족하지 못하면 T9.4는 한 번 fallback하고 낮은 rate로 boot를 계속합니다. 반복 training이 boot time을 늘리고 memory package를 데워 원래 margin을 가릴 수 있어 high rate를 재시도하지 않습니다. trace buffer는 lane별 margin, voltage, temperature, fallback reason, training duration을 기록하지만 production build는 handoff 뒤 이를 버립니다. fallback은 보호 반응이지 주된 defect가 아닙니다. 성능을 정상처럼 보이게 하려고 이를 disable하는 데 반대합니다. 안전한 lower-rate path는 유지하면서 결정을 노출하고 M47이 guard를 더 자주 넘는 이유를 조사해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and Competing Explanations",
+      "title_ko": "증거와 상충하는 설명",
+      "turns": [
+        {
+          "speaker": "Priya Nair",
+          "en": "Memory Reliability is present. We reproduced nine fallbacks across three lots using controlled cold ramps. The failures cluster on lane five, but the lane is not physically identical across the two memory suppliers. That weakens a simple package-defect theory. More importantly, the correctable errors occur only when the device enters a high camera load within ninety seconds of the fallback boot. If we wait five minutes at idle, no errors appear in a six-hour stress run. My working hypothesis is that the fallback changes controller timing while the reliability monitor retains nominal-rate scrub intervals from the static table. That could create a software accounting problem after a safe hardware decision. We must separate the reason for entering fallback from the reason errors appear afterward, because one fix may not address both.",
+          "ko": "메모리 신뢰성 팀이 참석했습니다. 제어된 cold ramp로 3개 lot에서 fallback 9건을 재현했습니다. 실패는 lane 5에 집중되지만 두 memory supplier에서 해당 lane의 물리적 위치는 같지 않습니다. 이는 단순 package defect 가설을 약화합니다. 더 중요한 점은 fallback boot 뒤 90초 안에 높은 camera load에 들어갈 때만 correctable error가 나타난다는 것입니다. idle 상태로 5분 기다리면 6시간 stress run에서도 error가 없습니다. 제 가설은 fallback이 controller timing을 바꾸지만 reliability monitor는 static table의 nominal-rate scrub interval을 유지한다는 것입니다. 안전한 hardware 결정 뒤 software accounting 문제가 생길 수 있습니다. fallback 진입 이유와 그 뒤 error 발생 이유를 분리해야 합니다. 하나의 수정으로 둘 다 해결되지 않을 수 있기 때문입니다."
+        },
+        {
+          "speaker": "Leo Martins",
+          "en": "I agree that there may be two defects, but the lot correlation remains material. M47 used a revised underfill cure profile and a different PMIC reel. We measured the memory rail with ordinary factory probes and saw no steady-state difference. However, those probes sample too slowly to capture the first eight milliseconds of cold power-up. Supplier records show the PMIC reel passed component screening, while acoustic inspection found no package void pattern. I want to split M47 by PMIC reel position and board panel before blaming the firmware threshold. If fallback follows a panel edge or reel segment, manufacturing owns the escape. If it follows T9.4 across lots, firmware policy becomes more likely. We should not average those populations into one reassuring rate.",
+          "ko": "두 defect가 있을 수 있다는 데 동의하지만 lot 상관관계도 중요합니다. M47은 변경된 underfill cure profile과 다른 PMIC reel을 사용했습니다. 일반 factory probe로 memory rail을 측정했지만 steady-state 차이는 없었습니다. 다만 그 probe는 cold power-up의 첫 8밀리초를 포착하기에는 sampling이 너무 느립니다. 공급업체 기록상 PMIC reel은 component screening을 통과했고 acoustic inspection에서도 package void pattern은 없었습니다. firmware threshold를 탓하기 전에 M47을 PMIC reel 위치와 board panel별로 나누고 싶습니다. fallback이 panel edge나 reel segment를 따르면 제조가 escape를 담당합니다. lot 전반에서 T9.4를 따르면 firmware policy 가능성이 커집니다. 서로 다른 population을 평균 내 안심할 수 있는 rate 하나로 만들면 안 됩니다."
+        },
+        {
+          "speaker": "Elena Rossi",
+          "en": "Our lab comparison gives another clue. On T9.3, the same nine units report marginal high-rate training but continue at nominal speed because that release checked only aggregate eye width. On T9.4, the per-lane floor catches lane five and chooses fallback. When we force T9.3 and run temperature cycling, two units produce uncorrectable errors before Android finishes boot. That is why reverting the training blob is not an acceptable containment. T9.4 is detecting real margin weakness even if the threshold is not the root cause. I can add a compact handoff record without exposing proprietary coefficients: outcome, failed lane mask, minimum margin bucket, rail bucket, temperature bucket, duration, and firmware version. Raw training vectors should remain in service builds, not consumer telemetry.",
+          "ko": "lab 비교에서 또 다른 단서를 얻었습니다. T9.3에서 같은 9대는 marginal high-rate training을 보고하지만 aggregate eye width만 확인하므로 nominal speed로 계속 진행합니다. T9.4는 lane별 floor로 lane 5를 포착해 fallback을 선택합니다. T9.3을 강제로 적용하고 temperature cycling을 실행하자 2대에서 Android boot 완료 전에 uncorrectable error가 발생했습니다. 따라서 training blob rollback은 허용 가능한 억제책이 아닙니다. threshold가 root cause가 아니더라도 T9.4는 실제 margin 약화를 감지합니다. proprietary coefficient를 노출하지 않는 compact handoff record를 추가할 수 있습니다. outcome, failed lane mask, minimum margin bucket, rail bucket, temperature bucket, duration, firmware version입니다. raw training vector는 consumer telemetry가 아니라 service build에만 남겨야 합니다."
+        },
+        {
+          "speaker": "Owen Brooks",
+          "en": "That record is sufficient if it is authenticated and bound to the current boot. I propose a versioned structure inside the measured boot handoff with a boot nonce and CRC covered by the existing signature. The kernel will reject a stale or malformed record, label the state unknown, and keep conservative scrub timing. For a valid fallback record, the memory driver will select the 3,200-rate timing table, publish a read-only reason code, and notify the performance service to avoid scheduling peak camera compilation during the first two minutes. I am not proposing that Android raise the rate. Only a full cold boot can rerun training. We also need to prove that crash reboot, slot switch, and factory reset cannot replay an earlier nominal result.",
+          "ko": "그 record가 인증되고 현재 boot에 결속되면 충분합니다. existing signature가 포함하는 measured boot handoff 안에 boot nonce와 CRC를 가진 versioned structure를 제안합니다. kernel은 오래됐거나 malformed인 record를 거부하고 state를 unknown으로 표시하며 보수적인 scrub timing을 유지합니다. 유효한 fallback record에는 memory driver가 3,200-rate timing table을 선택하고 read-only reason code를 게시하며 performance service에 처음 2분 동안 peak camera compilation을 scheduling하지 않도록 알립니다. Android가 rate를 올리자는 제안은 아닙니다. full cold boot만 training을 다시 실행할 수 있습니다. crash reboot, slot switch, factory reset이 이전 nominal 결과를 replay하지 못한다는 것도 입증해야 합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "I support the handoff, but I object to hiding the camera load for two minutes as the main remedy. That would reduce detection rather than correct the monitor mismatch. My team compared controller counters and found that T9.4 fallback sets a longer refresh interval correctly, while the kernel reliability service still normalizes corrected-event counts using the nominal interval. The apparent burst is partly overcounting, yet three of the nine devices also show a genuine lane-five syndrome increase. We need a fallback-aware normalization fix and an independent hardware gate. The launch metric should include raw controller syndromes per gigabyte-hour, not only Android’s normalized count. Otherwise a software change could make the dashboard green while weak units remain in the population.",
+          "ko": "handoff에는 동의하지만 camera load를 2분 동안 숨기는 것을 주된 remedy로 삼는 데 반대합니다. 이는 monitor mismatch를 수정하지 않고 detection을 줄입니다. 우리 팀이 controller counter를 비교한 결과 T9.4 fallback은 더 긴 refresh interval을 올바르게 설정하지만 kernel reliability service는 여전히 nominal interval로 corrected-event count를 정규화합니다. 겉으로 보이는 burst 일부는 과다 집계지만 9대 중 3대는 실제 lane-five syndrome 증가도 보입니다. fallback-aware normalization fix와 독립 hardware gate가 필요합니다. 출시 metric에는 Android normalized count뿐 아니라 gigabyte-hour당 raw controller syndrome을 포함해야 합니다. 그렇지 않으면 약한 단말이 population에 남아 있는데도 software 변경으로 dashboard만 green이 될 수 있습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Containment and Launch Disagreement",
+      "title_ko": "억제책과 출시 이견",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "We have three choices. First, hold every Northstar unit and move the launch. Second, keep the date but ship all units with the lower rate forced. Third, quarantine evidence-linked populations while preserving automatic training and correcting the handoff before retail software approval. A universal lower rate would hide marginal hardware, reduce expected performance, and remove the comparison we need. A full hold would be justified if the risk cannot be bounded by lot, cold behavior, and raw syndrome evidence. I favor the third path only if Manufacturing can screen without warming the package, the firmware never promotes a failed unit, and Android treats missing evidence conservatively. Please challenge those conditions now rather than accepting a schedule-driven compromise.",
+          "ko": "선택지는 세 가지입니다. 첫째, 모든 Northstar 단말을 hold하고 출시를 연기합니다. 둘째, 날짜는 유지하되 모든 단말에 lower rate를 강제해 출하합니다. 셋째, 자동 training은 보존하고 retail software 승인 전에 handoff를 수정하면서 증거로 연결된 population을 격리합니다. universal lower rate는 marginal hardware를 숨기고 기대 성능을 낮추며 필요한 비교를 없앱니다. lot, cold behavior, raw syndrome evidence로 risk를 제한할 수 없다면 full hold가 정당합니다. Manufacturing이 package를 데우지 않고 screening할 수 있고, firmware가 실패 단말을 절대 승격하지 않으며, Android가 missing evidence를 보수적으로 처리할 때만 세 번째 경로를 선호합니다. 일정에 끌린 타협을 받아들이기보다 지금 그 조건을 반박해 주십시오."
+        },
+        {
+          "speaker": "Leo Martins",
+          "en": "Manufacturing can add a cold audit, but not to every assembled unit without missing the ship window. My proposal is two layers. We keep all M47 units quarantined and sample every board panel at minus ten degrees using twelve cold boots per panel. For M45, M46, and the next M48 lot, we sample by PMIC reel segment, memory supplier, and panel position rather than using a flat percentage. Any fallback sends the entire linked stratum to extended screening. The extended test uses a fast rail probe, preserves the trace before warm reset, and runs a ninety-minute raw-syndrome load. A stratum is released only with zero uncorrectable errors, fallback below 0.2 percent, and the raw corrected-syndrome ceiling Priya defines. This is targeted containment, not a claim that untested neighbors are identical.",
+          "ko": "Manufacturing은 cold audit를 추가할 수 있지만 ship window를 놓치지 않고 모든 조립 단말에 적용할 수는 없습니다. 두 계층을 제안합니다. M47 전체는 계속 격리하고 panel당 12회의 cold boot로 영하 10도에서 모든 board panel을 sampling합니다. M45, M46, 다음 M48 lot는 일률적인 비율이 아니라 PMIC reel segment, memory supplier, panel position별로 sampling합니다. fallback이 하나라도 나오면 연결된 stratum 전체를 extended screening으로 보냅니다. extended test는 fast rail probe를 사용하고 warm reset 전에 trace를 보존하며 90분 raw-syndrome load를 실행합니다. uncorrectable error 0건, fallback 0.2% 미만, Priya가 정하는 raw corrected-syndrome ceiling을 충족할 때만 stratum을 release합니다. 이는 targeted containment이지 test하지 않은 이웃이 동일하다는 주장이 아닙니다."
+        },
+        {
+          "speaker": "Elena Rossi",
+          "en": "Firmware can meet the promotion condition. T9.5 will keep the one-way rule: nominal may fall back, but fallback cannot return to nominal within the same boot. It will also expose a terminal training state before the second-stage loader continues. If the handoff buffer is unavailable, authentication fails, or the result is incomplete, the loader will select the lower profile and mark evidence invalid. There will be no silent success state. I will not add a remote command that reruns training because temperature and power history would be uncontrolled. Service engineering may trigger a new cold boot with external instrumentation, but retail Android cannot override the firmware decision. That boundary needs to remain explicit in the minutes and in the interface contract.",
+          "ko": "Firmware는 승격 조건을 충족할 수 있습니다. T9.5는 one-way rule을 유지합니다. nominal은 fallback할 수 있지만 fallback은 같은 boot 안에서 nominal로 돌아갈 수 없습니다. second-stage loader가 계속하기 전에 terminal training state도 노출합니다. handoff buffer를 사용할 수 없거나 authentication이 실패하거나 결과가 불완전하면 loader는 lower profile을 선택하고 evidence invalid를 표시합니다. silent success state는 없습니다. temperature·power history를 통제할 수 없으므로 training을 다시 실행하는 remote command는 추가하지 않겠습니다. service engineering은 external instrumentation으로 새 cold boot를 유발할 수 있지만 retail Android는 firmware 결정을 override할 수 없습니다. 그 경계를 회의록과 interface contract에 명시해야 합니다."
+        },
+        {
+          "speaker": "Owen Brooks",
+          "en": "On the Android side, build N88.6 will consume version one of the handoff and distinguish nominal, fallback, and unknown. Unknown and fallback both receive conservative scrub timing, but telemetry keeps them separate. The performance service will read the actual controller rate rather than the device-tree target. Priya is right that delaying camera work cannot replace the accounting fix, so we will remove that proposal. Instead, the reliability service will use raw syndrome deltas and the active refresh interval. We will add boot-nonce replay tests, malformed-length tests, signature-failure tests, and mixed T9.4-to-T9.5 upgrade tests. If any path reports nominal while hardware counters show 3,200, that is a release blocker, even when no user-visible error occurs.",
+          "ko": "Android 측에서는 N88.6 build가 handoff version 1을 소비하고 nominal, fallback, unknown을 구분합니다. unknown과 fallback 모두 보수적인 scrub timing을 적용하지만 telemetry에서는 분리합니다. performance service는 device-tree target이 아니라 실제 controller rate를 읽습니다. Priya의 말처럼 camera work 지연은 accounting fix를 대신할 수 없으므로 그 제안은 철회합니다. 대신 reliability service는 raw syndrome delta와 active refresh interval을 사용합니다. boot-nonce replay, malformed length, signature failure, mixed T9.4-to-T9.5 upgrade test를 추가합니다. user-visible error가 없어도 어떤 path에서든 hardware counter가 3,200인데 nominal로 보고하면 release blocker입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision Owners and Measurable Gates",
+      "title_ko": "결정·담당자와 정량 Gate",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "The launch remains conditionally on schedule, and the software approval gate is closed. M47 stays quarantined. M45, M46, and M48 enter stratified cold sampling. T9.3 is prohibited because it can continue at high rate after weak per-lane margin. We will not force lower rate globally and will not offer retail retraining. T9.5 plus Android N88.6 is the only candidate. Release requires an authenticated current-boot handoff, actual-rate reporting, fallback-aware syndrome accounting, conservative treatment of unknown evidence, and zero same-boot promotion. Hardware release remains independent: a software pass cannot release a failing manufacturing stratum. If either evidence path misses its gate, the retail ship date moves. This decision protects the diagnostic signal instead of optimizing the dashboard.",
+          "ko": "출시는 조건부로 일정을 유지하지만 software approval gate는 닫습니다. M47은 격리를 유지합니다. M45, M46, M48은 stratified cold sampling에 들어갑니다. T9.3은 약한 lane별 margin 뒤 high rate를 계속 사용할 수 있어 금지합니다. lower rate를 전 단말에 강제하지 않고 retail retraining도 제공하지 않습니다. T9.5와 Android N88.6 조합만 후보입니다. release에는 인증된 current-boot handoff, actual-rate reporting, fallback-aware syndrome accounting, unknown evidence의 보수적 처리, same-boot promotion 0건이 필요합니다. hardware release는 독립적입니다. software pass가 실패한 manufacturing stratum을 release할 수 없습니다. 어느 evidence path든 gate를 놓치면 retail ship date를 옮깁니다. 이 결정은 dashboard 최적화가 아니라 diagnostic signal을 보호합니다."
+        },
+        {
+          "speaker": "Elena Rossi",
+          "en": "I own T9.5 and the handoff producer. By November 21 at 14:00 KST, I will publish the interface definition and a signed engineering image. By 19:00, I will provide fault injection for each terminal outcome, missing buffer, invalid signature, truncated record, stale nonce, and power loss between training and handoff. The firmware acceptance set is ten thousand cold boots across minus fifteen, minus five, and five degrees, with zero high-rate continuation after a failed lane floor and zero authenticated record mismatches. Median training time must stay below 180 milliseconds, and the ninety-ninth percentile must stay below 260 milliseconds. I will deliver the final candidate by November 24 at 10:00 KST if those gates pass.",
+          "ko": "T9.5와 handoff producer는 제가 담당합니다. 11월 21일 14시(KST)까지 interface definition과 signed engineering image를 게시합니다. 19시까지 각 terminal outcome, missing buffer, invalid signature, truncated record, stale nonce, training과 handoff 사이 power loss에 대한 fault injection을 제공합니다. firmware acceptance set은 영하 15도, 영하 5도, 영상 5도에서 cold boot 10,000회이며 failed lane floor 뒤 high-rate continuation 0건, authenticated record mismatch 0건이어야 합니다. median training time은 180밀리초 미만, 99 percentile은 260밀리초 미만이어야 합니다. gate를 통과하면 11월 24일 10시(KST)까지 final candidate를 제공합니다."
+        },
+        {
+          "speaker": "Owen Brooks",
+          "en": "I own N88.6 integration and the handoff consumer. The first build is due November 22 at 09:00 KST. By 16:00, CI will cover all outcome values, three structure versions, both boot slots, crash restart, factory reset, downgrade rejection, and recovery-mode boot. The reporting gate is zero disagreements among signed outcome, controller rate, selected scrub table, and Android state in twenty thousand transitions. Telemetry completeness must exceed 99.7 percent for eligible internal devices, and an invalid record must never be labeled nominal. The normalization test will replay known raw syndrome streams at both rates and must reproduce the reference count within one percent. I will also publish a rollback matrix showing that N88.5 safely treats a T9.5 record as unknown rather than nominal.",
+          "ko": "N88.6 integration과 handoff consumer는 제가 담당합니다. 첫 build는 11월 22일 9시(KST)까지입니다. 16시까지 CI가 모든 outcome value, structure version 3개, boot slot 양쪽, crash restart, factory reset, downgrade rejection, recovery-mode boot를 다룹니다. reporting gate는 transition 20,000회에서 signed outcome, controller rate, selected scrub table, Android state 사이 불일치 0건입니다. 대상 internal device의 telemetry completeness는 99.7%를 넘어야 하고 invalid record를 nominal로 표시하면 안 됩니다. normalization test는 두 rate에서 알려진 raw syndrome stream을 replay하고 reference count를 1% 이내로 재현해야 합니다. N88.5가 T9.5 record를 nominal이 아니라 unknown으로 안전하게 처리한다는 rollback matrix도 게시합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "I own the reliability ceiling and independent stress. By November 22 at 12:00 KST, I will publish limits by memory supplier and temperature. No unit may show an uncorrectable event. At nominal rate, raw corrected syndromes must remain below 0.8 per terabyte-hour; at fallback rate, they must remain below 1.6. Any lane contributing more than sixty percent of a unit’s syndromes triggers physical review even if the total stays below the ceiling. We will run camera capture, GPU gaming, modem uplink, and suspend-resume concurrently for four hours after cold boot. At least six hundred units must complete the matrix, including every fallback unit. A fallback rate above 0.2 percent in any manufacturing stratum blocks that stratum regardless of fleet average.",
+          "ko": "reliability ceiling과 independent stress는 제가 담당합니다. 11월 22일 12시(KST)까지 memory supplier·temperature별 limit를 게시합니다. 어떤 단말에서도 uncorrectable event가 발생하면 안 됩니다. nominal rate에서 raw corrected syndrome은 terabyte-hour당 0.8 미만, fallback rate에서는 1.6 미만이어야 합니다. 단말 syndrome의 60%를 넘게 차지하는 lane이 있으면 total이 ceiling 아래여도 physical review를 시작합니다. cold boot 뒤 4시간 동안 camera capture, GPU gaming, modem uplink, suspend-resume을 동시에 실행합니다. 모든 fallback 단말을 포함해 최소 600대가 matrix를 완료해야 합니다. 어떤 manufacturing stratum이든 fallback rate가 0.2%를 넘으면 fleet average와 무관하게 해당 stratum을 차단합니다."
+        },
+        {
+          "speaker": "Leo Martins",
+          "en": "I own lot mapping, quarantine, and cold screening. The M47 panel and reel map is due today at 17:00 KST. By November 23 at 18:00, we will complete twelve cold boots for every M47 panel and stratified samples for M45, M46, and M48. Every fallback unit will be serialized into the reliability matrix; no unit returns to sale inventory after a warm-only pass. A linked stratum needs zero uncorrectable errors, Priya’s raw-syndrome ceiling, fallback below 0.2 percent, and no concentration by panel edge, reel segment, or underfill oven position. I will keep quarantine records separate from software dashboards. The factory release signature requires my approval and Priya’s approval, so schedule pressure cannot close the hardware gate unilaterally.",
+          "ko": "lot mapping, quarantine, cold screening은 제가 담당합니다. M47 panel·reel map은 오늘 17시(KST)까지입니다. 11월 23일 18시까지 모든 M47 panel에 cold boot 12회와 M45, M46, M48의 stratified sample을 완료합니다. 모든 fallback 단말은 reliability matrix에 serial 등록하며 warm-only pass 뒤 판매 inventory로 돌아가지 않습니다. 연결된 stratum은 uncorrectable error 0건, Priya의 raw-syndrome ceiling, fallback 0.2% 미만, panel edge·reel segment·underfill oven position별 집중 없음이 필요합니다. quarantine record는 software dashboard와 분리해 유지합니다. factory release signature에는 저와 Priya의 승인이 모두 필요하므로 일정 압박으로 hardware gate를 일방적으로 닫을 수 없습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Follow Up and Closing",
+      "title_ko": "후속 회의와 마무리",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "We will hold an evidence review on November 24 at 15:30 KST. The required packet includes the T9.5 ten-thousand-boot result, N88.6 transition matrix, normalization replay, six-hundred-unit reliability run, manufacturing stratum map, quarantine disposition, and rollback matrix. The final launch go-or-move meeting is November 26 at 10:00 KST. Launch approval requires every software and hardware gate we stated, zero unresolved authenticated-state mismatch, and a signed release list by serial range. Materials are due two hours before each meeting. All times are Korea Standard Time. Until the evidence review, the software gate and M47 factory gate remain closed, and no review device receives T9.3. I will circulate today’s decision record by 10:00 KST.",
+          "ko": "evidence review는 11월 24일 15시 30분(KST)에 진행합니다. 필수 packet은 T9.5의 10,000회 boot 결과, N88.6 transition matrix, normalization replay, 600대 reliability run, manufacturing stratum map, quarantine disposition, rollback matrix입니다. 최종 launch go-or-move meeting은 11월 26일 10시(KST)입니다. 출시 승인에는 명시한 모든 software·hardware gate, 미해결 authenticated-state mismatch 0건, serial range별 signed release list가 필요합니다. 자료는 각 회의 2시간 전까지 제출합니다. 모든 시간은 Korea Standard Time입니다. evidence review 전까지 software gate와 M47 factory gate는 닫아 두며 어떤 review device에도 T9.3을 제공하지 않습니다. 오늘 10시(KST)까지 decision record를 배포하겠습니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "One final clarification: fallback itself is not a launch failure if it is rare, truthful, safe, and within the raw reliability ceiling. A hidden fallback, an incorrectly normalized counter, or a clustered weak stratum is a failure. That distinction lets us preserve a protective mechanism without allowing it to conceal poor hardware. My report will show nominal and fallback populations separately at every temperature, with confidence intervals and lane concentration. I will not combine them into a single fleet average. If sample size is insufficient for a stratum, its status remains hold rather than assumed pass. That is the evidence standard I will sign on November 24.",
+          "ko": "마지막으로 명확히 하겠습니다. fallback이 드물고, 사실대로 표시되고, 안전하며, raw reliability ceiling 안에 있다면 fallback 자체는 출시 실패가 아닙니다. hidden fallback, 잘못 정규화한 counter, 집중된 weak stratum은 실패입니다. 이 구분을 통해 보호 mechanism을 유지하면서 나쁜 hardware를 숨기지 못하게 할 수 있습니다. 제 report는 모든 temperature에서 nominal·fallback population을 confidence interval과 lane concentration과 함께 분리해 보여줍니다. 하나의 fleet average로 합치지 않겠습니다. stratum의 sample size가 불충분하면 pass로 가정하지 않고 hold 상태를 유지합니다. 이것이 11월 24일 제가 서명할 evidence standard입니다."
+        },
+        {
+          "speaker": "Owen Brooks",
+          "en": "I will add that distinction to the interface documentation and the Android state model. The public state names will describe evidence, not imply blame: nominal, protected fallback, and unknown. Debug output will carry the producer version and boot nonce but not raw proprietary vectors. The kernel will expose counters through a stable read-only node so manufacturing, reliability, and Android automation read the same source. We will avoid a second derived label in the performance service. If teams disagree on a dashboard number, they can trace it back to the signed handoff and controller counter. That gives us one auditable chain from pre-kernel training to the launch gate.",
+          "ko": "그 구분을 interface documentation과 Android state model에 추가하겠습니다. 공개 state 이름은 책임을 암시하지 않고 evidence를 설명합니다. nominal, protected fallback, unknown입니다. debug output은 producer version과 boot nonce를 포함하지만 raw proprietary vector는 포함하지 않습니다. kernel은 stable read-only node로 counter를 노출해 manufacturing, reliability, Android automation이 같은 source를 읽게 합니다. performance service에 두 번째 derived label을 만들지 않겠습니다. 팀들이 dashboard number에 이견이 있으면 signed handoff와 controller counter까지 추적할 수 있습니다. 이를 통해 pre-kernel training부터 launch gate까지 하나의 audit 가능한 chain을 갖게 됩니다."
+        },
+        {
+          "speaker": "Mina Park",
+          "en": "Let me close with the ownership chain. Elena owns the truthful terminal result and T9.5. Owen owns authenticated transfer, Android interpretation, and rollback compatibility. Priya owns raw reliability limits and independent stress. Leo owns lot boundaries, screening, and physical release. I own the launch decision record and meeting readiness. No owner may substitute another team’s green status for missing evidence in their own gate. The next working review is November 24 at 15:30 KST, followed by the go-or-move meeting on November 26 at 10:00 KST. We are conditionally preserving the date, not declaring readiness. Please escalate any state mismatch immediately rather than waiting for the scheduled review.",
+          "ko": "담당 chain을 확인하며 마치겠습니다. Elena는 사실에 맞는 terminal result와 T9.5, Owen은 authenticated transfer·Android interpretation·rollback compatibility, Priya는 raw reliability limit·independent stress, Leo는 lot boundary·screening·physical release, 저는 launch decision record·meeting readiness를 담당합니다. 어떤 담당자도 자기 gate의 missing evidence를 다른 팀의 green status로 대체할 수 없습니다. 다음 working review는 11월 24일 15시 30분(KST), go-or-move meeting은 11월 26일 10시(KST)입니다. 날짜를 조건부로 보존하는 것이지 readiness를 선언하는 것이 아닙니다. state mismatch가 있으면 예정 review까지 기다리지 말고 즉시 escalation하십시오."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "treat a successful Android boot as proof",
+      "meaning_ko": "Android 성공 부팅을 증거로 간주하다",
+      "usage_ko": "겉으로 성공한 결과를 충분한 검증으로 오해하지 않을 때",
+      "example": "Good morning. Launch Management, Boot and BSP, Memory Reliability, Manufacturing Quality, and our boot firmware partner are all represented. We are twelve days from the retail ship date for model Northstar. Overnight reliability testing found that some units cold-booted at a lower LPDDR data rate without showing a boot failure. The affected units completed Android startup, but application launch time increased and correctable memory errors appeared later under camera and gaming loads. We need to determine whether this is weak hardware, an unsafe training policy, or missing state transfer between boot stages. Today’s outcome must be a launch decision, a bounded containment, named owners, measurable gates, and a follow-up time. We will not treat a successful Android boot as proof that memory training succeeded as intended.",
+      "practice": "We should not treat one passing smoke test as proof of release readiness."
+    },
+    {
+      "phrase": "the unshipped balance",
+      "meaning_ko": "미출하 잔량",
+      "usage_ko": "아직 출하되지 않은 재고 범위를 말할 때",
+      "example": "Manufacturing Quality is present. The signal first appeared in the final audit sample from assembly lot M47. Seven of one hundred ninety-two units showed a memory bandwidth result about twenty-six percent below the nominal range after spending four hours at minus ten degrees Celsius. Six came from M47, and one came from the preceding lot M46. Warm reboot restored nominal bandwidth on all seven. Standard factory diagnostics passed because they run after a warm reset and read only the configured frequency, not the training path. We have quarantined the unshipped balance of M47, which is 3,840 units, but M46 has already supplied 2,100 review and employee devices. I need evidence before expanding the hold to every unit built with the same memory component.",
+      "practice": "Quality placed the unshipped balance in a separate warehouse zone."
+    },
+    {
+      "phrase": "only restores observability",
+      "meaning_ko": "관찰 가능성만 복구한다",
+      "usage_ko": "수정안이 원인이 아닌 가시성만 개선함을 구분할 때",
+      "example": "Boot and BSP is here. The kernel receives the target memory rate from the device tree, so Android currently reports 4,266 megatransfers per second even when the controller is actually operating at 3,200. The early bootloader owns training, selects a fallback profile if the first eye-margin test fails, and writes a result code into a scratch register. Our second-stage loader resets that register while reinitializing the power-management block. Therefore the kernel cannot distinguish nominal training from fallback training. The bandwidth counter exposed the mismatch, but it arrives too late to explain why the fallback occurred. I can preserve the result in the signed boot handoff, yet that change only restores observability. It does not tell us whether the seven devices have marginal DRAM, a rail-ramp problem, or an overly conservative training threshold.",
+      "practice": "The extra counter only restores observability; it does not fix the race."
+    },
+    {
+      "phrase": "the primary defect",
+      "meaning_ko": "주된 결함",
+      "usage_ko": "보호 반응과 근본 문제를 분리할 때",
+      "example": "The boot firmware partner is represented. Firmware T9.4 introduced a colder-temperature guard requested after an earlier validation escape. If the first high-rate training attempt misses either read-eye or write-eye margin, T9.4 falls back once and continues boot at the lower rate. It does not retry high rate because repeated training can extend boot time and heat the memory package, masking the original margin. Our trace buffer records lane-level margins, voltage, temperature, fallback reason, and training duration, but production builds discard it after handoff. The fallback is a protective response, not the primary defect. I disagree with disabling it to make performance look normal. We should expose the decision and investigate why M47 crosses the guard more often, while keeping the safe lower-rate path available.",
+      "practice": "The timeout is a symptom, while stale ownership is the primary defect."
+    },
+    {
+      "phrase": "separate the reason for entering fallback",
+      "meaning_ko": "fallback 진입 원인을 분리하다",
+      "usage_ko": "연쇄 문제의 원인을 단계별로 나눌 때",
+      "example": "Memory Reliability is present. We reproduced nine fallbacks across three lots using controlled cold ramps. The failures cluster on lane five, but the lane is not physically identical across the two memory suppliers. That weakens a simple package-defect theory. More importantly, the correctable errors occur only when the device enters a high camera load within ninety seconds of the fallback boot. If we wait five minutes at idle, no errors appear in a six-hour stress run. My working hypothesis is that the fallback changes controller timing while the reliability monitor retains nominal-rate scrub intervals from the static table. That could create a software accounting problem after a safe hardware decision. We must separate the reason for entering fallback from the reason errors appear afterward, because one fix may not address both.",
+      "practice": "First, separate the reason for entering fallback from the later performance loss."
+    },
+    {
+      "phrase": "remains material",
+      "meaning_ko": "여전히 중요하다",
+      "usage_ko": "다른 설명이 있어도 증거의 중요성을 강조할 때",
+      "example": "I agree that there may be two defects, but the lot correlation remains material. M47 used a revised underfill cure profile and a different PMIC reel. We measured the memory rail with ordinary factory probes and saw no steady-state difference. However, those probes sample too slowly to capture the first eight milliseconds of cold power-up. Supplier records show the PMIC reel passed component screening, while acoustic inspection found no package void pattern. I want to split M47 by PMIC reel position and board panel before blaming the firmware threshold. If fallback follows a panel edge or reel segment, manufacturing owns the escape. If it follows T9.4 across lots, firmware policy becomes more likely. We should not average those populations into one reassuring rate.",
+      "practice": "The regional concentration remains material despite the small sample."
+    },
+    {
+      "phrase": "not an acceptable containment",
+      "meaning_ko": "허용 가능한 억제책이 아니다",
+      "usage_ko": "위험한 임시 대응을 거부할 때",
+      "example": "Our lab comparison gives another clue. On T9.3, the same nine units report marginal high-rate training but continue at nominal speed because that release checked only aggregate eye width. On T9.4, the per-lane floor catches lane five and chooses fallback. When we force T9.3 and run temperature cycling, two units produce uncorrectable errors before Android finishes boot. That is why reverting the training blob is not an acceptable containment. T9.4 is detecting real margin weakness even if the threshold is not the root cause. I can add a compact handoff record without exposing proprietary coefficients: outcome, failed lane mask, minimum margin bucket, rail bucket, temperature bucket, duration, and firmware version. Raw training vectors should remain in service builds, not consumer telemetry.",
+      "practice": "Disabling validation is not an acceptable containment."
+    },
+    {
+      "phrase": "bound to the current boot",
+      "meaning_ko": "현재 boot에 결속된",
+      "usage_ko": "오래된 상태 재사용을 막는 조건을 말할 때",
+      "example": "That record is sufficient if it is authenticated and bound to the current boot. I propose a versioned structure inside the measured boot handoff with a boot nonce and CRC covered by the existing signature. The kernel will reject a stale or malformed record, label the state unknown, and keep conservative scrub timing. For a valid fallback record, the memory driver will select the 3,200-rate timing table, publish a read-only reason code, and notify the performance service to avoid scheduling peak camera compilation during the first two minutes. I am not proposing that Android raise the rate. Only a full cold boot can rerun training. We also need to prove that crash reboot, slot switch, and factory reset cannot replay an earlier nominal result.",
+      "practice": "Every recovery token must be bound to the current boot."
+    },
+    {
+      "phrase": "make the dashboard green",
+      "meaning_ko": "dashboard를 green으로 만들다",
+      "usage_ko": "실제 품질보다 지표만 개선하는 위험을 지적할 때",
+      "example": "I support the handoff, but I object to hiding the camera load for two minutes as the main remedy. That would reduce detection rather than correct the monitor mismatch. My team compared controller counters and found that T9.4 fallback sets a longer refresh interval correctly, while the kernel reliability service still normalizes corrected-event counts using the nominal interval. The apparent burst is partly overcounting, yet three of the nine devices also show a genuine lane-five syndrome increase. We need a fallback-aware normalization fix and an independent hardware gate. The launch metric should include raw controller syndromes per gigabyte-hour, not only Android’s normalized count. Otherwise a software change could make the dashboard green while weak units remain in the population.",
+      "practice": "Changing the denominator may make the dashboard green without helping users."
+    },
+    {
+      "phrase": "schedule-driven compromise",
+      "meaning_ko": "일정에 끌린 타협",
+      "usage_ko": "납기 때문에 기술 기준을 낮추는 결정을 경계할 때",
+      "example": "We have three choices. First, hold every Northstar unit and move the launch. Second, keep the date but ship all units with the lower rate forced. Third, quarantine evidence-linked populations while preserving automatic training and correcting the handoff before retail software approval. A universal lower rate would hide marginal hardware, reduce expected performance, and remove the comparison we need. A full hold would be justified if the risk cannot be bounded by lot, cold behavior, and raw syndrome evidence. I favor the third path only if Manufacturing can screen without warming the package, the firmware never promotes a failed unit, and Android treats missing evidence conservatively. Please challenge those conditions now rather than accepting a schedule-driven compromise.",
+      "practice": "The review board rejected a schedule-driven compromise on encryption testing."
+    },
+    {
+      "phrase": "There will be no silent success state",
+      "meaning_ko": "조용한 성공 상태는 없을 것이다",
+      "usage_ko": "모호한 성공 판정을 금지할 때",
+      "example": "Firmware can meet the promotion condition. T9.5 will keep the one-way rule: nominal may fall back, but fallback cannot return to nominal within the same boot. It will also expose a terminal training state before the second-stage loader continues. If the handoff buffer is unavailable, authentication fails, or the result is incomplete, the loader will select the lower profile and mark evidence invalid. There will be no silent success state. I will not add a remote command that reruns training because temperature and power history would be uncontrolled. Service engineering may trigger a new cold boot with external instrumentation, but retail Android cannot override the firmware decision. That boundary needs to remain explicit in the minutes and in the interface contract.",
+      "practice": "There will be no silent success state when verification data is missing."
+    },
+    {
+      "phrase": "is a release blocker",
+      "meaning_ko": "release 차단 조건이다",
+      "usage_ko": "즉시 출시를 막는 기준을 선언할 때",
+      "example": "On the Android side, build N88.6 will consume version one of the handoff and distinguish nominal, fallback, and unknown. Unknown and fallback both receive conservative scrub timing, but telemetry keeps them separate. The performance service will read the actual controller rate rather than the device-tree target. Priya is right that delaying camera work cannot replace the accounting fix, so we will remove that proposal. Instead, the reliability service will use raw syndrome deltas and the active refresh interval. We will add boot-nonce replay tests, malformed-length tests, signature-failure tests, and mixed T9.4-to-T9.5 upgrade tests. If any path reports nominal while hardware counters show 3,200, that is a release blocker, even when no user-visible error occurs.",
+      "practice": "A mismatch between the signed result and runtime state is a release blocker."
+    },
+    {
+      "phrase": "protects the diagnostic signal",
+      "meaning_ko": "진단 신호를 보호한다",
+      "usage_ko": "측정 가능성을 유지하는 결정을 설명할 때",
+      "example": "The launch remains conditionally on schedule, and the software approval gate is closed. M47 stays quarantined. M45, M46, and M48 enter stratified cold sampling. T9.3 is prohibited because it can continue at high rate after weak per-lane margin. We will not force lower rate globally and will not offer retail retraining. T9.5 plus Android N88.6 is the only candidate. Release requires an authenticated current-boot handoff, actual-rate reporting, fallback-aware syndrome accounting, conservative treatment of unknown evidence, and zero same-boot promotion. Hardware release remains independent: a software pass cannot release a failing manufacturing stratum. If either evidence path misses its gate, the retail ship date moves. This decision protects the diagnostic signal instead of optimizing the dashboard.",
+      "practice": "Keeping the control group protects the diagnostic signal during the pilot."
+    },
+    {
+      "phrase": "cannot close the hardware gate unilaterally",
+      "meaning_ko": "hardware gate를 일방적으로 닫을 수 없다",
+      "usage_ko": "공동 승인 원칙을 강조할 때",
+      "example": "I own lot mapping, quarantine, and cold screening. The M47 panel and reel map is due today at 17:00 KST. By November 23 at 18:00, we will complete twelve cold boots for every M47 panel and stratified samples for M45, M46, and M48. Every fallback unit will be serialized into the reliability matrix; no unit returns to sale inventory after a warm-only pass. A linked stratum needs zero uncorrectable errors, Priya’s raw-syndrome ceiling, fallback below 0.2 percent, and no concentration by panel edge, reel segment, or underfill oven position. I will keep quarantine records separate from software dashboards. The factory release signature requires my approval and Priya’s approval, so schedule pressure cannot close the hardware gate unilaterally.",
+      "practice": "Program management cannot close the hardware gate unilaterally."
+    },
+    {
+      "phrase": "conditionally preserving the date",
+      "meaning_ko": "날짜를 조건부로 유지하다",
+      "usage_ko": "출시 확정과 일정 보존을 구분할 때",
+      "example": "Let me close with the ownership chain. Elena owns the truthful terminal result and T9.5. Owen owns authenticated transfer, Android interpretation, and rollback compatibility. Priya owns raw reliability limits and independent stress. Leo owns lot boundaries, screening, and physical release. I own the launch decision record and meeting readiness. No owner may substitute another team’s green status for missing evidence in their own gate. The next working review is November 24 at 15:30 KST, followed by the go-or-move meeting on November 26 at 10:00 KST. We are conditionally preserving the date, not declaring readiness. Please escalate any state mismatch immediately rather than waiting for the scheduled review.",
+      "practice": "We are conditionally preserving the date until the final evidence review."
+    }
+  ]
+}
