@@ -1,0 +1,289 @@
+{
+  "date": "2026-11-22",
+  "category": "business",
+  "topic": "sw-kickoff",
+  "subject": "Kicking Off an Android Live Kernel Patch Safety Study",
+  "title_ko": "Android Live Kernel Patch 안전성 연구 킥오프",
+  "summary_ko": "가상의 Android 시스템 SW 착수 회의에서 유지보수 단말의 재부팅을 피할 수 있는 제한적 live kernel patch 연구의 안전 경계와 반증 가능한 검증 계약을 설계합니다. 팀들은 말단 함수 범위, 지연 진입 quiescence, 서명된 전환 계약, 전원 손실 복구, 정량 중단 조건을 합의합니다. 모든 인물·조직·단말·커널·드라이버·빌드·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않습니다.",
+  "participants": [
+    {
+      "name": "Hana Cho",
+      "team": "Kernel Maintenance"
+    },
+    {
+      "name": "Malik Reed",
+      "team": "Product Security"
+    },
+    {
+      "name": "Sofia Alvarez",
+      "team": "Verification and Recovery"
+    },
+    {
+      "name": "Kenji Mori",
+      "team": "Verification and Recovery"
+    },
+    {
+      "name": "Claire Dubois",
+      "team": "Release Program"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Mandate",
+      "title_ko": "참석 확인 및 목적",
+      "turns": [
+        {
+          "speaker": "Claire Dubois",
+          "en": "Good morning. I have Hana from Kernel Maintenance, Malik from Product Security, Sofia from System Verification, and Kenji from Device Recovery. Everyone named in the decision record is present. Our purpose is narrow: decide whether a six-week engineering study can establish safe boundaries for replacing selected Android kernel functions while a maintenance device remains running. This is not a production approval meeting. Enterprise support asked whether an urgent driver correction could sometimes avoid interrupting a twelve-hour supervised workflow, but we have no accepted safety contract. By the end, I need a study scope, evidence plan, owners, deadlines, stop conditions, and the first checkpoint. Please flag any assumption that cannot be tested in our laboratory.",
+          "ko": "좋은 아침입니다. Kernel Maintenance의 Hana, Product Security의 Malik, System Verification의 Sofia, Device Recovery의 Kenji가 참석했습니다. 결정 기록에 이름이 들어갈 모든 사람이 참석했습니다. 오늘 목적은 좁습니다. 유지보수 단말을 계속 실행한 상태에서 선택한 Android 커널 함수를 교체하는 것이 안전한 범위를 6주 엔지니어링 연구로 규명할 수 있는지 결정하는 것입니다. 이 회의는 제품 적용 승인 회의가 아닙니다. 기업 지원 조직은 긴급 드라이버 수정 시 12시간의 감독 작업 중단을 피할 수 있는 경우가 있는지 물었지만 아직 합의된 안전 계약은 없습니다. 오늘 회의가 끝날 때 연구 범위, 증거 계획, 담당자, 기한, 중단 조건, 첫 점검 일정이 필요합니다. 실험실에서 검증할 수 없는 가정은 지적해 주십시오."
+        },
+        {
+          "speaker": "Hana Cho",
+          "en": "Kernel Maintenance is ready. I want to put one boundary on the table immediately: the study should replace only leaf functions that do not change data layout, allocate persistent objects, or alter an external interface. We will not patch scheduler code, memory management, locking primitives, or exception entry. Our candidate is a synthetic telemetry driver whose decoder mishandles one reserved status value. The corrected function is 74 instructions on our arm64 build and has no callers from interrupt context. That gives us a realistic call path without tying the exercise to a shipping defect. I also propose a clean reboot before and after every trial until we prove that rollback leaves no residual state.",
+          "ko": "Kernel Maintenance는 준비되었습니다. 즉시 한 가지 경계를 제안하고 싶습니다. 연구에서는 데이터 배치를 바꾸거나 영구 객체를 할당하거나 외부 인터페이스를 변경하지 않는 말단 함수만 교체해야 합니다. 스케줄러 코드, 메모리 관리, 잠금 기본 기능, 예외 진입부는 패치하지 않겠습니다. 후보는 예약 상태 값 하나를 잘못 처리하는 합성 텔레메트리 드라이버의 디코더입니다. 수정 함수는 arm64 빌드에서 74개 명령이며 인터럽트 문맥 호출자가 없습니다. 출시 결함과 연결하지 않으면서 현실적인 호출 경로를 제공합니다. 롤백 후 잔류 상태가 없음을 입증할 때까지 모든 시험 전후에 정상 재부팅도 제안합니다."
+        },
+        {
+          "speaker": "Malik Reed",
+          "en": "I agree with the narrow candidate, but code size is not the security boundary. We must account for who authorizes the replacement, how it is bound to an exact kernel image, and what happens if verification succeeds but activation is interrupted. A signature on arbitrary replacement text is insufficient. The signed manifest should name the build digest, original function digest, replacement digest, approved symbol, expiry time, and monotonic study sequence. The loader must fail closed if any field is missing. I also want the signing key isolated from normal build credentials and disabled automatically when the study ends. Otherwise a laboratory convenience can quietly become a durable privileged path that nobody intended to maintain.",
+          "ko": "좁은 후보에는 동의하지만 코드 크기가 보안 경계는 아닙니다. 누가 교체를 승인하는지, 정확한 커널 이미지에 어떻게 귀속되는지, 검증 성공 후 활성화가 중단되면 어떻게 되는지를 다뤄야 합니다. 임의 교체 코드에 대한 서명만으로는 부족합니다. 서명된 manifest에는 빌드 digest, 원래 함수 digest, 교체 함수 digest, 승인 symbol, 만료 시간, 단조 증가 연구 sequence가 있어야 합니다. 필드가 빠지면 loader는 안전하게 실패해야 합니다. 서명 key는 일반 빌드 자격 증명과 분리하고 연구 종료 시 자동 비활성화해야 합니다. 그렇지 않으면 실험실 편의 기능이 의도하지 않은 지속적 특권 경로가 될 수 있습니다."
+        },
+        {
+          "speaker": "Sofia Alvarez",
+          "en": "Verification is represented. I challenge the phrase 'remains running,' because a successful redirect is not the same as uninterrupted service. We need observable criteria. For the synthetic driver, I propose continuous sampling at 200 events per second, a sequence counter with no gaps or duplicates, and a paired userspace consumer that records latency. Baseline p99 is 3.8 milliseconds. During activation and rollback, p99 may not exceed 8 milliseconds for more than one five-second window, and no sample may be decoded under a mixed rule. We should inject CPU pressure, suspend attempts, module unload requests, and concurrent reads. Happy-path activation alone would tell us almost nothing about safety.",
+          "ko": "검증 조직도 참석했습니다. 함수 전환 성공이 서비스 무중단과 같지 않으므로 '계속 실행한다'라는 표현에 이의를 제기합니다. 관측 가능한 기준이 필요합니다. 합성 드라이버에는 초당 200개 이벤트를 지속 입력하고, 누락이나 중복 없는 sequence counter와 지연 시간을 기록하는 사용자 공간 consumer를 두자고 제안합니다. 기준 p99는 3.8밀리초입니다. 활성화와 롤백 중 p99가 5초 구간 한 번을 넘겨 8밀리초를 초과해서는 안 되며 어떤 sample도 혼합 규칙으로 디코딩되면 안 됩니다. CPU 압력, suspend 시도, module unload 요청, 동시 읽기를 주입해야 합니다. 정상 경로만으로는 안전성에 관해 거의 알 수 없습니다."
+        },
+        {
+          "speaker": "Kenji Mori",
+          "en": "Recovery is present. My concern is power loss after the redirect but before the journal records the final state. We must separate runtime replacement from boot persistence. No replacement survives a reboot; the boot chain always loads the original signed kernel and modules. A recovery record may state that an activation was attempted, but it must not contain executable bytes or instruct the next boot to reapply anything. If the device becomes unresponsive, the existing hardware watchdog and normal crash capture remain authoritative. The study loader must not suppress a reboot, rewrite a crash reason, or delay watchdog service to make its result look cleaner. Network loss must never prevent a safe boot.",
+          "ko": "Recovery도 참석했습니다. 전환 후 journal이 최종 상태를 기록하기 전에 전원이 끊기는 경우가 우려됩니다. 실행 중 교체와 부팅 지속성을 분리해야 합니다. 어떤 교체도 재부팅 후 유지되지 않으며 부트 체인은 항상 원래 서명된 커널과 모듈을 로드합니다. recovery record에는 활성화 시도 사실을 기록할 수 있지만 실행 byte를 담거나 다음 부팅에서 재적용을 지시해서는 안 됩니다. 단말이 무응답이면 기존 hardware watchdog과 정상 crash capture가 권위 있는 수단입니다. 연구 loader가 결과를 깨끗하게 보이게 하려고 재부팅을 억제하거나 crash reason을 바꾸거나 watchdog을 지연해서는 안 됩니다. network 손실이 안전한 부팅을 막아서도 안 됩니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Mechanism and Technical Disagreement",
+      "title_ko": "메커니즘 및 기술 이견",
+      "turns": [
+        {
+          "speaker": "Hana Cho",
+          "en": "The mechanism has three phases. Prepare validates the manifest and stages replacement text in non-executable memory. Quiesce prevents new entries, waits until per-CPU entry counters reach zero, and verifies that no task instruction pointer lies inside the original range. Commit changes one architecture-supported branch target and makes the new text executable. Rollback uses the same barrier. Quiescence is proven, not inferred from a fixed delay. If zero is not reached within 40 milliseconds, the attempt aborts before commit and releases every gate in reverse order. The timeout is deliberately shorter than the service latency budget, so a busy system refuses a change instead of pretending it is safe.",
+          "ko": "메커니즘은 세 단계입니다. Prepare는 manifest를 검증하고 실행 불가능 메모리에 교체 text를 준비합니다. Quiesce는 새 진입을 막고 CPU별 entry counter가 0이 될 때까지 기다린 뒤 어떤 task의 instruction pointer도 원래 범위 안에 없음을 확인합니다. Commit은 architecture가 지원하는 branch target 하나를 바꾸고 새 text를 실행 가능하게 만듭니다. 롤백도 같은 barrier를 사용합니다. Quiescence는 고정 지연으로 추정하지 않고 입증합니다. 40밀리초 안에 0이 되지 않으면 commit 전에 중단하고 gate를 역순으로 해제합니다. timeout은 service latency budget보다 짧아 바쁜 시스템이 안전한 척하지 않고 변경을 거부하게 합니다."
+        },
+        {
+          "speaker": "Sofia Alvarez",
+          "en": "I need to push back on current instruction pointers as sufficient proof. The candidate queues work containing an indirect decoder pointer. A task can be outside the function while still holding the old address, so delayed work can enter retired text after commit. We must drain or version every deferred entry source: work queues, timers, tasklets, and registered callbacks. For this candidate, use a generation-tagged dispatch slot and wait for the old generation's active and deferred reference counts to reach zero. Then wait for an RCU grace period and scan again. Without an enumerated deferred-source inventory, I would stop the study now rather than discover the gap during fault injection.",
+          "ko": "현재 instruction pointer만으로 충분한 증거라는 주장에는 반대합니다. 후보는 간접 decoder pointer를 담은 work를 queue에 넣습니다. task가 함수 밖에 있어도 이전 주소를 보유할 수 있어 commit 후 지연 work가 폐기된 text에 진입할 수 있습니다. work queue, timer, tasklet, 등록 callback 등 모든 지연 진입 원천을 drain하거나 version 처리해야 합니다. 이 후보에는 generation-tagged dispatch slot을 사용하고 이전 generation의 활성 및 지연 reference count가 0이 될 때까지 기다려야 합니다. 그 후 RCU grace period를 기다리고 다시 scan합니다. 열거된 지연 원천 목록이 없다면 결함 주입 중 누락을 발견하기보다 지금 연구를 중단하겠습니다."
+        },
+        {
+          "speaker": "Hana Cho",
+          "en": "That is a valid gap. I classified queued work as driver state rather than entry state, and that was too weak. I can add a dispatch generation without changing the candidate's production-like interface. Prepare closes admission for generation A, publishes generation B's slot, and waits for both active entries and deferred references to A to become zero. Commit follows an RCU grace period and a second scan. We will keep the 40-millisecond limit, so a busy queue produces a clean refusal instead of a forced drain. Any target with an unenumerated entry source is out of scope. I will record that rule in the candidate contract, not leave it as an implementation note.",
+          "ko": "유효한 누락입니다. queue된 work를 진입 상태가 아니라 driver 상태로 분류했는데 너무 약했습니다. 제품 유사 인터페이스를 바꾸지 않고 dispatch generation을 추가할 수 있습니다. Prepare는 generation A의 admission을 닫고 generation B slot을 게시한 뒤 A에 대한 활성 진입과 지연 reference가 모두 0이 되기를 기다립니다. RCU grace period와 두 번째 scan 후 commit합니다. 40밀리초 제한은 유지해 바쁜 queue가 강제 drain 대신 깨끗한 거부를 일으키게 합니다. 열거되지 않은 진입 원천이 있는 target은 범위 밖입니다. 이 규칙을 구현 메모가 아니라 후보 contract에 기록하겠습니다."
+        },
+        {
+          "speaker": "Malik Reed",
+          "en": "The manifest must therefore approve a transition contract, not merely a symbol. I want a contract digest covering the target range, dispatch slot, deferred-source inventory, allowed relocation types, expected stack signature, and rollback function. The loader recomputes it from the running image. If instrumentation or the compiler changes any component, the patch is rejected even when the symbol name matches. We need to draw a hard line: no wildcard relocation, no writable executable mapping, and no external module resolving an unlisted symbol. The replacement receives only declared addresses, and the staging buffer is erased after either commit or abort. A concurrent second activation request is rejected before preparation.",
+          "ko": "따라서 manifest는 symbol만이 아니라 전환 contract를 승인해야 합니다. target range, dispatch slot, 지연 원천 목록, 허용 relocation, 예상 stack signature, rollback 함수를 포함하는 contract digest가 필요합니다. loader는 실행 중 image에서 이를 다시 계산합니다. instrumentation이나 compiler가 구성 요소를 바꾸면 symbol 이름이 같아도 patch를 거부합니다. wildcard relocation, writable executable mapping, 목록에 없는 symbol을 해석하는 외부 module은 명확히 금지해야 합니다. 교체 코드는 선언된 주소만 받고 staging buffer는 commit 또는 abort 후 지웁니다. 동시에 들어온 두 번째 활성화 요청은 prepare 전에 거부합니다."
+        },
+        {
+          "speaker": "Kenji Mori",
+          "en": "The runtime state machine needs terminal outcomes that recovery tools can distinguish. Prepared, quiescing, and committed are transient. The durable record ends as rejected-before-change, activated-and-observed, clean rollback, reboot-required, or evidence-incomplete. We never label an outcome clean because the screen still responds. A clean rollback requires the original digest restored, generation B references at zero, the service sequence reconciled, and five minutes without a new unexpected kernel warning. If any check is unavailable, the result is evidence-incomplete and the next action is a normal reboot. Support operators may export evidence or reboot; they cannot manually mark an ambiguous attempt clean.",
+          "ko": "runtime state machine에는 recovery tool이 구분할 종결 결과가 필요합니다. Prepared, quiescing, committed는 일시 상태입니다. 지속 record는 변경 전 거부, 활성화 및 관찰 완료, 깨끗한 롤백, 재부팅 필요, 증거 불완전 중 하나로 끝납니다. 화면이 반응한다고 결과를 깨끗하다고 표시하지 않습니다. 깨끗한 롤백에는 원래 digest 복원, generation B reference 0, service sequence 조정, 예상치 못한 kernel warning 없는 5분이 필요합니다. 검사를 사용할 수 없으면 증거 불완전이며 다음 조치는 정상 재부팅입니다. 지원 담당자는 증거를 내보내거나 재부팅할 수 있지만 모호한 시도를 수동으로 깨끗하다고 표시할 수 없습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and Fault Injection",
+      "title_ko": "증거 및 결함 주입",
+      "turns": [
+        {
+          "speaker": "Sofia Alvarez",
+          "en": "I propose 600 activations and 600 rollbacks across three device revisions, four CPU-load bands, and five deferred-work depths. Half face an injected disturbance: manifest corruption, stale sequence, signature expiry, quiescence timeout, CPU hotplug request, suspend request, forced allocation failure, or power loss at a journal boundary. An independent collector over the debug link, not the loader's success message, establishes event order. The acceptance bar is zero execution from retired text, zero sequence gaps or duplicates, zero writable-executable overlap, and 100 percent correspondence between durable outcomes and independent traces. One unexplained mismatch pauses the matrix. Every failed attempt remains in the denominator, even when a later retry succeeds.",
+          "ko": "세 가지 device revision, 네 CPU load 단계, 다섯 지연 work 깊이에 걸쳐 활성화 600회와 롤백 600회를 제안합니다. 절반에는 manifest 손상, 오래된 sequence, signature 만료, quiescence timeout, CPU hotplug, suspend, allocation 실패, journal 경계 전원 손실 중 하나를 주입합니다. event 순서는 loader의 성공 message가 아니라 debug link의 독립 collector가 입증합니다. 승인 기준은 폐기 text 실행 0건, sequence 누락·중복 0건, writable-executable 중첩 0건, durable outcome과 독립 trace 대응률 100%입니다. 설명되지 않는 불일치 한 건이면 matrix를 중단합니다. 이후 retry가 성공해도 모든 실패 시도는 분모에 남습니다."
+        },
+        {
+          "speaker": "Claire Dubois",
+          "en": "Can we get an early answer without weakening the final bar? The week-three program decision is whether to fund the remaining study, not whether to deploy. The first 120 paired attempts can cover every disturbance on every revision and serve as a feasibility gate. Passing authorizes completion of the matrix; it does not reduce the final sample count. A failed safety invariant stops the study. A latency-only miss may permit one design revision if failed data is preserved and the final date does not move. I want to avoid learning on day thirty-nine that the loader was structurally unable to meet a basic condition. The early gate must expose architecture risk, not manufacture confidence.",
+          "ko": "최종 기준을 약화하지 않고 조기 답을 얻을 수 있을까요? 3주 차 결정은 배포가 아니라 남은 연구 자금 지원 여부입니다. 처음 120쌍 시도가 모든 revision에서 모든 교란을 다루고 feasibility gate가 될 수 있습니다. 통과는 matrix 완료를 승인하지만 최종 sample 수를 줄이지 않습니다. 안전 invariant 실패는 연구를 중단합니다. latency만 실패하면 실패 데이터를 보존하고 최종 날짜를 옮기지 않는 조건으로 설계 수정 한 번을 허용할 수 있습니다. 39일째에 loader가 기본 조건을 구조적으로 충족하지 못함을 아는 상황을 피하고 싶습니다. 초기 gate는 확신을 꾸미는 것이 아니라 architecture risk를 드러내야 합니다."
+        },
+        {
+          "speaker": "Malik Reed",
+          "en": "Adversarial attempts must begin in the first 120. My team will make malformed manifests that carry a valid study signature but swap the original digest, request a forbidden relocation, repeat a consumed sequence, or claim expiry beyond the secure time source. We will race two activation requests. Every case must reject deterministically before executable permission changes. A check that fails safely but writes an ambiguous journal is still a failure, because ambiguity invites unsafe manual recovery. I accept one revision for latency, but any authorization bypass, retired-text execution, or writable-executable overlap ends the study immediately and retires the signing key. Those events are not tuning opportunities.",
+          "ko": "적대적 시도는 처음 120회부터 시작해야 합니다. 제 팀은 유효한 연구 signature를 갖지만 원래 digest를 바꾸거나 금지 relocation을 요청하거나 소비된 sequence를 반복하거나 secure time source보다 뒤의 만료를 주장하는 잘못된 manifest를 만들겠습니다. 활성화 요청 두 개도 경쟁시킵니다. 모든 case는 executable permission 변경 전에 결정론적으로 거부되어야 합니다. 안전하게 실패하더라도 모호한 journal을 쓰면 실패입니다. 모호함이 안전하지 않은 수동 복구를 부르기 때문입니다. latency 수정 한 번은 허용하지만 authorization 우회, 폐기 text 실행, writable-executable 중첩은 연구를 즉시 끝내고 signing key를 폐기합니다. 이는 조정 기회가 아닙니다."
+        },
+        {
+          "speaker": "Hana Cho",
+          "en": "I agree on those stop conditions, but expected diagnostics need precise treatment. Fault injection may intentionally trigger one recoverable allocation warning or rejected hotplug path. We should not confuse an expected diagnostic with state corruption. I propose an allowlist keyed by test case, exact warning site, phase, and maximum count. It is reviewed before execution and frozen with the test-plan digest. Any warning outside it pauses the matrix; an allowed warning still participates in the durable-outcome check. There will be no broad memory-subsystem pattern. The independent collector must capture the warning before the loader writes its terminal record, so we can verify cause and order rather than merely observe that both events happened.",
+          "ko": "중단 조건에 동의하지만 예상 diagnostic은 정확히 다뤄야 합니다. 결함 주입이 복구 가능한 allocation warning 하나나 거부된 hotplug 경로를 의도적으로 일으킬 수 있습니다. 예상 diagnostic과 상태 손상을 혼동해서는 안 됩니다. test case, 정확한 warning site, phase, 최대 count를 key로 하는 allowlist를 제안합니다. 실행 전에 검토하고 test-plan digest와 함께 동결합니다. 목록 밖 warning은 matrix를 중단하고 허용 warning도 durable-outcome 검사에 포함됩니다. 넓은 memory-subsystem pattern은 없습니다. 독립 collector가 loader의 terminal record보다 먼저 warning을 포착해야 두 사건이 있었다는 사실만이 아니라 원인과 순서를 검증할 수 있습니다."
+        },
+        {
+          "speaker": "Kenji Mori",
+          "en": "Power loss will occur after manifest acceptance, after quiescence proof, after branch commit but before the terminal record, and during rollback after the original branch is restored but before reference reconciliation. Each boundary runs 25 times per device revision with a programmable fixture. After restart, Recovery verifies original boot digests, absence of executable study text, preserved crash and reset reasons, and a record saying the previous observation was incomplete. The device may return to the synthetic workload, but it may not reactivate the patch. If any boot depends on the study server, the design has violated our boundary. I will also test the operator instructions with both network and server unavailable.",
+          "ko": "전원 손실은 manifest 수락 후, quiescence 입증 후, branch commit 후 terminal record 전, 원래 branch 복원 후 reference reconciliation 전 rollback 도중에 발생시킵니다. programmable fixture로 각 device revision에서 경계마다 25회 수행합니다. 재시작 후 Recovery는 원래 boot digest, 실행 가능한 연구 text 부재, crash 및 reset reason 보존, 이전 관찰이 불완전했다는 record를 확인합니다. 단말은 합성 workload로 돌아갈 수 있지만 patch를 재활성화해서는 안 됩니다. 어떤 boot라도 연구 server에 의존하면 경계를 위반한 것입니다. network와 server가 모두 없는 상황에서 operator 지침도 시험하겠습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decisions and Owners",
+      "title_ko": "결정 및 담당자",
+      "turns": [
+        {
+          "speaker": "Claire Dubois",
+          "en": "I will read the decision back. We approve a six-week, laboratory-only Android live kernel patch safety study using one synthetic decoder. The target must satisfy the leaf-function rule and have a complete deferred-entry inventory. No patch persists across reboot. The loader accepts only an exact signed transition contract and preserves watchdog, crash, and recovery behavior. The early gate is 120 paired attempts plus negative controls; the final gate is 600 activations, 600 rollbacks, and 300 defined power cuts. Passing produces evidence for a later architecture review and does not authorize a field trial. Scope changes require all five owners to approve a revised record. Is that accurate?",
+          "ko": "결정을 다시 읽겠습니다. 합성 decoder 하나를 사용하는 6주간 실험실 전용 Android live kernel patch 안전성 연구를 승인합니다. target은 말단 함수 규칙과 완전한 지연 진입 목록을 충족해야 합니다. 어떤 patch도 재부팅 후 유지되지 않습니다. loader는 정확한 서명 전환 contract만 수락하고 watchdog, crash, recovery 동작을 보존합니다. 초기 gate는 120쌍 시도와 negative control이며 최종 gate는 활성화 600회, 롤백 600회, 정의된 전원 차단 300회입니다. 통과는 이후 architecture review 증거를 만들 뿐 field trial을 승인하지 않습니다. 범위 변경에는 다섯 담당자 모두의 수정 기록 승인이 필요합니다. 정확합니까?"
+        },
+        {
+          "speaker": "Hana Cho",
+          "en": "Accurate. I own the target contract, loader prototype, and generation-aware dispatch instrumentation. By Tuesday, November 24 at 18:00 Korea Standard Time, I will publish the call graph, deferred-source inventory, forbidden-target list, and baseline overhead. By Friday, November 27 at 17:00 KST, I will deliver build LKP-S1 with prepare, quiesce, commit, rollback, and staging erasure. It exposes tracepoints but no command that bypasses signature verification. I will pair with Kenji on terminal states and Malik on the contract digest. If I find an entry source we cannot enumerate, I will mark the candidate ineligible instead of extending the timeout or creating a test exception.",
+          "ko": "정확합니다. 제가 target contract, loader prototype, generation-aware dispatch instrumentation을 담당합니다. 11월 24일 화요일 한국 표준시 18:00까지 call graph, 지연 원천 목록, 금지 target 목록, baseline overhead를 게시합니다. 11월 27일 금요일 KST 17:00까지 prepare, quiesce, commit, rollback, staging erasure를 포함한 LKP-S1 build를 전달합니다. tracepoint는 제공하지만 signature 검증 우회 command는 없습니다. terminal state는 Kenji와, contract digest는 Malik과 협력합니다. 열거할 수 없는 진입 원천을 찾으면 timeout이나 test 예외를 만들지 않고 후보를 부적격 처리합니다."
+        },
+        {
+          "speaker": "Malik Reed",
+          "en": "I own the study key, manifest schema, abuse cases, and key retirement. The isolated signing service and public certificate are due Wednesday, November 25 at 16:00 KST. It signs only a manifest whose build, contract, test-plan, and replacement digests are registered together. Sofia receives 24 malformed or replayed manifests by Monday, November 30 at noon. I will audit writable-executable overlap and unlisted relocation before the first activation. The key expires January 8 at 00:00 KST and is destroyed earlier after an authorization stop condition. Editing a manifest cannot extend it; extension requires a new review and key. Access to manifests and traces will be explicitly listed.",
+          "ko": "제가 연구 key, manifest schema, 악용 case, key 폐기를 담당합니다. 격리 signing service와 공개 certificate는 11월 25일 수요일 KST 16:00까지 준비합니다. build, contract, test-plan, replacement digest가 함께 등록된 manifest만 서명합니다. Sofia에게 11월 30일 월요일 정오까지 잘못되거나 replay된 manifest 24개를 제공합니다. 첫 활성화 전에 writable-executable 중첩과 목록 밖 relocation을 audit합니다. key는 1월 8일 KST 00:00에 만료되고 authorization 중단 조건 발생 시 더 일찍 폐기됩니다. manifest 편집으로 연장할 수 없고 새 review와 key가 필요합니다. manifest와 trace 접근자도 명시합니다."
+        },
+        {
+          "speaker": "Sofia Alvarez",
+          "en": "I own the collector, frozen matrix, workload oracle, and result ledger. The complete plan, including exact warning allowlist entries and early-gate order, is due Friday, November 27 at 20:00 KST. Hardware starts Tuesday, December 1 at 09:00 KST after Malik signs the frozen test-plan digest and Hana's build passes static checks. I publish the early report by December 4 at 18:00 KST. Every failure remains in the denominator. A rerun is additional evidence and links to the original; it does not replace it. I pause immediately for any invariant breach or unexplained trace-to-journal mismatch. Sixty no-activation runs and sixty no-contract requests provide negative controls.",
+          "ko": "제가 collector, 동결 matrix, workload oracle, result ledger를 담당합니다. 정확한 warning allowlist와 초기 gate 순서를 포함한 전체 plan은 11월 27일 금요일 KST 20:00까지입니다. Malik이 frozen test-plan digest에 서명하고 Hana build가 static check를 통과한 후 12월 1일 화요일 KST 09:00에 hardware 시험을 시작합니다. 12월 4일 KST 18:00까지 초기 report를 게시합니다. 모든 실패는 분모에 남습니다. rerun은 원래 run과 연결된 추가 증거일 뿐 대체하지 않습니다. invariant 위반이나 설명되지 않는 trace-journal 불일치가 있으면 즉시 중단합니다. 활성화 없는 60회와 contract 없는 요청 60회를 negative control로 둡니다."
+        },
+        {
+          "speaker": "Kenji Mori",
+          "en": "I own the recovery-state specification, power-loss campaign, and post-reboot inspection. The state table and parser are due Thursday, November 26 at 18:00 KST. I review Hana's prototype the next morning and reject any path that persists replacement bytes or changes the normal boot decision. Fixtures are calibrated by December 2 at 15:00 KST, and twelve boundary cuts run before the early report closes. The remaining 288 cuts follow only if the early gate passes. Each restart checklist records boot digest, reset reason, journal outcome, executable-page scan, and workload reconciliation. Missing evidence means reboot-required, never clean rollback. The checklist is signed and retained with the independent trace.",
+          "ko": "제가 recovery-state 명세, 전원 손실 campaign, 재부팅 후 검사를 담당합니다. state table과 parser는 11월 26일 목요일 KST 18:00까지입니다. 다음 날 아침 Hana prototype을 검토해 replacement byte를 유지하거나 정상 boot 결정을 바꾸는 경로를 거부합니다. fixture는 12월 2일 KST 15:00까지 보정하며 초기 report 전에 boundary cut 12회를 실행합니다. 나머지 288회는 초기 gate 통과 후에만 수행합니다. 재시작 checklist에는 boot digest, reset reason, journal outcome, executable-page scan, workload reconciliation을 기록합니다. 증거 누락은 깨끗한 롤백이 아니라 재부팅 필요입니다. checklist는 서명해 독립 trace와 함께 보존합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Stop Conditions and Follow Up",
+      "title_ko": "중단 조건 및 후속 일정",
+      "turns": [
+        {
+          "speaker": "Claire Dubois",
+          "en": "The stop conditions are explicit. Authorization bypass, retired-text execution, writable-executable overlap, automatic reactivation after reboot, altered crash evidence, or an unbounded entry source ends the study and retires the key. An unexplained safety mismatch pauses work for joint review. A latency-only miss permits one documented revision without deleting prior results or moving the final date. The first checkpoint is Friday, November 27, 2026, from 20:30 to 21:15 Korea Standard Time. Its agenda is artifact readiness: contract inventory, key service, state table, test-plan digest, and exclusions. The feasibility decision meeting is Monday, December 7 at 10:00 KST, after every owner has reviewed the early report.",
+          "ko": "중단 조건은 명확합니다. authorization 우회, 폐기 text 실행, writable-executable 중첩, 재부팅 후 자동 재활성화, crash 증거 변경, 경계 없는 진입 원천은 연구를 종료하고 key를 폐기합니다. 설명되지 않는 안전 불일치는 공동 review까지 작업을 중단합니다. latency만 실패하면 이전 결과 삭제나 최종 날짜 변경 없이 문서화된 수정 한 번을 허용합니다. 첫 점검은 2026년 11월 27일 금요일 한국 표준시 20:30~21:15입니다. 안건은 contract 목록, key service, state table, test-plan digest, 제외 항목의 준비 상태입니다. feasibility 결정 회의는 모든 담당자가 초기 report를 검토한 뒤인 12월 7일 월요일 KST 10:00입니다."
+        },
+        {
+          "speaker": "Malik Reed",
+          "en": "One clarification: the study server is an authorization aid, not a runtime dependency. If the network disappears, a device must complete an accepted transition, reject it, roll it back, or reboot safely. It may not wait indefinitely while admission is closed. I will set a 15-second ceiling for any pre-prepare network exchange; after prepare begins, only local verified material is used. I will document who may view manifests and traces because they expose symbols and control flow even with a synthetic workload. That access list is part of the November 27 review. Any emergency access follows the same approval and logging rules; there is no hidden administrator bypass.",
+          "ko": "한 가지 명확히 하겠습니다. 연구 server는 authorization 보조 수단이지 runtime dependency가 아닙니다. network가 사라져도 단말은 수락한 전환을 완료하거나 거부하거나 롤백하거나 안전하게 재부팅해야 합니다. admission이 닫힌 채 무기한 기다려서는 안 됩니다. prepare 전 network 교환에는 15초 상한을 두고 prepare 시작 후에는 로컬 검증 material만 사용합니다. 합성 workload라도 symbol과 control flow를 드러내므로 manifest와 trace 열람자를 문서화합니다. 접근 목록은 11월 27일 review에 포함됩니다. 긴급 접근도 같은 승인과 logging 규칙을 따르며 숨은 관리자 우회는 없습니다."
+        },
+        {
+          "speaker": "Sofia Alvarez",
+          "en": "I will circulate a one-page invariant sheet before the detailed matrix. It states the measurement source and expected terminal outcome for every fault. Comments close Wednesday, November 25 at 19:00 KST. Silence will not count as approval; each owner must mark accept or object. At the first checkpoint, unresolved objections are reported separately from implementation risks. This keeps the evidence contract visible and prevents a schedule discussion from quietly redefining a safety condition. I will also map every loader counter to one independent trace event. A transition that cannot be explained by both sources is evidence-incomplete, even if the workload appears healthy and the final digest happens to match.",
+          "ko": "상세 matrix 전에 한 장짜리 invariant sheet를 배포하겠습니다. 모든 fault의 측정 source와 예상 terminal outcome을 명시합니다. 의견 마감은 11월 25일 수요일 KST 19:00입니다. 침묵은 승인으로 간주하지 않고 각 담당자가 수락 또는 이의를 표시해야 합니다. 첫 점검에서 미해결 이의를 구현 위험과 별도로 보고합니다. 증거 contract를 보이게 유지하고 일정 논의가 안전 조건을 조용히 재정의하는 것을 막습니다. 모든 loader counter를 독립 trace event 하나와 mapping합니다. 두 source 모두로 설명할 수 없는 전환은 workload가 건강하고 최종 digest가 우연히 일치해도 증거 불완전입니다."
+        },
+        {
+          "speaker": "Claire Dubois",
+          "en": "We are aligned. I will publish the decision record and owner table today by 14:00 KST using the dates and stop conditions read aloud. A private message or successful demonstration is not approval. Our working conclusion is deliberately modest: the mechanism is worth studying because the candidate is bounded and the evidence can be falsifiable. We have not concluded that live kernel patching is safer than a reboot, and no team may describe this study as deployment readiness. Thank you. The next meeting is Friday, November 27, 2026, at 20:30 Korea Standard Time, and the invitation will link the five required artifacts and the explicit owner responses.",
+          "ko": "합의되었습니다. 낭독한 날짜와 중단 조건으로 오늘 KST 14:00까지 결정 기록과 담당자 표를 게시합니다. private message나 성공적인 시연은 승인이 아닙니다. 현재 결론은 의도적으로 제한적입니다. 후보가 경계 지어져 있고 증거를 반증 가능하게 만들 수 있어 연구할 가치가 있습니다. live kernel patch가 재부팅보다 안전하다고 결론 내리지 않았으며 어떤 팀도 이 연구를 배포 준비 상태라고 설명해서는 안 됩니다. 감사합니다. 다음 회의는 2026년 11월 27일 금요일 한국 표준시 20:30이며 invitation에 다섯 필수 artifact와 명시적 담당자 응답을 연결합니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "put one boundary on the table",
+      "meaning_ko": "경계를 논의 초기에 제시하다",
+      "usage_ko": "범위 제한을 먼저 제안할 때",
+      "example": "Kernel Maintenance is ready. I want to put one boundary on the table immediately: the study should replace only leaf functions that do not change data layout, allocate persistent objects, or alter an external interface. We will not patch scheduler code, memory management, locking primitives, or exception entry. Our candidate is a synthetic telemetry driver whose decoder mishandles one reserved status value. The corrected function is 74 instructions on our arm64 build and has no callers from interrupt context. That gives us a realistic call path without tying the exercise to a shipping defect. I also propose a clean reboot before and after every trial until we prove that rollback leaves no residual state.",
+      "practice": "Let me put one boundary on the table: the API cannot change."
+    },
+    {
+      "phrase": "fail closed",
+      "meaning_ko": "안전한 쪽으로 실패하다",
+      "usage_ko": "검증 정보가 부족할 때 거부하는 원칙",
+      "example": "I agree with the narrow candidate, but code size is not the security boundary. We must account for who authorizes the replacement, how it is bound to an exact kernel image, and what happens if verification succeeds but activation is interrupted. A signature on arbitrary replacement text is insufficient. The signed manifest should name the build digest, original function digest, replacement digest, approved symbol, expiry time, and monotonic study sequence. The loader must fail closed if any field is missing. I also want the signing key isolated from normal build credentials and disabled automatically when the study ends. Otherwise a laboratory convenience can quietly become a durable privileged path that nobody intended to maintain.",
+      "practice": "The tool must fail closed when identity is uncertain."
+    },
+    {
+      "phrase": "push back on",
+      "meaning_ko": "반대 의견을 제기하다",
+      "usage_ko": "제안의 허점을 정중히 지적할 때",
+      "example": "I need to push back on current instruction pointers as sufficient proof. The candidate queues work containing an indirect decoder pointer. A task can be outside the function while still holding the old address, so delayed work can enter retired text after commit. We must drain or version every deferred entry source: work queues, timers, tasklets, and registered callbacks. For this candidate, use a generation-tagged dispatch slot and wait for the old generation's active and deferred reference counts to reach zero. Then wait for an RCU grace period and scan again. Without an enumerated deferred-source inventory, I would stop the study now rather than discover the gap during fault injection.",
+      "practice": "I need to push back on that schedule assumption."
+    },
+    {
+      "phrase": "draw a hard line",
+      "meaning_ko": "명확한 금지선을 긋다",
+      "usage_ko": "허용 불가 조건을 못 박을 때",
+      "example": "The manifest must therefore approve a transition contract, not merely a symbol. I want a contract digest covering the target range, dispatch slot, deferred-source inventory, allowed relocation types, expected stack signature, and rollback function. The loader recomputes it from the running image. If instrumentation or the compiler changes any component, the patch is rejected even when the symbol name matches. We need to draw a hard line: no wildcard relocation, no writable executable mapping, and no external module resolving an unlisted symbol. The replacement receives only declared addresses, and the staging buffer is erased after either commit or abort. A concurrent second activation request is rejected before preparation.",
+      "practice": "We should draw a hard line at data loss."
+    },
+    {
+      "phrase": "clean rollback",
+      "meaning_ko": "깨끗한 롤백",
+      "usage_ko": "원상 복구와 확인이 모두 끝난 상태",
+      "example": "The runtime state machine needs terminal outcomes that recovery tools can distinguish. Prepared, quiescing, and committed are transient. The durable record ends as rejected-before-change, activated-and-observed, clean rollback, reboot-required, or evidence-incomplete. We never label an outcome clean because the screen still responds. A clean rollback requires the original digest restored, generation B references at zero, the service sequence reconciled, and five minutes without a new unexpected kernel warning. If any check is unavailable, the result is evidence-incomplete and the next action is a normal reboot. Support operators may export evidence or reboot; they cannot manually mark an ambiguous attempt clean.",
+      "practice": "Release ends only after a clean rollback."
+    },
+    {
+      "phrase": "acceptance bar",
+      "meaning_ko": "승인 기준선",
+      "usage_ko": "통과에 필요한 정량 기준",
+      "example": "I propose 600 activations and 600 rollbacks across three device revisions, four CPU-load bands, and five deferred-work depths. Half face an injected disturbance: manifest corruption, stale sequence, signature expiry, quiescence timeout, CPU hotplug request, suspend request, forced allocation failure, or power loss at a journal boundary. An independent collector over the debug link, not the loader's success message, establishes event order. The acceptance bar is zero execution from retired text, zero sequence gaps or duplicates, zero writable-executable overlap, and 100 percent correspondence between durable outcomes and independent traces. One unexplained mismatch pauses the matrix. Every failed attempt remains in the denominator, even when a later retry succeeds.",
+      "practice": "Our acceptance bar is zero corrupted records."
+    },
+    {
+      "phrase": "without weakening the final bar",
+      "meaning_ko": "최종 기준을 약화하지 않고",
+      "usage_ko": "조기 판단과 최종 품질을 분리할 때",
+      "example": "Can we get an early answer without weakening the final bar? The week-three program decision is whether to fund the remaining study, not whether to deploy. The first 120 paired attempts can cover every disturbance on every revision and serve as a feasibility gate. Passing authorizes completion of the matrix; it does not reduce the final sample count. A failed safety invariant stops the study. A latency-only miss may permit one design revision if failed data is preserved and the final date does not move. I want to avoid learning on day thirty-nine that the loader was structurally unable to meet a basic condition. The early gate must expose architecture risk, not manufacture confidence.",
+      "practice": "We can preview early without weakening the final bar."
+    },
+    {
+      "phrase": "ends the study immediately",
+      "meaning_ko": "연구를 즉시 종료한다",
+      "usage_ko": "절대 중단 조건을 표현할 때",
+      "example": "Adversarial attempts must begin in the first 120. My team will make malformed manifests that carry a valid study signature but swap the original digest, request a forbidden relocation, repeat a consumed sequence, or claim expiry beyond the secure time source. We will race two activation requests. Every case must reject deterministically before executable permission changes. A check that fails safely but writes an ambiguous journal is still a failure, because ambiguity invites unsafe manual recovery. I accept one revision for latency, but any authorization bypass, retired-text execution, or writable-executable overlap ends the study immediately and retires the signing key. Those events are not tuning opportunities.",
+      "practice": "Credential exposure ends the study immediately."
+    },
+    {
+      "phrase": "test-plan digest",
+      "meaning_ko": "테스트 계획 다이제스트",
+      "usage_ko": "시험 계획 변경 방지를 설명할 때",
+      "example": "I agree on those stop conditions, but expected diagnostics need precise treatment. Fault injection may intentionally trigger one recoverable allocation warning or rejected hotplug path. We should not confuse an expected diagnostic with state corruption. I propose an allowlist keyed by test case, exact warning site, phase, and maximum count. It is reviewed before execution and frozen with the test-plan digest. Any warning outside it pauses the matrix; an allowed warning still participates in the durable-outcome check. There will be no broad memory-subsystem pattern. The independent collector must capture the warning before the loader writes its terminal record, so we can verify cause and order rather than merely observe that both events happened.",
+      "practice": "Archive the test-plan digest with every run."
+    },
+    {
+      "phrase": "read the decision back",
+      "meaning_ko": "결정을 다시 읽어 확인하다",
+      "usage_ko": "최종 합의를 확인할 때",
+      "example": "I will read the decision back. We approve a six-week, laboratory-only Android live kernel patch safety study using one synthetic decoder. The target must satisfy the leaf-function rule and have a complete deferred-entry inventory. No patch persists across reboot. The loader accepts only an exact signed transition contract and preserves watchdog, crash, and recovery behavior. The early gate is 120 paired attempts plus negative controls; the final gate is 600 activations, 600 rollbacks, and 300 defined power cuts. Passing produces evidence for a later architecture review and does not authorize a field trial. Scope changes require all five owners to approve a revised record. Is that accurate?",
+      "practice": "Please read the decision back before assigning owners."
+    },
+    {
+      "phrase": "remains in the denominator",
+      "meaning_ko": "분모에 그대로 남는다",
+      "usage_ko": "실패를 통계에서 제외하지 않을 때",
+      "example": "I propose 600 activations and 600 rollbacks across three device revisions, four CPU-load bands, and five deferred-work depths. Half face an injected disturbance: manifest corruption, stale sequence, signature expiry, quiescence timeout, CPU hotplug request, suspend request, forced allocation failure, or power loss at a journal boundary. An independent collector over the debug link, not the loader's success message, establishes event order. The acceptance bar is zero execution from retired text, zero sequence gaps or duplicates, zero writable-executable overlap, and 100 percent correspondence between durable outcomes and independent traces. One unexplained mismatch pauses the matrix. Every failed attempt remains in the denominator, even when a later retry succeeds.",
+      "practice": "A timeout remains in the denominator after a successful retry."
+    },
+    {
+      "phrase": "evidence-incomplete",
+      "meaning_ko": "증거 불완전",
+      "usage_ko": "안전 판정 자료가 부족한 상태",
+      "example": "The runtime state machine needs terminal outcomes that recovery tools can distinguish. Prepared, quiescing, and committed are transient. The durable record ends as rejected-before-change, activated-and-observed, clean rollback, reboot-required, or evidence-incomplete. We never label an outcome clean because the screen still responds. A clean rollback requires the original digest restored, generation B references at zero, the service sequence reconciled, and five minutes without a new unexpected kernel warning. If any check is unavailable, the result is evidence-incomplete and the next action is a normal reboot. Support operators may export evidence or reboot; they cannot manually mark an ambiguous attempt clean.",
+      "practice": "The incident stays evidence-incomplete until traces arrive."
+    },
+    {
+      "phrase": "runtime dependency",
+      "meaning_ko": "실행 중 의존성",
+      "usage_ko": "동작에 반드시 필요한 외부 요소",
+      "example": "One clarification: the study server is an authorization aid, not a runtime dependency. If the network disappears, a device must complete an accepted transition, reject it, roll it back, or reboot safely. It may not wait indefinitely while admission is closed. I will set a 15-second ceiling for any pre-prepare network exchange; after prepare begins, only local verified material is used. I will document who may view manifests and traces because they expose symbols and control flow even with a synthetic workload. That access list is part of the November 27 review. Any emergency access follows the same approval and logging rules; there is no hidden administrator bypass.",
+      "practice": "The dashboard must not become a runtime dependency."
+    },
+    {
+      "phrase": "Silence will not count as approval",
+      "meaning_ko": "침묵은 승인으로 간주하지 않는다",
+      "usage_ko": "명시적 승인을 요구할 때",
+      "example": "I will circulate a one-page invariant sheet before the detailed matrix. It states the measurement source and expected terminal outcome for every fault. Comments close Wednesday, November 25 at 19:00 KST. Silence will not count as approval; each owner must mark accept or object. At the first checkpoint, unresolved objections are reported separately from implementation risks. This keeps the evidence contract visible and prevents a schedule discussion from quietly redefining a safety condition. I will also map every loader counter to one independent trace event. A transition that cannot be explained by both sources is evidence-incomplete, even if the workload appears healthy and the final digest happens to match.",
+      "practice": "Silence will not count as approval; record a vote."
+    },
+    {
+      "phrase": "working conclusion",
+      "meaning_ko": "잠정 결론",
+      "usage_ko": "최종 승인이 아닌 현재 판단",
+      "example": "We are aligned. I will publish the decision record and owner table today by 14:00 KST using the dates and stop conditions read aloud. A private message or successful demonstration is not approval. Our working conclusion is deliberately modest: the mechanism is worth studying because the candidate is bounded and the evidence can be falsifiable. We have not concluded that live kernel patching is safer than a reboot, and no team may describe this study as deployment readiness. Thank you. The next meeting is Friday, November 27, 2026, at 20:30 Korea Standard Time, and the invitation will link the five required artifacts and the explicit owner responses.",
+      "practice": "Our working conclusion supports further validation."
+    }
+  ]
+}
