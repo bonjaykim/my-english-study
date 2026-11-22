@@ -1,0 +1,284 @@
+{
+  "date": "2026-11-23",
+  "category": "business",
+  "topic": "sw-release",
+  "subject": "Gating Asynchronous Memory Tagging for Legacy Camera Extensions",
+  "title_ko": "구형 Camera Extension의 비동기 Memory Tagging 릴리스 Gate",
+  "summary_ko": "가상의 Android BSP 릴리스 회의에서 비동기 Memory Tagging 활성화 후 구형 camera depth extension의 stale pointer가 드러나는 문제를 분석합니다. 팀들은 core tag 검사를 유지하면서 extension identity manifest, isolated helper, 명시적 base fallback, artifact별 정량 gate와 circuit breaker를 적용하기로 결정합니다. 모든 인물·조직·단말·카메라·extension·allocator·빌드·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않습니다.",
+  "participants": [
+    {
+      "name": "Mina Park",
+      "team": "Native Runtime Security"
+    },
+    {
+      "name": "Owen Blake",
+      "team": "Camera Platform"
+    },
+    {
+      "name": "Priya Nair",
+      "team": "Vendor Integration"
+    },
+    {
+      "name": "Lucas Meyer",
+      "team": "Release Validation"
+    },
+    {
+      "name": "Elena Rossi",
+      "team": "Release Validation"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Release Objective",
+      "title_ko": "참석 확인 및 릴리스 목표",
+      "turns": [
+        {
+          "speaker": "Elena Rossi",
+          "en": "Good morning. Mina represents Native Runtime Security, Owen represents Camera Platform, Priya represents Vendor Integration, Lucas leads the validation matrix, and I own the R82 release decision. Everyone required to accept an action is present. Today's question is whether asynchronous Memory Tagging can remain enabled for camera services in the R82 BSP after the legacy depth-extension path produced tagged-address faults. We are not deciding whether Memory Tagging is useful in general. We need to identify the broken ownership contract, distinguish a real memory-safety finding from an integration artifact, choose the smallest defensible release boundary, and assign dates. The meeting ends with an explicit ship, isolate, defer, or revert decision and a follow-up time in Korea Standard Time.",
+          "ko": "좋은 아침입니다. Mina는 Native Runtime Security, Owen은 Camera Platform, Priya는 Vendor Integration을 대표하고 Lucas는 검증 matrix를 이끌며 저는 R82 release 결정을 담당합니다. 조치를 수락해야 하는 모든 담당자가 참석했습니다. 오늘 질문은 구형 depth-extension 경로에서 tagged-address fault가 발생한 뒤에도 R82 BSP의 camera service에 비동기 Memory Tagging을 유지할 수 있는지입니다. Memory Tagging의 일반적 유용성을 결정하는 자리가 아닙니다. 깨진 ownership contract를 찾고, 실제 memory-safety 문제와 통합 artifact를 구분하고, 가장 작으면서 방어 가능한 release 경계를 선택하고, 일정을 배정해야 합니다. 회의는 ship, isolate, defer, revert 중 명시적 결정과 한국 표준시 기준 후속 회의 시간으로 끝납니다."
+        },
+        {
+          "speaker": "Mina Park",
+          "en": "Security is present. Our R82 candidate enables asynchronous tag checking for native system services that already pass the tagged-heap qualification suite. In the camera soak, 19 of 720 depth-enhanced portrait sessions terminated after the extension returned metadata to the provider. The fault address carried tag seven while the allocation tag had already advanced to nine. The first mismatch appeared 11 to 34 milliseconds after a canceled burst, which is consistent with a stale metadata pointer, not a random tag-generation failure. I do not want to wave this through as tooling noise. At the same time, the evidence does not justify disabling Memory Tagging across unrelated services. We need to contain the uncertain component and keep the diagnostic value elsewhere.",
+          "ko": "Security가 참석했습니다. R82 후보는 tagged-heap qualification suite를 이미 통과한 native system service에 비동기 tag 검사를 활성화합니다. camera soak에서 depth가 강화된 portrait session 720회 중 19회가 extension이 metadata를 provider에 반환한 뒤 종료되었습니다. fault 주소는 tag 7이었지만 allocation tag는 이미 9로 진행한 상태였습니다. 첫 mismatch는 취소된 burst 후 11~34밀리초에 나타났으며 무작위 tag 생성 실패가 아니라 오래된 metadata pointer와 일치합니다. 이를 tooling noise로 넘기고 싶지 않습니다. 동시에 이 증거는 관계없는 service의 Memory Tagging까지 비활성화할 근거가 아닙니다. 불확실한 component를 격리하고 다른 곳의 진단 가치는 유지해야 합니다."
+        },
+        {
+          "speaker": "Owen Blake",
+          "en": "Camera Platform is present. I agree the mismatch is real, but I want to separate ownership from exploitability before we label the extension defective. The provider gives the extension a reference-counted frame descriptor and a borrowed pointer to immutable calibration metadata. The extension copies that pointer into a private request object. On cancellation, the provider drops the descriptor, while the extension's completion callback can still inspect calibration flags. That contract was tolerated when pointer tags were ignored, but it was never written down. Our initial patch copies 96 bytes of calibration data into the request and removes the borrowed pointer. It eliminates all 19 failures in a 900-session rerun, yet we have not tested memory pressure, process restart, or every extension version.",
+          "ko": "Camera Platform도 참석했습니다. mismatch가 실제라는 데 동의하지만 extension을 결함으로 부르기 전에 ownership과 악용 가능성을 구분하고 싶습니다. provider는 reference-counted frame descriptor와 변경 불가능한 calibration metadata에 대한 borrowed pointer를 extension에 줍니다. extension은 그 pointer를 private request object에 복사합니다. 취소 시 provider는 descriptor를 해제하지만 extension의 completion callback은 여전히 calibration flag를 볼 수 있습니다. pointer tag를 무시할 때는 용인된 contract였지만 문서화된 적은 없습니다. 초기 patch는 96byte calibration data를 request에 복사하고 borrowed pointer를 없앱니다. 900-session 재시험에서 19개 실패를 모두 제거했지만 memory pressure, process restart, 모든 extension version은 아직 시험하지 않았습니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "Vendor Integration is here. We have four extension builds in the supported device set. V5.4 uses the borrowed metadata pointer. V5.6 introduced a partial copy but still retains a pointer to the lens table. V6.0 and V6.1 use a versioned value object and did not fault in our reproduction. The supplier can deliver corrected V5 binaries on November 27, but two carrier images freeze their vendor partition on November 25. Reopening those images would move certification by at least six business days. My concern is that a broad camera-service requirement turns one old optional extension into a schedule blocker for models that never load it. I want the release gate expressed by extension identity and process boundary, not only by device model.",
+          "ko": "Vendor Integration도 참석했습니다. 지원 device set에는 extension build 네 개가 있습니다. V5.4는 borrowed metadata pointer를 사용합니다. V5.6은 일부 copy를 도입했지만 lens table pointer를 계속 보유합니다. V6.0과 V6.1은 versioned value object를 사용하며 재현 시험에서 fault가 없었습니다. supplier는 수정된 V5 binary를 11월 27일 제공할 수 있지만 두 carrier image는 11월 25일 vendor partition을 freeze합니다. 이 image를 다시 열면 certification이 최소 영업일 6일 늦어집니다. 하나의 오래된 선택적 extension 때문에 이를 load하지 않는 model까지 일정이 막히는 광범위한 camera-service 요구가 우려됩니다. release gate를 device model만이 아니라 extension identity와 process boundary로 표현하고 싶습니다."
+        },
+        {
+          "speaker": "Lucas Meyer",
+          "en": "Validation is present. Before we discuss exemptions, I need a stable denominator. The original 720 sessions mixed three device revisions, two extension generations, and normal versus forced cancellation, but the report grouped them by test hour. I have reconstructed the matrix. All 19 faults came from V5.4 on revision B under forced cancellation with memory reclaim active. V5.6 showed no fatal tag fault, but 7 of 240 sessions logged a retained lens-table reference beyond the provider epoch. V6 showed neither signal. That supports two different risks, not one binary pass result. I propose that we validate pointer lifetime, service availability, image correctness, and tag-fault reporting as separate outcomes. A crash-free run alone cannot close the issue.",
+          "ko": "Validation도 참석했습니다. 예외를 논의하기 전에 안정적인 분모가 필요합니다. 원래 720개 session은 device revision 3개, extension generation 2개, 정상 취소와 강제 취소를 섞었지만 report는 test hour별로 묶었습니다. 제가 matrix를 재구성했습니다. 19개 fault는 모두 memory reclaim이 활성화된 강제 취소 중 revision B의 V5.4에서 나왔습니다. V5.6은 fatal tag fault가 없었지만 240회 중 7회에서 provider epoch 이후에도 lens-table reference가 유지된 log가 있었습니다. V6에서는 두 신호가 모두 없었습니다. 하나의 pass 결과가 아니라 두 가지 위험을 뜻합니다. pointer lifetime, service availability, image correctness, tag-fault reporting을 별도 outcome으로 검증하자고 제안합니다. crash가 없다는 사실만으로 issue를 닫을 수 없습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence Review and Competing Interpretations",
+      "title_ko": "증거 검토와 상반된 해석",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "The epoch evidence changes my view of V5.6. A nonfatal retained reference is still a contract violation; asynchronous checking merely may not sample it before reuse. I want to make the risk legible: V5.4 has an observed use-after-free, V5.6 has a demonstrated stale-reference window, and V6 currently has no observed violation. Those statements carry different confidence. We should not convert 'no sampled fault' into 'safe.' I propose a runtime manifest that declares extension identity, allocator contract version, and whether it runs in the core camera process or an isolated helper. R82 may enable tag checking only when all three fields match a signed allowlist. Unknown identity must fail to the base camera path without depth enhancement, not silently disable tag checking.",
+          "ko": "epoch 증거로 V5.6에 대한 제 견해가 바뀌었습니다. fatal이 아닌 retained reference도 contract 위반이며 비동기 검사가 재사용 전에 이를 sample하지 않았을 뿐일 수 있습니다. 위험을 명확히 표현하겠습니다. V5.4는 관측된 use-after-free가 있고, V5.6은 입증된 stale-reference window가 있으며, V6은 현재 관측된 위반이 없습니다. 신뢰 수준이 서로 다릅니다. 'sampled fault가 없음'을 '안전함'으로 바꿔서는 안 됩니다. extension identity, allocator contract version, core camera process 또는 isolated helper 실행 여부를 선언하는 runtime manifest를 제안합니다. 세 필드 모두 signed allowlist와 일치할 때만 R82가 tag 검사를 활성화할 수 있습니다. 알 수 없는 identity는 tag 검사를 조용히 끄지 말고 depth enhancement 없는 기본 camera path로 실패해야 합니다."
+        },
+        {
+          "speaker": "Owen Blake",
+          "en": "I support identity gating, but I disagree with putting V5.6 in the same operational bucket as V5.4. If both are disabled immediately, four enterprise workflows lose depth measurement even though V5.6 has not corrupted an image or terminated a session. We can put V5.6 in an isolated helper with no direct access to the provider heap. The provider serializes the 96-byte calibration value and the lens table into a sealed shared-memory region, then revokes write access before dispatch. The helper returns only a bounded result structure. If it faults, the core provider remains alive and produces a standard image. This does not prove the extension safe, but it changes the blast radius while preserving a measured feature path.",
+          "ko": "identity gating은 지지하지만 V5.6을 V5.4와 같은 운영 bucket에 넣는 데에는 반대합니다. 둘 다 즉시 비활성화하면 V5.6이 image를 손상시키거나 session을 종료한 적이 없어도 네 enterprise workflow가 depth measurement를 잃습니다. V5.6을 provider heap에 직접 접근하지 못하는 isolated helper에 둘 수 있습니다. provider는 96byte calibration value와 lens table을 sealed shared-memory 영역에 serialize하고 dispatch 전에 write access를 revoke합니다. helper는 bounded result structure만 반환합니다. fault가 나도 core provider는 살아 있고 표준 image를 생성합니다. 이것이 extension의 안전성을 입증하지는 않지만 측정된 기능 경로를 유지하면서 blast radius를 바꿉니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "There is one integration catch. The current V5.6 binary expects three callbacks into the provider: lens-table lookup, thermal compensation, and request cancellation. A sealed value input removes the first two, but cancellation still crosses the process boundary. If we terminate the helper on a 450-millisecond deadline, a late completion can write into a reused shared-memory slot unless each request carries an unguessable token and generation. I recommend one slot per request, read-only mapping in the helper after dispatch, and destruction rather than reuse at completion. That adds about 144 kilobytes at our maximum three in-flight requests. It is acceptable, but the manifest must reject a helper binary that still imports the old callback symbols.",
+          "ko": "통합상의 문제 하나가 있습니다. 현재 V5.6 binary는 provider로의 callback 세 개, 즉 lens-table lookup, thermal compensation, request cancellation을 기대합니다. sealed value input은 앞의 두 개를 없애지만 cancellation은 여전히 process boundary를 넘습니다. 450밀리초 deadline에 helper를 종료하면 각 request에 추측 불가능한 token과 generation이 없는 한 늦은 completion이 재사용된 shared-memory slot에 쓸 수 있습니다. request마다 slot 하나를 두고 dispatch 후 helper에서 read-only mapping을 사용하며 완료 시 재사용하지 말고 파괴할 것을 권합니다. 최대 in-flight request 3개에서 약 144KB가 추가됩니다. 허용 가능하지만 manifest는 옛 callback symbol을 계속 import하는 helper binary를 거부해야 합니다."
+        },
+        {
+          "speaker": "Lucas Meyer",
+          "en": "That design is testable, but it creates two user-visible modes: enhanced output from the helper and standard output after fallback. Our oracle must verify that fallback is explicit and that metadata never claims depth was applied when it was not. I will add a result provenance field with values core, isolated-v5, and base-fallback. The camera application receives the field but cannot force a weaker security mode. For each forced helper fault, we expect one canceled enhancement, one standard image within 700 milliseconds, no camera-provider restart, and a diagnostic containing extension identity without image content. If the fallback misses the deadline or produces an ambiguous provenance value, the gate fails even when the process survives.",
+          "ko": "그 설계는 시험 가능하지만 helper의 enhanced output과 fallback 후 standard output이라는 두 사용자 모드를 만듭니다. oracle은 fallback이 명시적이고 depth가 적용되지 않았는데 metadata가 적용되었다고 주장하지 않는지 확인해야 합니다. core, isolated-v5, base-fallback 값을 갖는 result provenance field를 추가하겠습니다. camera application은 field를 받지만 더 약한 보안 모드를 강제할 수 없습니다. 강제 helper fault마다 enhancement 취소 1건, 700밀리초 안의 standard image 1개, camera-provider restart 0건, image content 없이 extension identity가 들어간 diagnostic을 기대합니다. fallback이 deadline을 놓치거나 모호한 provenance를 만들면 process가 살아 있어도 gate 실패입니다."
+        },
+        {
+          "speaker": "Elena Rossi",
+          "en": "Let us be precise about the release alternatives. Option one disables Memory Tagging for the entire camera service and preserves every extension; that protects schedule but removes the diagnostic boundary from a privileged process. Option two disables all V5 extensions and ships V6 only; that is simple but removes required features on four configured workflows. Option three keeps asynchronous tagging in the core, rejects V5.4, and allows V5.6 only in the isolated helper under the new manifest and fallback contract. Option four delays R82. My current preference is option three, but only if isolation is a real security boundary rather than a wrapper around the same callbacks. I need each team to identify what evidence could disprove that preference.",
+          "ko": "release 대안을 정확히 정리하겠습니다. 1안은 camera service 전체의 Memory Tagging을 끄고 모든 extension을 유지합니다. 일정은 보호하지만 privileged process의 diagnostic 경계를 제거합니다. 2안은 모든 V5 extension을 끄고 V6만 ship합니다. 단순하지만 구성된 workflow 4개의 필수 기능을 없앱니다. 3안은 core의 비동기 tagging을 유지하고 V5.4는 거부하며 V5.6은 새 manifest와 fallback contract 아래 isolated helper에서만 허용합니다. 4안은 R82 지연입니다. 현재 3안을 선호하지만 isolation이 같은 callback을 감싼 wrapper가 아니라 실제 보안 경계여야 합니다. 각 팀은 무엇이 이 선호를 반증할 수 있는지 밝혀 주십시오."
+        }
+      ]
+    },
+    {
+      "title_en": "Isolation Contract and Release Gates",
+      "title_ko": "격리 계약과 릴리스 Gate",
+      "turns": [
+        {
+          "speaker": "Mina Park",
+          "en": "Security will reject option three if the helper maps provider-owned heap pages, imports a provider callback other than the one-way cancellation signal, receives a writable executable region, or can select its own allocator mode. The helper runs with asynchronous tagging forced on, a 64-megabyte address-space limit, no network, and access only to its request region and result pipe. The manifest binds the binary digest, import list, allocator contract version, SELinux domain, and minimum tag-check mode. Verification happens before the process starts. A mismatch chooses base fallback and emits a rate-limited event. There is no property, debug command, or application flag that turns checking off. Those are the conditions under which isolation changes the security argument.",
+          "ko": "Security는 helper가 provider-owned heap page를 mapping하거나, 단방향 cancellation signal 외의 provider callback을 import하거나, writable executable 영역을 받거나, 자체 allocator mode를 선택할 수 있으면 3안을 거부합니다. helper는 비동기 tagging을 강제하고 64MB address-space 제한, network 없음, request region과 result pipe만 접근하는 상태로 실행됩니다. manifest는 binary digest, import list, allocator contract version, SELinux domain, 최소 tag-check mode를 묶습니다. process 시작 전에 검증합니다. mismatch가 있으면 base fallback을 선택하고 rate-limited event를 냅니다. 검사를 끄는 property, debug command, application flag는 없습니다. 이 조건이 isolation의 보안 논거를 바꿉니다."
+        },
+        {
+          "speaker": "Owen Blake",
+          "en": "Camera Platform can meet that contract with one qualification. Cancellation cannot be a callback into the helper; it should be closure of a request-scoped event descriptor owned by the provider. The helper observes closure and stops work. Results carry the token and generation; the provider accepts them only while the request is open and the provenance slot is empty. Late or duplicate results are counted and discarded before parsing. We will destroy the shared-memory object after either accepted result, deadline, or helper death. A fresh object is created for every request. I will also remove the lens-table and thermal callback symbols from the interface definition, so Priya's import scanner can prove their absence rather than infer it from runtime behavior.",
+          "ko": "Camera Platform은 한 가지 조건을 두고 그 contract를 충족할 수 있습니다. cancellation은 helper로의 callback이 아니라 provider가 소유한 request-scoped event descriptor의 closure여야 합니다. helper는 closure를 관측하고 작업을 멈춥니다. result는 token과 generation을 담고 provider는 request가 open이며 provenance slot이 비어 있을 때만 수락합니다. 늦거나 중복된 result는 parsing 전에 count하고 폐기합니다. accepted result, deadline, helper death 중 하나가 발생하면 shared-memory object를 파괴합니다. request마다 새 object를 만듭니다. lens-table과 thermal callback symbol도 interface definition에서 제거해 Priya의 import scanner가 runtime behavior로 추정하지 않고 부재를 입증하게 하겠습니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "Vendor Integration will build an import-policy checker into packaging rather than rely on a release spreadsheet. The package is accepted only if its digest appears in the signed manifest, its dynamic symbol table matches the five-symbol helper ABI, and its allocator note declares contract version three. The checker also verifies that V5.4 cannot be mislabeled V5.6 by comparing an internal protocol fingerprint. I can provide a repackaged V5.6 candidate by November 25 at 21:00 KST using the existing supplier binary behind the new adapter. The corrected supplier binary arrives November 27 and will be evaluated separately. We will not replace the adapter candidate mid-matrix; each artifact keeps a distinct identifier and result set.",
+          "ko": "Vendor Integration은 release spreadsheet에 의존하지 않고 packaging에 import-policy checker를 넣겠습니다. package digest가 signed manifest에 있고 dynamic symbol table이 5-symbol helper ABI와 일치하며 allocator note가 contract version 3을 선언할 때만 수락합니다. checker는 내부 protocol fingerprint를 비교해 V5.4가 V5.6으로 잘못 label되지 않도록 확인합니다. 기존 supplier binary를 새 adapter 뒤에 두어 11월 25일 KST 21:00까지 repackaged V5.6 후보를 제공할 수 있습니다. 수정 supplier binary는 11월 27일 도착하며 별도로 평가합니다. matrix 중간에 adapter 후보를 교체하지 않고 각 artifact에 별도 identifier와 result set을 유지합니다."
+        },
+        {
+          "speaker": "Lucas Meyer",
+          "en": "The validation gate will have 2,400 sessions: 800 normal completions, 800 user cancellations, and 800 injected helper failures. They run across revisions A, B, and C at nominal memory, 70-percent pressure, and reclaim storm. We require zero core-provider crashes, zero accepted stale or duplicate result, zero write after request closure, and zero manifest bypass. Enhanced sessions must match the reference depth map within the existing tolerance. Every injected helper failure must produce base fallback within 700 milliseconds and accurate provenance. P99 added capture latency must stay below 42 milliseconds for enhanced output and below 90 milliseconds for fallback. We will retain all failed attempts in the denominator and publish counts by artifact identity, not merge them.",
+          "ko": "검증 gate는 2,400개 session입니다. 정상 완료 800개, 사용자 취소 800개, 주입된 helper 실패 800개를 revision A, B, C와 nominal memory, 70% pressure, reclaim storm에서 실행합니다. core-provider crash 0건, stale 또는 duplicate result 수락 0건, request closure 후 write 0건, manifest 우회 0건이 필요합니다. enhanced session은 기존 tolerance 안에서 reference depth map과 일치해야 합니다. 주입된 helper 실패는 모두 700밀리초 안에 base fallback과 정확한 provenance를 만들어야 합니다. 추가 capture latency p99는 enhanced output 42밀리초 미만, fallback 90밀리초 미만이어야 합니다. 모든 실패 시도는 분모에 남기고 artifact identity별 count를 게시하며 합치지 않습니다."
+        },
+        {
+          "speaker": "Mina Park",
+          "en": "Add two negative controls. First, alter one manifest field at a time—digest, import list, domain, allocator version, and tag mode—and prove that each mismatch selects fallback before the helper starts. Second, install a helper that exits after mapping the request but before reading it. We must see object destruction, no result acceptance, and no provider heap reference in the tombstone. I also want a 30-minute repeated-cancellation trace reviewed manually on one device per revision. Automated counters can prove quantity, but the trace should confirm ordering: close event, revoke mapping, reject late result, destroy object, then publish fallback provenance. If that ordering differs, the gate pauses even if final counters balance.",
+          "ko": "negative control 두 개를 추가하십시오. 첫째, manifest의 digest, import list, domain, allocator version, tag mode를 한 번에 하나씩 바꾸고 각 mismatch가 helper 시작 전에 fallback을 선택함을 입증합니다. 둘째, request mapping 후 읽기 전에 종료되는 helper를 설치합니다. object 파괴, result 수락 없음, tombstone에 provider heap reference 없음이 보여야 합니다. revision마다 device 한 대에서 30분 반복 cancellation trace를 수동 검토하고 싶습니다. 자동 counter는 양을 입증하지만 trace는 close event, mapping revoke, late result 거부, object 파괴, fallback provenance 게시 순서를 확인해야 합니다. 순서가 다르면 최종 counter가 맞아도 gate를 중단합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision, Owners, and Dates",
+      "title_ko": "결정·담당자 및 일정",
+      "turns": [
+        {
+          "speaker": "Elena Rossi",
+          "en": "Here is the proposed release decision. R82 keeps asynchronous Memory Tagging enabled in the core camera provider. V6 extensions may run in the core only after their current qualification result is linked to the signed identity manifest. V5.4 is disabled and always uses base fallback. V5.6 may run only in the isolated helper described today, and only after the 2,400-session gate passes. If the helper package, manifest, or result provenance is unknown, the system selects base fallback; it never disables tag checking. The two carrier images may preserve their November 25 partition freeze because the adapter and manifest are delivered as the separately updatable camera component. Failure of any security invariant blocks that component, not the entire R82 baseline, provided base fallback passes.",
+          "ko": "제안 release 결정을 말씀드리겠습니다. R82는 core camera provider에서 비동기 Memory Tagging을 유지합니다. V6 extension은 현재 qualification 결과가 signed identity manifest에 연결된 후에만 core에서 실행할 수 있습니다. V5.4는 비활성화하고 항상 base fallback을 사용합니다. V5.6은 오늘 설명한 isolated helper에서만, 2,400-session gate 통과 후에만 실행할 수 있습니다. helper package, manifest, result provenance를 알 수 없으면 tag 검사를 끄지 않고 base fallback을 선택합니다. adapter와 manifest가 별도 update 가능한 camera component로 전달되므로 두 carrier image는 11월 25일 partition freeze를 유지할 수 있습니다. 보안 invariant 실패는 base fallback이 통과하는 조건에서 전체 R82 baseline이 아니라 해당 component를 차단합니다."
+        },
+        {
+          "speaker": "Owen Blake",
+          "en": "Camera Platform accepts that decision. I own the request value schema, event-descriptor cancellation, token and generation checks, provenance field, and fallback deadline. The interface specification and threat-oriented sequence diagram are due Tuesday, November 24 at 17:00 KST. A reviewable adapter build is due Wednesday, November 25 at 18:00 KST. By then, the old callback symbols will be removed and every request path will end in accepted-enhanced, base-fallback, or explicit capture cancellation. I will provide Lucas with deterministic fault hooks for helper exit, late result, duplicate result, malformed result, and deadline. Those hooks are engineering-only and cannot be enabled by an application or production property.",
+          "ko": "Camera Platform은 결정을 수락합니다. 제가 request value schema, event-descriptor cancellation, token 및 generation 검사, provenance field, fallback deadline을 담당합니다. interface specification과 threat-oriented sequence diagram은 11월 24일 화요일 KST 17:00까지입니다. review 가능한 adapter build는 11월 25일 수요일 KST 18:00까지입니다. 그때까지 옛 callback symbol을 제거하고 모든 request path가 accepted-enhanced, base-fallback, 명시적 capture cancellation 중 하나로 끝나게 합니다. Lucas에게 helper exit, late result, duplicate result, malformed result, deadline을 위한 결정론적 fault hook을 제공합니다. hook은 engineering 전용이며 application이나 production property로 활성화할 수 없습니다."
+        },
+        {
+          "speaker": "Mina Park",
+          "en": "Security owns the signed identity-manifest schema, helper domain review, import policy, and negative controls. I will publish the first manifest and verification test vectors by Wednesday, November 25 at 20:00 KST, after Owen freezes the ABI. I will complete the SELinux and mapping review by November 26 at 16:00 KST. A manifest bypass, provider-heap mapping, writable-executable page, unlisted import, tag-check downgrade, accepted result after closure, or stale generation is a hard stop. A missing diagnostic or latency miss is not automatically a security stop, but it still fails the release gate until corrected. Any new helper digest requires a fresh manifest and a separate validation ledger; signature continuity does not transfer evidence from an older artifact.",
+          "ko": "Security는 signed identity-manifest schema, helper domain review, import policy, negative control을 담당합니다. Owen이 ABI를 freeze한 뒤 11월 25일 수요일 KST 20:00까지 첫 manifest와 verification test vector를 게시합니다. SELinux와 mapping review는 11월 26일 KST 16:00까지 완료합니다. manifest 우회, provider-heap mapping, writable-executable page, 목록 밖 import, tag-check downgrade, closure 후 result 수락, 오래된 generation은 hard stop입니다. diagnostic 누락이나 latency miss는 자동 security stop은 아니지만 수정 전까지 release gate 실패입니다. 새 helper digest에는 새 manifest와 별도 validation ledger가 필요하며 signature 연속성이 이전 artifact의 증거를 이전하지 않습니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "Vendor Integration owns package identity, supplier coordination, and delivery to the separately updatable component channel. The adapter-wrapped V5.6 package is due November 25 at 21:00 KST, one hour after the manifest vectors. I will deliver the supplier-fixed V5.6 as a distinct candidate on November 27 at 19:00 KST and will not replace the adapter artifact silently. The V5.4 deny entry, all four extension fingerprints, and the five-symbol import policy will be in the manifest source by November 24 at noon. I will also confirm by November 26 at 10:00 KST that both carrier configurations select base fallback when the component is absent, rejected, or rolled back. That confirmation is required before their partition freeze is accepted.",
+          "ko": "Vendor Integration은 package identity, supplier 조율, 별도 update component channel 전달을 담당합니다. adapter로 감싼 V5.6 package는 manifest vector 한 시간 뒤인 11월 25일 KST 21:00까지입니다. supplier가 수정한 V5.6은 11월 27일 KST 19:00에 별도 후보로 전달하며 adapter artifact를 조용히 교체하지 않습니다. V5.4 deny entry, extension fingerprint 4개, 5-symbol import policy는 11월 24일 정오까지 manifest source에 포함합니다. 두 carrier configuration이 component 부재, 거부, rollback 시 base fallback을 선택하는지도 11월 26일 KST 10:00까지 확인합니다. 이 확인은 partition freeze 수락 전에 필요합니다."
+        },
+        {
+          "speaker": "Lucas Meyer",
+          "en": "Validation owns the matrix, reference oracle, trace review, and report. Static package checks begin November 26 at 18:00 KST. Hardware execution begins Friday, November 27 at 09:00 KST with the adapter artifact and never mixes results from the later supplier build. I will publish an interim report after 600 sessions by November 28 at 15:00 KST and the complete adapter report by November 30 at 18:00 KST. If an invariant fails, execution pauses immediately and the failed run remains in the denominator. A corrected artifact starts a new ledger instead of resetting the old one. The report will show session counts, fallback accuracy, tag faults, stale-result rejection, image comparison, and latency for every revision and pressure band.",
+          "ko": "Validation은 matrix, reference oracle, trace review, report를 담당합니다. static package check는 11월 26일 KST 18:00에 시작합니다. hardware 실행은 11월 27일 금요일 KST 09:00에 adapter artifact로 시작하고 이후 supplier build 결과와 섞지 않습니다. 600-session 후 interim report는 11월 28일 KST 15:00까지, 전체 adapter report는 11월 30일 KST 18:00까지 게시합니다. invariant가 실패하면 즉시 실행을 중단하고 실패 run은 분모에 남깁니다. 수정 artifact는 이전 ledger를 초기화하지 않고 새 ledger를 시작합니다. report는 revision 및 pressure band별 session 수, fallback 정확성, tag fault, stale-result 거부, image 비교, latency를 보여 줍니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Closing and Follow Up",
+      "title_ko": "마무리 및 후속 회의",
+      "turns": [
+        {
+          "speaker": "Elena Rossi",
+          "en": "The R82 baseline is conditionally approved with the component boundary just stated. To avoid ambiguity, conditional approval means the core Memory Tagging change may proceed, while V5.6 enhancement remains off until its own gate passes. V5.4 remains denied. If the adapter misses the gate, R82 ships with base fallback on affected configurations; we do not reopen the frozen vendor partitions and we do not turn off core tag checking. I will publish the decision record today by 14:00 KST. The first evidence review is Saturday, November 28, 2026, from 16:00 to 16:45 Korea Standard Time. The final go or fallback meeting is Tuesday, December 1 at 10:30 KST after the complete adapter report is reviewed.",
+          "ko": "방금 말한 component 경계로 R82 baseline을 조건부 승인합니다. 모호함을 피하기 위해 설명하면, 조건부 승인은 core Memory Tagging 변경은 진행할 수 있지만 V5.6 enhancement는 자체 gate 통과 전까지 꺼져 있음을 뜻합니다. V5.4는 계속 거부됩니다. adapter가 gate를 놓치면 영향 configuration에서 base fallback으로 R82를 ship합니다. frozen vendor partition을 다시 열지 않고 core tag 검사도 끄지 않습니다. 오늘 KST 14:00까지 결정 기록을 게시합니다. 첫 증거 review는 2026년 11월 28일 토요일 한국 표준시 16:00~16:45입니다. 최종 go 또는 fallback 회의는 전체 adapter report 검토 후인 12월 1일 화요일 KST 10:30입니다."
+        },
+        {
+          "speaker": "Owen Blake",
+          "en": "Camera Platform will add one operational safeguard: after three helper failures within ten minutes, the provider opens a 24-hour circuit breaker for that extension identity and uses base fallback without starting the helper. The breaker state is tied to component version and clears on a verified upgrade or after the interval, not on application restart. It cannot disable tagging or enable a denied extension. Lucas will test the threshold, persistence, expiry, and version transition. I will document the user-visible consequence as loss of enhanced depth only; normal capture remains available. This limits repeated latency and crash collection while preserving a clear recovery path. The safeguard does not change the 2,400-session acceptance criteria.",
+          "ko": "Camera Platform은 운영 safeguard 하나를 추가합니다. 10분 안에 helper failure가 세 번 발생하면 provider가 해당 extension identity에 24시간 circuit breaker를 열고 helper를 시작하지 않은 채 base fallback을 사용합니다. breaker state는 component version에 묶이고 application restart가 아니라 검증된 upgrade 또는 interval 후 해제됩니다. tagging을 끄거나 거부된 extension을 활성화할 수 없습니다. Lucas는 threshold, persistence, expiry, version transition을 시험합니다. 사용자에게 보이는 영향은 enhanced depth 손실뿐이며 normal capture는 계속된다고 문서화합니다. 명확한 recovery path를 보존하면서 반복 latency와 crash 수집을 제한합니다. safeguard가 2,400-session 승인 기준을 바꾸지는 않습니다."
+        },
+        {
+          "speaker": "Elena Rossi",
+          "en": "That completes the record. Owners should acknowledge their dates in the release tracker by 15:00 KST today; silence is not acceptance. Any request to weaken a hard stop, reuse evidence across artifact identities, or disable tag checking requires a new decision meeting. Ordinary implementation corrections may proceed within the assigned component as long as they create a new ledger when the artifact changes. Thank you. Our next meeting is the evidence review on Saturday, November 28, 2026, at 16:00 Korea Standard Time. Please bring the signed manifest result, isolation trace, first 600-session ledger, carrier fallback confirmation, and the open-risk list. We will decide whether the adapter continues to the full gate, not whether to rewrite the baseline decision.",
+          "ko": "기록이 완료되었습니다. 담당자는 오늘 KST 15:00까지 release tracker에서 일정을 확인해야 하며 침묵은 수락이 아닙니다. hard stop 약화, artifact identity 간 증거 재사용, tag 검사 비활성화 요청에는 새 결정 회의가 필요합니다. 일반 구현 수정은 artifact가 바뀔 때 새 ledger를 만드는 조건으로 담당 component 안에서 진행할 수 있습니다. 감사합니다. 다음 회의는 2026년 11월 28일 토요일 한국 표준시 16:00 증거 review입니다. signed manifest 결과, isolation trace, 첫 600-session ledger, carrier fallback 확인, open-risk 목록을 가져오십시오. baseline 결정을 다시 쓰는 것이 아니라 adapter가 full gate로 진행할지를 결정합니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "wave this through",
+      "meaning_ko": "충분한 검토 없이 통과시키다",
+      "usage_ko": "증거가 부족한 승인을 경계할 때",
+      "example": "Security is present. Our R82 candidate enables asynchronous tag checking for native system services that already pass the tagged-heap qualification suite. In the camera soak, 19 of 720 depth-enhanced portrait sessions terminated after the extension returned metadata to the provider. The fault address carried tag seven while the allocation tag had already advanced to nine. The first mismatch appeared 11 to 34 milliseconds after a canceled burst, which is consistent with a stale metadata pointer, not a random tag-generation failure. I do not want to wave this through as tooling noise. At the same time, the evidence does not justify disabling Memory Tagging across unrelated services. We need to contain the uncertain component and keep the diagnostic value elsewhere.",
+      "practice": "We should not wave this through until the rollback trace is complete."
+    },
+    {
+      "phrase": "stable denominator",
+      "meaning_ko": "안정적인 분모",
+      "usage_ko": "비교 가능한 시험 모집단을 정할 때",
+      "example": "Validation is present. Before we discuss exemptions, I need a stable denominator. The original 720 sessions mixed three device revisions, two extension generations, and normal versus forced cancellation, but the report grouped them by test hour. I have reconstructed the matrix. All 19 faults came from V5.4 on revision B under forced cancellation with memory reclaim active. V5.6 showed no fatal tag fault, but 7 of 240 sessions logged a retained lens-table reference beyond the provider epoch. V6 showed neither signal. That supports two different risks, not one binary pass result. I propose that we validate pointer lifetime, service availability, image correctness, and tag-fault reporting as separate outcomes. A crash-free run alone cannot close the issue.",
+      "practice": "Use a stable denominator before comparing the two builds."
+    },
+    {
+      "phrase": "make the risk legible",
+      "meaning_ko": "위험을 명확히 드러내다",
+      "usage_ko": "서로 다른 위험 수준을 설명할 때",
+      "example": "The epoch evidence changes my view of V5.6. A nonfatal retained reference is still a contract violation; asynchronous checking merely may not sample it before reuse. I want to make the risk legible: V5.4 has an observed use-after-free, V5.6 has a demonstrated stale-reference window, and V6 currently has no observed violation. Those statements carry different confidence. We should not convert 'no sampled fault' into 'safe.' I propose a runtime manifest that declares extension identity, allocator contract version, and whether it runs in the core camera process or an isolated helper. R82 may enable tag checking only when all three fields match a signed allowlist. Unknown identity must fail to the base camera path without depth enhancement, not silently disable tag checking.",
+      "practice": "The report must make the risk legible to release owners."
+    },
+    {
+      "phrase": "blast radius",
+      "meaning_ko": "영향 범위",
+      "usage_ko": "실패가 퍼지는 범위를 말할 때",
+      "example": "I support identity gating, but I disagree with putting V5.6 in the same operational bucket as V5.4. If both are disabled immediately, four enterprise workflows lose depth measurement even though V5.6 has not corrupted an image or terminated a session. We can put V5.6 in an isolated helper with no direct access to the provider heap. The provider serializes the 96-byte calibration value and the lens table into a sealed shared-memory region, then revokes write access before dispatch. The helper returns only a bounded result structure. If it faults, the core provider remains alive and produces a standard image. This does not prove the extension safe, but it changes the blast radius while preserving a measured feature path.",
+      "practice": "Process isolation reduces the blast radius of a decoder failure."
+    },
+    {
+      "phrase": "one integration catch",
+      "meaning_ko": "통합상 문제 하나",
+      "usage_ko": "설계의 숨은 제약을 꺼낼 때",
+      "example": "There is one integration catch. The current V5.6 binary expects three callbacks into the provider: lens-table lookup, thermal compensation, and request cancellation. A sealed value input removes the first two, but cancellation still crosses the process boundary. If we terminate the helper on a 450-millisecond deadline, a late completion can write into a reused shared-memory slot unless each request carries an unguessable token and generation. I recommend one slot per request, read-only mapping in the helper after dispatch, and destruction rather than reuse at completion. That adds about 144 kilobytes at our maximum three in-flight requests. It is acceptable, but the manifest must reject a helper binary that still imports the old callback symbols.",
+      "practice": "There is one integration catch: the old client retries forever."
+    },
+    {
+      "phrase": "release alternatives",
+      "meaning_ko": "릴리스 대안",
+      "usage_ko": "선택지를 구조적으로 비교할 때",
+      "example": "Let us be precise about the release alternatives. Option one disables Memory Tagging for the entire camera service and preserves every extension; that protects schedule but removes the diagnostic boundary from a privileged process. Option two disables all V5 extensions and ships V6 only; that is simple but removes required features on four configured workflows. Option three keeps asynchronous tagging in the core, rejects V5.4, and allows V5.6 only in the isolated helper under the new manifest and fallback contract. Option four delays R82. My current preference is option three, but only if isolation is a real security boundary rather than a wrapper around the same callbacks. I need each team to identify what evidence could disprove that preference.",
+      "practice": "We will compare the release alternatives at tomorrow’s review."
+    },
+    {
+      "phrase": "real security boundary",
+      "meaning_ko": "실질적 보안 경계",
+      "usage_ko": "단순 wrapper와 실제 격리를 구분할 때",
+      "example": "Let us be precise about the release alternatives. Option one disables Memory Tagging for the entire camera service and preserves every extension; that protects schedule but removes the diagnostic boundary from a privileged process. Option two disables all V5 extensions and ships V6 only; that is simple but removes required features on four configured workflows. Option three keeps asynchronous tagging in the core, rejects V5.4, and allows V5.6 only in the isolated helper under the new manifest and fallback contract. Option four delays R82. My current preference is option three, but only if isolation is a real security boundary rather than a wrapper around the same callbacks. I need each team to identify what evidence could disprove that preference.",
+      "practice": "A separate account is useful only if it creates a real security boundary."
+    },
+    {
+      "phrase": "hard stop",
+      "meaning_ko": "즉시 중단 조건",
+      "usage_ko": "타협 불가능한 실패를 말할 때",
+      "example": "Security owns the signed identity-manifest schema, helper domain review, import policy, and negative controls. I will publish the first manifest and verification test vectors by Wednesday, November 25 at 20:00 KST, after Owen freezes the ABI. I will complete the SELinux and mapping review by November 26 at 16:00 KST. A manifest bypass, provider-heap mapping, writable-executable page, unlisted import, tag-check downgrade, accepted result after closure, or stale generation is a hard stop. A missing diagnostic or latency miss is not automatically a security stop, but it still fails the release gate until corrected. Any new helper digest requires a fresh manifest and a separate validation ledger; signature continuity does not transfer evidence from an older artifact.",
+      "practice": "Credential leakage is a hard stop for the pilot."
+    },
+    {
+      "phrase": "remains in the denominator",
+      "meaning_ko": "분모에 남다",
+      "usage_ko": "실패 결과를 제외하지 않을 때",
+      "example": "Validation owns the matrix, reference oracle, trace review, and report. Static package checks begin November 26 at 18:00 KST. Hardware execution begins Friday, November 27 at 09:00 KST with the adapter artifact and never mixes results from the later supplier build. I will publish an interim report after 600 sessions by November 28 at 15:00 KST and the complete adapter report by November 30 at 18:00 KST. If an invariant fails, execution pauses immediately and the failed run remains in the denominator. A corrected artifact starts a new ledger instead of resetting the old one. The report will show session counts, fallback accuracy, tag faults, stale-result rejection, image comparison, and latency for every revision and pressure band.",
+      "practice": "Every failed device remains in the denominator after a retry."
+    },
+    {
+      "phrase": "Here is the proposed release decision",
+      "meaning_ko": "제안된 릴리스 결정을 말씀드리겠습니다",
+      "usage_ko": "최종 합의를 제시할 때",
+      "example": "Here is the proposed release decision. R82 keeps asynchronous Memory Tagging enabled in the core camera provider. V6 extensions may run in the core only after their current qualification result is linked to the signed identity manifest. V5.4 is disabled and always uses base fallback. V5.6 may run only in the isolated helper described today, and only after the 2,400-session gate passes. If the helper package, manifest, or result provenance is unknown, the system selects base fallback; it never disables tag checking. The two carrier images may preserve their November 25 partition freeze because the adapter and manifest are delivered as the separately updatable camera component. Failure of any security invariant blocks that component, not the entire R82 baseline, provided base fallback passes.",
+      "practice": "Here is the proposed release decision for the regional rollout."
+    },
+    {
+      "phrase": "will not replace the adapter artifact silently",
+      "meaning_ko": "adapter artifact를 조용히 교체하지 않겠다",
+      "usage_ko": "추적 없이 artifact를 바꾸는 일을 경계할 때",
+      "example": "Vendor Integration owns package identity, supplier coordination, and delivery to the separately updatable component channel. The adapter-wrapped V5.6 package is due November 25 at 21:00 KST, one hour after the manifest vectors. I will deliver the supplier-fixed V5.6 as a distinct candidate on November 27 at 19:00 KST and will not replace the adapter artifact silently. The V5.4 deny entry, all four extension fingerprints, and the five-symbol import policy will be in the manifest source by November 24 at noon. I will also confirm by November 26 at 10:00 KST that both carrier configurations select base fallback when the component is absent, rejected, or rolled back. That confirmation is required before their partition freeze is accepted.",
+      "practice": "We will not replace the adapter artifact silently during certification."
+    },
+    {
+      "phrase": "conditionally approved",
+      "meaning_ko": "조건부 승인되다",
+      "usage_ko": "특정 gate를 전제로 승인할 때",
+      "example": "The R82 baseline is conditionally approved with the component boundary just stated. To avoid ambiguity, conditional approval means the core Memory Tagging change may proceed, while V5.6 enhancement remains off until its own gate passes. V5.4 remains denied. If the adapter misses the gate, R82 ships with base fallback on affected configurations; we do not reopen the frozen vendor partitions and we do not turn off core tag checking. I will publish the decision record today by 14:00 KST. The first evidence review is Saturday, November 28, 2026, from 16:00 to 16:45 Korea Standard Time. The final go or fallback meeting is Tuesday, December 1 at 10:30 KST after the complete adapter report is reviewed.",
+      "practice": "The rollout is conditionally approved after the regional soak."
+    },
+    {
+      "phrase": "To avoid ambiguity",
+      "meaning_ko": "모호함을 피하기 위해",
+      "usage_ko": "결정을 더 명확히 설명할 때",
+      "example": "The R82 baseline is conditionally approved with the component boundary just stated. To avoid ambiguity, conditional approval means the core Memory Tagging change may proceed, while V5.6 enhancement remains off until its own gate passes. V5.4 remains denied. If the adapter misses the gate, R82 ships with base fallback on affected configurations; we do not reopen the frozen vendor partitions and we do not turn off core tag checking. I will publish the decision record today by 14:00 KST. The first evidence review is Saturday, November 28, 2026, from 16:00 to 16:45 Korea Standard Time. The final go or fallback meeting is Tuesday, December 1 at 10:30 KST after the complete adapter report is reviewed.",
+      "practice": "To avoid ambiguity, the deadline is Friday at noon KST."
+    },
+    {
+      "phrase": "circuit breaker",
+      "meaning_ko": "연속 실패 차단 장치",
+      "usage_ko": "반복 실패 후 기능을 일시 중지할 때",
+      "example": "Camera Platform will add one operational safeguard: after three helper failures within ten minutes, the provider opens a 24-hour circuit breaker for that extension identity and uses base fallback without starting the helper. The breaker state is tied to component version and clears on a verified upgrade or after the interval, not on application restart. It cannot disable tagging or enable a denied extension. Lucas will test the threshold, persistence, expiry, and version transition. I will document the user-visible consequence as loss of enhanced depth only; normal capture remains available. This limits repeated latency and crash collection while preserving a clear recovery path. The safeguard does not change the 2,400-session acceptance criteria.",
+      "practice": "The service opens a circuit breaker after five timeouts."
+    },
+    {
+      "phrase": "silence is not acceptance",
+      "meaning_ko": "침묵은 수락이 아니다",
+      "usage_ko": "명시적 확인을 요구할 때",
+      "example": "That completes the record. Owners should acknowledge their dates in the release tracker by 15:00 KST today; silence is not acceptance. Any request to weaken a hard stop, reuse evidence across artifact identities, or disable tag checking requires a new decision meeting. Ordinary implementation corrections may proceed within the assigned component as long as they create a new ledger when the artifact changes. Thank you. Our next meeting is the evidence review on Saturday, November 28, 2026, at 16:00 Korea Standard Time. Please bring the signed manifest result, isolation trace, first 600-session ledger, carrier fallback confirmation, and the open-risk list. We will decide whether the adapter continues to the full gate, not whether to rewrite the baseline decision.",
+      "practice": "Silence is not acceptance; every owner must respond."
+    }
+  ]
+}
