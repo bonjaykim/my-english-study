@@ -1,0 +1,265 @@
+{
+  "date": "2026-11-24",
+  "category": "business",
+  "topic": "sw-debug",
+  "subject": "Tracing Input Stalls across Cached Process Thaw Readiness",
+  "title_ko": "Cached Process Thaw 준비 상태 경계의 입력 지연 추적",
+  "summary_ko": "가상의 Android 시스템 SW 디버깅 회의에서 frozen cached process가 알림으로 되살아날 때 scheduling 상태 적용보다 synchronous Binder 의존성이 먼저 열려 입력이 지연되는 문제를 분석합니다. 팀들은 process cookie와 generation으로 묶인 thaw-readiness ticket, 제한된 deferred fallback, 별도 검증 ledger와 정량 성능·전력 gate를 결정합니다. 모든 인물·조직·단말·application·kernel·빌드·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않습니다.",
+  "participants": [
+    {
+      "name": "Hana Lee",
+      "team": "Android Process Lifecycle"
+    },
+    {
+      "name": "Diego Morales",
+      "team": "Kernel Scheduling"
+    },
+    {
+      "name": "Aisha Khan",
+      "team": "Performance Validation"
+    },
+    {
+      "name": "Noah Williams",
+      "team": "System Reliability"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Debug Objective",
+      "title_ko": "참석 확인 및 디버깅 목표",
+      "turns": [
+        {
+          "speaker": "Noah Williams",
+          "en": "Good morning. Hana represents Android Process Lifecycle, Diego represents Kernel Scheduling, Aisha owns the performance matrix, and I am coordinating system reliability. Everyone who can accept today's actions is present. We are investigating a short but severe input stall after a frozen cached application is revived by a high-priority notification. The symptom appeared in build R83.4 on the Cedar reference device. Our goal is to determine whether the failure belongs to framework ordering, scheduler policy, or their boundary. We need a falsifiable fix plan, not a convenient label. We will finish with owners, deadlines, quantitative gates, and a specific evidence review in Korea Standard Time.",
+          "ko": "좋은 아침입니다. Hana는 Android Process Lifecycle, Diego는 Kernel Scheduling을 대표하고 Aisha는 성능 matrix를 담당하며 저는 system reliability 조율을 맡았습니다. 오늘 조치를 수락할 수 있는 담당자가 모두 참석했습니다. frozen cached application이 높은 우선순위 알림으로 되살아난 뒤 발생하는 짧지만 심각한 입력 지연을 조사합니다. 증상은 Cedar 기준 단말의 R83.4 build에서 나타났습니다. 실패가 framework 순서, scheduler 정책, 또는 둘의 경계에 속하는지 판단해야 합니다. 편리한 이름표가 아니라 반증 가능한 수정 계획이 필요합니다. 담당자, 기한, 정량 gate, 한국 표준시 기준 구체적인 증거 review를 정하고 마치겠습니다."
+        },
+        {
+          "speaker": "Hana Lee",
+          "en": "Lifecycle is present. The reproduction starts with the Atlas Notes process frozen in the background cgroup for at least ninety seconds. A notification action thaws it, starts a bound service, and issues a synchronous Binder request to system_server. In 37 of 1,200 cycles, the foreground launcher then misses between nine and fourteen input frames. The application process becomes runnable quickly, but its effective utilization clamp remains at the cached value for 43 to 118 milliseconds. A fixed 150-millisecond sleep makes the test pass, yet that only proves ordering sensitivity. I want to understand whether the lag is expected propagation or a lost transition before we change the thaw sequence.",
+          "ko": "Lifecycle 팀이 참석했습니다. 재현은 Atlas Notes process를 background cgroup에서 최소 90초 freeze한 상태로 시작합니다. 알림 action이 이를 thaw하고 bound service를 시작하며 system_server에 synchronous Binder request를 보냅니다. 1,200회 중 37회에서 foreground launcher가 입력 frame 9~14개를 놓쳤습니다. application process는 빠르게 runnable이 되지만 effective utilization clamp는 43~118밀리초 동안 cached 값에 남습니다. 고정 150밀리초 sleep을 넣으면 통과하지만 이는 순서 민감성만 입증합니다. thaw 순서를 바꾸기 전에 이 지연이 예상된 전파인지 유실된 transition인지 이해하고 싶습니다."
+        },
+        {
+          "speaker": "Diego Morales",
+          "en": "Kernel Scheduling is here. The trace does not show a lost cgroup write. It shows the task waking on CPU six before the restore worker applies the new clamp to the process group. Binder priority inheritance raises the waiter priority, but it cannot exceed the old cgroup maximum. That is working as configured. I disagree with calling this a scheduler regression because R83.4 merely makes the race visible by shortening notification dispatch. However, the current interface gives framework no positive acknowledgment that scheduling state is effective. That contract gap belongs to both teams. We should define what readiness proves instead of guessing it from elapsed time or from a cgroup file value.",
+          "ko": "Kernel Scheduling 팀이 참석했습니다. trace에는 cgroup write 유실이 보이지 않습니다. restore worker가 process group에 새 clamp를 적용하기 전에 task가 CPU 6에서 깨어납니다. Binder priority inheritance가 waiter priority를 높이지만 오래된 cgroup maximum을 넘을 수는 없습니다. 이는 설정대로 동작합니다. R83.4가 notification dispatch를 단축해 race를 드러냈을 뿐이므로 scheduler regression이라는 표현에는 반대합니다. 다만 현재 interface는 scheduling 상태가 실제 적용됐다는 긍정 확인을 framework에 주지 않습니다. 이 contract gap은 두 팀 모두의 문제입니다. 경과 시간이나 cgroup file value로 추측하지 말고 readiness가 무엇을 입증하는지 정의해야 합니다."
+        },
+        {
+          "speaker": "Aisha Khan",
+          "en": "Validation is present. I separated the visible stall from general CPU pressure. Total utilization never exceeds 61 percent, thermal throttling is absent, and storage latency stays below four milliseconds. Failures cluster when CPU six enters shallow idle and the restore worker queues behind two background migrations. I replayed the workload on a faster device; it hides the visible stall but preserves the same ordering violation. Therefore device speed is not a correction. I need an observable milestone that replaces the sleep, plus distinct counters for requested state, effective state, Binder admission, and reply completion. Without those markers, a lower-tier device merely moves the tail beyond our current test window.",
+          "ko": "Validation 팀이 참석했습니다. 눈에 보이는 stall을 일반 CPU pressure와 분리했습니다. 전체 utilization은 61%를 넘지 않고 thermal throttling은 없으며 storage latency는 4밀리초 미만입니다. 실패는 CPU 6이 shallow idle에 들어가고 restore worker가 background migration 두 건 뒤에 queue될 때 집중됩니다. 더 빠른 단말에서 workload를 replay하니 눈에 보이는 stall은 숨지만 동일한 순서 위반이 남았습니다. 따라서 단말 속도는 수정이 아닙니다. sleep을 대체할 관측 가능한 milestone과 requested state, effective state, Binder admission, reply completion의 구분된 counter가 필요합니다. 그렇지 않으면 저가형 단말은 tail을 현재 시험 창 밖으로 옮길 뿐입니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and Competing Explanations",
+      "title_ko": "증거와 상반된 설명",
+      "turns": [
+        {
+          "speaker": "Noah Williams",
+          "en": "Let us keep the chain of evidence explicit. The notification callback begins at 10:14:22.031. The thaw request is recorded at .034, the first application thread wakes at .038, and its Binder call enters system_server at .041. The scheduling group becomes foreground at .087, while the effective clamp reaches the run queue at .094. Input dispatch begins waiting at .046 and clears at .173 after the service reply. That gives us two gaps: requested versus effective scheduling, and a synchronous dependency that amplifies the gap. Which condition is necessary for the long tail, which is sufficient, and what experiment separates them without changing several variables at once?",
+          "ko": "증거 사슬을 명시적으로 유지합시다. notification callback은 10:14:22.031에 시작합니다. thaw request는 .034에 기록되고 첫 application thread는 .038에 깨어나며 Binder call은 .041에 system_server로 들어갑니다. scheduling group은 .087에 foreground가 되고 effective clamp는 .094에 run queue에 도달합니다. input dispatch는 .046부터 기다려 service reply 후 .173에 풀립니다. 요청 scheduling과 실제 scheduling 사이, 그리고 이를 증폭하는 synchronous dependency라는 두 간격이 있습니다. 어느 조건이 긴 tail의 필요조건이고 어느 것이 충분조건이며, 여러 변수를 동시에 바꾸지 않고 어떤 실험으로 분리합니까?"
+        },
+        {
+          "speaker": "Diego Morales",
+          "en": "The effective-state gap is necessary for the long tail, but it is not sufficient. I replayed the same trace with the Binder call converted to one-way work, and input remained responsive even though clamp lag was 92 milliseconds. Conversely, forcing the clamp early removes the stall while preserving the synchronous call. The failure needs both conditions. We should not optimize one path and declare victory. The scheduler can expose an acknowledgment after all currently runnable tasks in the target thread group observe the requested class. It cannot promise that a future thread created under an old ticket inherits the same state unless identity and generation are checked again at enqueue.",
+          "ko": "effective-state gap은 긴 tail에 필요하지만 충분하지 않습니다. 같은 trace에서 Binder call을 one-way work로 바꿔 replay하니 clamp lag가 92밀리초여도 입력은 반응했습니다. 반대로 clamp를 일찍 강제하면 synchronous call을 유지해도 stall이 사라집니다. 실패에는 두 조건이 모두 필요합니다. 한 경로만 최적화하고 성공을 선언해서는 안 됩니다. scheduler는 대상 thread group의 현재 runnable task 모두가 요청 class를 관측한 뒤 acknowledgment를 노출할 수 있습니다. 오래된 ticket 아래 미래에 생성된 thread가 같은 상태를 상속한다고 보장하려면 enqueue 때 identity와 generation을 다시 확인해야 합니다."
+        },
+        {
+          "speaker": "Hana Lee",
+          "en": "I accept the two-condition model, but I oppose gating every user-visible Binder transaction. The notification service issues several independent calls, and serial admission would add latency even when no reply participates in input. We should gate only the first synchronous transaction that crosses from the revived process into a critical system service before scheduling readiness. Analytics registration and cache refresh are deferrable; they must not hold input dispatch. Later calls use normal policy after readiness. The boundary must follow dependency semantics, not a growing allowlist of package names. Caller code also must not label everything critical merely to obtain faster scheduling.",
+          "ko": "두 조건 모델은 수락하지만 모든 user-visible Binder transaction을 gate하는 데에는 반대합니다. notification service는 독립적인 call 여러 개를 내며 순차 admission은 어떤 reply도 input에 관여하지 않아도 latency를 더합니다. 되살아난 process에서 critical system service로 넘어가는 첫 synchronous transaction만 scheduling readiness 전에 gate해야 합니다. analytics registration과 cache refresh는 deferrable이며 input dispatch를 잡아서는 안 됩니다. 이후 call은 readiness 후 정상 정책을 사용합니다. 경계는 늘어나는 package name allowlist가 아니라 dependency semantics를 따라야 합니다. caller code가 더 빠른 scheduling을 얻으려고 모든 것을 critical로 표시해서도 안 됩니다."
+        },
+        {
+          "speaker": "Aisha Khan",
+          "en": "That distinction is measurable if the trace carries a framework-owned dependency class. I propose critical-sync, deferrable, and unrestricted. Critical-sync waits for readiness or a deadline. Deferrable becomes queued work and cannot hold input dispatch. Unrestricted behaves as today after readiness. I will reject caller-selected labels. The API contract must assign the class, and the test build must audit every critical call site. There is also a lifecycle corner case: a thawed process can die and restart with the same uid before acknowledgment arrives. A ticket keyed only by pid or uid could release a transaction for the wrong incarnation. We need a boot-scoped process cookie plus a monotonically increasing thaw generation.",
+          "ko": "trace가 framework 소유 dependency class를 담으면 그 구분을 측정할 수 있습니다. critical-sync, deferrable, unrestricted를 제안합니다. critical-sync는 readiness 또는 deadline을 기다립니다. deferrable은 queued work가 되어 input dispatch를 잡을 수 없습니다. unrestricted는 readiness 후 현재처럼 동작합니다. caller가 선택하는 label은 거부하겠습니다. API contract가 class를 지정하고 test build가 모든 critical call site를 audit해야 합니다. 또 lifecycle corner case가 있습니다. thaw된 process가 죽고 acknowledgment 도착 전에 같은 uid로 restart할 수 있습니다. pid나 uid만 key로 삼은 ticket은 잘못된 incarnation의 transaction을 풀 수 있습니다. boot-scoped process cookie와 단조 증가 thaw generation이 필요합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Readiness Contract and Failure Policy",
+      "title_ko": "준비 상태 계약 및 실패 정책",
+      "turns": [
+        {
+          "speaker": "Diego Morales",
+          "en": "The kernel can publish readiness through a small event record rather than a blocking ioctl. The record contains process cookie, generation, effective class, runnable-task count, and completion timestamp. We emit it only after the cgroup update is visible to every currently runnable task and the run-queue clamp has been recomputed. New tasks validate current generation on enqueue. Kernel will not understand Binder dependency classes; that belongs to framework. Framework must not infer readiness from elapsed time or the cgroup file value because neither proves convergence. Duplicate and stale acknowledgments remain observable counters, and framework discards them before transaction admission.",
+          "ko": "kernel은 blocking ioctl 대신 작은 event record로 readiness를 게시할 수 있습니다. record에는 process cookie, generation, effective class, runnable-task count, completion timestamp가 들어갑니다. cgroup update가 현재 runnable task 모두에 보이고 run-queue clamp가 다시 계산된 뒤에만 emit합니다. 새 task는 enqueue 때 현재 generation을 검증합니다. kernel은 Binder dependency class를 이해하지 않습니다. 그것은 framework 영역입니다. framework도 경과 시간이나 cgroup file value로 readiness를 추정해서는 안 됩니다. 둘 다 convergence를 입증하지 못합니다. duplicate와 stale acknowledgment는 관측 가능한 counter로 남고 framework는 transaction admission 전에 폐기합니다."
+        },
+        {
+          "speaker": "Hana Lee",
+          "en": "For critical-sync, I propose a 35-millisecond readiness budget. If a matching record arrives, the transaction proceeds normally. If the budget expires, framework does not send the synchronous call; it posts a deferred request and returns a typed pending result to the notification action. The launcher remains responsive, and the application receives completion later. We must not use a blanket boost as fallback. That would hide readiness failures, reward synchronous API misuse, and increase energy on repeated notifications. The fallback should change dependency shape, not scheduler entitlement. Death, refreeze, state downgrade, cookie mismatch, or generation mismatch closes the ticket immediately.",
+          "ko": "critical-sync에는 35밀리초 readiness budget을 제안합니다. 일치하는 record가 오면 transaction은 정상 진행합니다. budget이 만료되면 framework는 synchronous call을 보내지 않고 deferred request를 게시하며 notification action에 typed pending result를 반환합니다. launcher는 반응성을 유지하고 application은 나중에 completion을 받습니다. fallback으로 blanket boost를 사용해서는 안 됩니다. 이는 readiness failure를 숨기고 synchronous API 오용에 보상을 주며 반복 notification에서 energy를 늘립니다. fallback은 scheduler entitlement가 아니라 dependency 형태를 바꿔야 합니다. death, refreeze, state downgrade, cookie mismatch, generation mismatch는 ticket을 즉시 닫습니다."
+        },
+        {
+          "speaker": "Noah Williams",
+          "en": "I support the bounded fallback, but we must surface degraded behavior. A pending result cannot look like a completed package query. The API distinguishes ready, deferred, canceled-by-lifecycle, and failed. Reliability logging records ticket age, terminal outcome, dependency class, and coarse latency band while excluding notification content, package names, user identifiers, and raw scheduling traces. Three consecutive deadlines for one system component within fifteen minutes open a local circuit breaker that forces deferrable mode for thirty minutes. The breaker is a reliability event, never a normal pass, and it is tied to the component digest so an unrecognized upgrade cannot inherit old policy state.",
+          "ko": "제한된 fallback을 지지하지만 저하된 동작을 드러내야 합니다. pending result가 완료된 package query처럼 보여서는 안 됩니다. API는 ready, deferred, canceled-by-lifecycle, failed를 구분합니다. Reliability logging은 ticket age, terminal outcome, dependency class, coarse latency band를 기록하되 notification content, package name, user identifier, raw scheduling trace는 제외합니다. 한 system component에서 15분 안에 deadline이 연속 세 번이면 local circuit breaker를 열어 30분 동안 deferrable mode를 강제합니다. breaker는 normal pass가 아니라 reliability event이며 component digest에 묶여 인식되지 않은 upgrade가 이전 policy state를 상속하지 못합니다."
+        },
+        {
+          "speaker": "Aisha Khan",
+          "en": "My report will keep normal-ticket cycles and breaker-forced cycles in separate ledgers. Acceptance requires zero input stalls above 120 milliseconds in 3,600 normal cycles, readiness p99 below 32 milliseconds, no wrong-incarnation release, and no more than 0.4 percent deferred outcomes under standard load. Breaker validation adds 180 sequences covering restart, refreeze, expiry, and component upgrade. We also need an energy guardrail: no more than 0.18 milliamp-hours per hundred thaws and two scheduler wakeups per critical ticket over baseline. A design that passes by keeping cores awake fails. All gates run on one immutable artifact, and a changed digest starts a new ledger.",
+          "ko": "report에는 normal-ticket cycle과 breaker-forced cycle을 separate ledger로 유지합니다. 승인은 normal cycle 3,600회에서 120밀리초 초과 input stall 0건, readiness p99 32밀리초 미만, 잘못된 incarnation release 0건, 표준 load에서 deferred outcome 0.4% 이하를 요구합니다. breaker 검증은 restart, refreeze, expiry, component upgrade를 다루는 180 sequence를 추가합니다. energy guardrail도 필요합니다. baseline 대비 thaw 100회당 0.18mAh 이하, critical ticket당 scheduler wakeup 2회 이하입니다. core를 계속 깨운 채 통과하는 설계는 실패합니다. 모든 gate는 하나의 immutable artifact에서 실행하고 digest가 바뀌면 새 ledger를 시작합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision, Owners, and Deadlines",
+      "title_ko": "결정·담당자 및 기한",
+      "turns": [
+        {
+          "speaker": "Noah Williams",
+          "en": "Here is the decision. We implement a generation-bound thaw-readiness ticket for critical synchronous dependencies only. Kernel publishes effective scheduling state with cookie and generation; framework admits the first critical transaction only after a matching record. At 35 milliseconds it converts work to an explicit deferred result instead of boosting the process. Deferrable work never waits on input dispatch. The design enters R83.5 only if performance, correctness, privacy, and energy gates all pass. I own the event schema, privacy review, circuit-breaker policy, and integration recommendation. The schema is due November 26 at 11:00 KST, and privacy review closes November 27 at 17:00 KST.",
+          "ko": "결정은 다음과 같습니다. critical synchronous dependency에만 generation-bound thaw-readiness ticket을 구현합니다. kernel은 cookie와 generation을 포함해 effective scheduling state를 게시하고 framework는 일치하는 record 뒤에만 첫 critical transaction을 허용합니다. 35밀리초가 되면 process를 boost하는 대신 work를 명시적 deferred result로 변환합니다. deferrable work는 input dispatch를 기다리지 않습니다. performance, correctness, privacy, energy gate가 모두 통과할 때만 설계가 R83.5에 들어갑니다. 저는 event schema, privacy review, circuit-breaker policy, 통합 권고를 담당합니다. schema는 11월 26일 KST 11:00까지이며 privacy review는 11월 27일 KST 17:00에 종료합니다."
+        },
+        {
+          "speaker": "Diego Morales",
+          "en": "Kernel Scheduling accepts. I own the event record, convergence check, enqueue-time generation validation, and tracepoints. The interface draft is due Wednesday, November 25 at 13:00 KST. A reviewable kernel build is due Thursday, November 26 at 18:00 KST. By Friday at noon, I will provide negative tests for delayed cgroup propagation, task creation during convergence, CPU migration, duplicate acknowledgment, and stale cookie. Any acknowledgment before every current runnable task observes the requested clamp is a hard stop, even when visible latency looks good. The trace will preserve requested, applied, acknowledged, admitted, and completed as distinct timestamps.",
+          "ko": "Kernel Scheduling은 수락합니다. event record, convergence check, enqueue-time generation validation, tracepoint를 담당합니다. interface draft는 11월 25일 수요일 KST 13:00까지입니다. review 가능한 kernel build는 11월 26일 목요일 KST 18:00까지입니다. 금요일 정오까지 delayed cgroup propagation, convergence 중 task creation, CPU migration, duplicate acknowledgment, stale cookie의 negative test를 제공합니다. 현재 runnable task 모두가 요청 clamp를 관측하기 전 acknowledgment가 나오면 visible latency가 좋아도 hard stop입니다. trace는 requested, applied, acknowledged, admitted, completed를 서로 다른 timestamp로 보존합니다."
+        },
+        {
+          "speaker": "Hana Lee",
+          "en": "Lifecycle accepts. I own the dependency-class API, critical admission, typed deferred result, ticket identity, and lifecycle closure. The API specification and audited call-site inventory are due November 25 at 17:00 KST. The framework candidate is due November 27 at 15:00 KST. The cookie is created before application threads run, stored outside app-controlled memory, and destroyed at death. Unknown dependency labels fail closed to deferrable behavior rather than bypassing the ticket. Unit tests will force pid reuse, uid reuse, death during acknowledgment, refreeze before readiness, and two rapid thaw generations. No result may cross an incarnation boundary.",
+          "ko": "Lifecycle은 수락합니다. dependency-class API, critical admission, typed deferred result, ticket identity, lifecycle closure를 담당합니다. API specification과 audit된 call-site inventory는 11월 25일 KST 17:00까지입니다. framework candidate는 11월 27일 KST 15:00까지입니다. cookie는 application thread 실행 전에 생성되고 app-controlled memory 밖에 저장되며 death 때 폐기됩니다. 알 수 없는 dependency label은 ticket을 우회하지 않고 deferrable behavior로 fail closed합니다. unit test는 pid 재사용, uid 재사용, acknowledgment 중 death, readiness 전 refreeze, 빠른 thaw generation 두 번을 강제합니다. 어떤 result도 incarnation boundary를 넘어서는 안 됩니다."
+        },
+        {
+          "speaker": "Aisha Khan",
+          "en": "Validation accepts. I own the immutable artifact digest, 3,600-cycle matrix, 180 breaker sequences, energy comparison, and final report. Static checks start November 27 at 18:00 KST. Hardware execution starts Saturday, November 28 at 09:00 KST across two Cedar revisions and one lower-tier Maple device, with shallow idle on and off. I will publish an interim 900-cycle ledger by November 29 at 18:00 KST and the complete report by December 1 at 16:00 KST. Failed cycles remain in the denominator. A corrected kernel or framework digest begins a new ledger; evidence is never carried across artifacts to preserve a readable acceptance statement. The matrix also crosses notification bursts of one, five, and twelve events with memory pressure at low and moderate levels. Each cell records input latency, ticket age, deferred outcome, scheduler wakeups, and energy. If a device is unavailable, we mark the cell missing rather than substituting another revision or estimating a result. That rule prevents a convenient average from concealing the exact condition that exposed the race.",
+          "ko": "Validation은 수락합니다. immutable artifact digest, 3,600-cycle matrix, breaker sequence 180개, energy 비교, 최종 report를 담당합니다. static check는 11월 27일 KST 18:00에 시작합니다. hardware 실행은 11월 28일 토요일 KST 09:00에 Cedar revision 두 개와 저가형 Maple 단말 한 개에서 shallow idle on/off 조건으로 시작합니다. interim 900-cycle ledger는 11월 29일 KST 18:00까지, 전체 report는 12월 1일 KST 16:00까지 게시합니다. 실패 cycle은 분모에 남습니다. 수정된 kernel 또는 framework digest는 새 ledger를 시작하며 artifact 간 증거를 이전하지 않습니다. matrix는 알림 burst 1개, 5개, 12개와 낮음·중간 memory pressure도 교차합니다. 각 cell은 input latency, ticket age, deferred outcome, scheduler wakeup, energy를 기록합니다. 단말이 없으면 다른 revision으로 대체하거나 결과를 추정하지 않고 cell을 missing으로 표시합니다. 이 규칙은 편리한 평균이 race를 드러낸 정확한 조건을 감추지 못하게 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Follow Up and Closing",
+      "title_ko": "후속 회의 및 마무리",
+      "turns": [
+        {
+          "speaker": "Diego Morales",
+          "en": "One clarification belongs in the record: readiness is not a general promise that a process runs immediately. It proves only that requested scheduling constraints reached the current runnable tasks for the stated cookie and generation. CPU contention, interrupt load, and future task creation remain separate variables. If a report collapses our five timestamps into one thaw time, it cannot support the gate. I will also verify that the event queue coalesces unrelated records and does not wake system_server for unrestricted work. Framework registers interest only while a critical ticket is open, so observability cost stays proportional to uncertainty at the dependency boundary.",
+          "ko": "기록에 한 가지 설명이 필요합니다. readiness는 process가 즉시 실행된다는 일반 보장이 아닙니다. 명시된 cookie와 generation에 대해 요청 scheduling constraint가 현재 runnable task에 도달했음을 입증할 뿐입니다. CPU contention, interrupt load, 미래 task creation은 별도 변수입니다. report가 다섯 timestamp를 하나의 thaw time으로 합치면 gate를 뒷받침할 수 없습니다. event queue가 관련 없는 record를 coalesce하고 unrestricted work 때문에 system_server를 깨우지 않는지도 확인하겠습니다. framework는 critical ticket이 열려 있을 때만 interest를 등록하므로 관측 비용은 dependency boundary의 불확실성에 비례합니다."
+        },
+        {
+          "speaker": "Hana Lee",
+          "en": "Framework documentation will say the ticket protects dependency ordering, not application speed. Callers must handle the typed pending result without busy waiting or immediate retry. We will add a lint rule that rejects a loop retrying critical-sync before completion and a runtime counter for duplicate admission attempts. Three duplicate attempts cancel the ticket and move that caller to deferrable mode for the current process incarnation. The safeguard protects system_server while leaving the underlying readiness failure visible. It cannot extend the 35-millisecond budget, enable a denied critical label, or convert a breaker-forced cycle into a normal success.",
+          "ko": "framework 문서는 ticket이 application speed가 아니라 dependency ordering을 보호한다고 설명합니다. caller는 busy waiting이나 immediate retry 없이 typed pending result를 처리해야 합니다. completion 전에 critical-sync를 재시도하는 loop를 거부하는 lint rule과 duplicate admission attempt runtime counter를 추가합니다. duplicate attempt가 세 번이면 ticket을 취소하고 현재 process incarnation 동안 caller를 deferrable mode로 옮깁니다. 이 safeguard는 system_server를 보호하면서 근본 readiness failure를 보이게 유지합니다. 35밀리초 budget을 연장하거나 거부된 critical label을 활성화하거나 breaker-forced cycle을 normal success로 바꿀 수 없습니다."
+        },
+        {
+          "speaker": "Aisha Khan",
+          "en": "I will add sixty retry-abuse sequences outside the primary latency denominator. They attempt immediate retry, delayed retry, process restart, and notification replay while a pending result exists. Expected outcomes are one open ticket, no more than one deferred work item, no synchronous input dependency, and an explicit duplicate counter. Traces correlate by cookie and generation, never by package name. Any busy loop that raises scheduler wakeups above the energy gate fails both correctness and energy even if no visible stall occurs. At the evidence review, I will report normal cycles, breaker policy, retry abuse, and privacy checks as four separate result groups.",
+          "ko": "primary latency 분모 밖에 retry-abuse sequence 60개를 추가합니다. pending result가 존재하는 동안 immediate retry, delayed retry, process restart, notification replay를 시도합니다. 기대 결과는 open ticket 1개, deferred work item 최대 1개, synchronous input dependency 0개, 명시적 duplicate counter입니다. trace는 package name이 아니라 cookie와 generation으로 연계합니다. busy loop가 scheduler wakeup을 energy gate보다 높이면 visible stall이 없어도 correctness와 energy를 모두 실패합니다. evidence review에서 normal cycle, breaker policy, retry abuse, privacy check를 네 개의 별도 결과 group으로 보고합니다."
+        },
+        {
+          "speaker": "Noah Williams",
+          "en": "There are no further objections. Owners must acknowledge dates in the tracker by 12:00 KST today; silence does not transfer ownership. Any request to lengthen the budget, apply a blanket boost, weaken cookie matching, or reuse evidence across digests requires a new decision meeting. The first evidence review is Sunday, November 29, 2026, from 19:00 to 19:45 Korea Standard Time. Bring the interface review, combined artifact, static results, and first 900-cycle ledger. We will inspect one passing trace and every distinct failure signature, not only aggregate charts. Open risks must name an owner, affected artifact, next experiment, and decision date. The final integration review is Wednesday, December 2, 2026, at 10:30 Korea Standard Time. We will choose integrate, revise, or defer for R83.5 and record the evidence behind that choice. If the complete report is late, the default is defer; schedule pressure does not convert missing evidence into approval.",
+          "ko": "추가 이의는 없습니다. 담당자는 오늘 KST 12:00까지 tracker에서 일정을 확인해야 하며 silence does not transfer ownership입니다. budget 연장, blanket boost 적용, cookie matching 약화, digest 간 증거 재사용 요청에는 새 결정 회의가 필요합니다. 첫 evidence review는 2026년 11월 29일 일요일 한국 표준시 19:00~19:45입니다. interface review, 결합 artifact, static 결과, 첫 900-cycle ledger를 가져오십시오. aggregate chart만 보지 않고 통과 trace 하나와 서로 다른 모든 failure signature를 검사합니다. open risk에는 owner, 영향 artifact, 다음 실험, 결정 날짜가 있어야 합니다. 최종 integration review는 2026년 12월 2일 수요일 한국 표준시 10:30입니다. R83.5에 대해 integrate, revise, defer 중 하나를 선택하고 근거를 기록합니다. 전체 report가 늦으면 기본 결정은 defer이며 일정 압박이 누락된 증거를 승인으로 바꾸지 않습니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "falsifiable fix plan",
+      "meaning_ko": "반증 가능한 수정 계획",
+      "usage_ko": "검증 가능한 수정 방향을 요구할 때",
+      "example": "Good morning. Hana represents Android Process Lifecycle, Diego represents Kernel Scheduling, Aisha owns the performance matrix, and I am coordinating system reliability. Everyone who can accept today's actions is present. We are investigating a short but severe input stall after a frozen cached application is revived by a high-priority notification. The symptom appeared in build R83.4 on the Cedar reference device. Our goal is to determine whether the failure belongs to framework ordering, scheduler policy, or their boundary. We need a falsifiable fix plan, not a convenient label. We will finish with owners, deadlines, quantitative gates, and a specific evidence review in Korea Standard Time.",
+      "practice": "We need a falsifiable fix plan before changing the schedule."
+    },
+    {
+      "phrase": "contract gap",
+      "meaning_ko": "계약상의 공백",
+      "usage_ko": "두 계층 사이 보장 누락을 말할 때",
+      "example": "Kernel Scheduling is here. The trace does not show a lost cgroup write. It shows the task waking on CPU six before the restore worker applies the new clamp to the process group. Binder priority inheritance raises the waiter priority, but it cannot exceed the old cgroup maximum. That is working as configured. I disagree with calling this a scheduler regression because R83.4 merely makes the race visible by shortening notification dispatch. However, the current interface gives framework no positive acknowledgment that scheduling state is effective. That contract gap belongs to both teams. We should define what readiness proves instead of guessing it from elapsed time or from a cgroup file value.",
+      "practice": "The missing timeout is a contract gap between client and service."
+    },
+    {
+      "phrase": "chain of evidence",
+      "meaning_ko": "증거 사슬",
+      "usage_ko": "시간순 근거를 연결할 때",
+      "example": "Let us keep the chain of evidence explicit. The notification callback begins at 10:14:22.031. The thaw request is recorded at .034, the first application thread wakes at .038, and its Binder call enters system_server at .041. The scheduling group becomes foreground at .087, while the effective clamp reaches the run queue at .094. Input dispatch begins waiting at .046 and clears at .173 after the service reply. That gives us two gaps: requested versus effective scheduling, and a synchronous dependency that amplifies the gap. Which condition is necessary for the long tail, which is sufficient, and what experiment separates them without changing several variables at once?",
+      "practice": "Preserve the chain of evidence from interrupt to restart."
+    },
+    {
+      "phrase": "necessary for the long tail",
+      "meaning_ko": "긴 지연 꼬리에 필요한",
+      "usage_ko": "필요조건을 설명할 때",
+      "example": "Let us keep the chain of evidence explicit. The notification callback begins at 10:14:22.031. The thaw request is recorded at .034, the first application thread wakes at .038, and its Binder call enters system_server at .041. The scheduling group becomes foreground at .087, while the effective clamp reaches the run queue at .094. Input dispatch begins waiting at .046 and clears at .173 after the service reply. That gives us two gaps: requested versus effective scheduling, and a synchronous dependency that amplifies the gap. Which condition is necessary for the long tail, which is sufficient, and what experiment separates them without changing several variables at once?",
+      "practice": "The queue lock is necessary for the long tail but not sufficient."
+    },
+    {
+      "phrase": "dependency semantics",
+      "meaning_ko": "의존성 의미",
+      "usage_ko": "실제 의존관계를 기준으로 삼을 때",
+      "example": "I accept the two-condition model, but I oppose gating every user-visible Binder transaction. The notification service issues several independent calls, and serial admission would add latency even when no reply participates in input. We should gate only the first synchronous transaction that crosses from the revived process into a critical system service before scheduling readiness. Analytics registration and cache refresh are deferrable; they must not hold input dispatch. Later calls use normal policy after readiness. The boundary must follow dependency semantics, not a growing allowlist of package names. Caller code also must not label everything critical merely to obtain faster scheduling.",
+      "practice": "Classify requests by dependency semantics instead of caller name."
+    },
+    {
+      "phrase": "lifecycle corner case",
+      "meaning_ko": "생명주기 예외 상황",
+      "usage_ko": "드문 상태 전환 위험을 말할 때",
+      "example": "That distinction is measurable if the trace carries a framework-owned dependency class. I propose critical-sync, deferrable, and unrestricted. Critical-sync waits for readiness or a deadline. Deferrable becomes queued work and cannot hold input dispatch. Unrestricted behaves as today after readiness. I will reject caller-selected labels. The API contract must assign the class, and the test build must audit every critical call site. There is also a lifecycle corner case: a thawed process can die and restart with the same uid before acknowledgment arrives. A ticket keyed only by pid or uid could release a transaction for the wrong incarnation. We need a boot-scoped process cookie plus a monotonically increasing thaw generation.",
+      "practice": "Process replacement is the lifecycle corner case for this token."
+    },
+    {
+      "phrase": "blocking ioctl",
+      "meaning_ko": "차단형 ioctl",
+      "usage_ko": "동기 커널 interface를 말할 때",
+      "example": "The kernel can publish readiness through a small event record rather than a blocking ioctl. The record contains process cookie, generation, effective class, runnable-task count, and completion timestamp. We emit it only after the cgroup update is visible to every currently runnable task and the run-queue clamp has been recomputed. New tasks validate current generation on enqueue. Kernel will not understand Binder dependency classes; that belongs to framework. Framework must not infer readiness from elapsed time or the cgroup file value because neither proves convergence. Duplicate and stale acknowledgments remain observable counters, and framework discards them before transaction admission.",
+      "practice": "Use an event queue instead of a blocking ioctl."
+    },
+    {
+      "phrase": "blanket boost",
+      "meaning_ko": "일괄 부스트",
+      "usage_ko": "범위 없는 성능 상향을 경계할 때",
+      "example": "For critical-sync, I propose a 35-millisecond readiness budget. If a matching record arrives, the transaction proceeds normally. If the budget expires, framework does not send the synchronous call; it posts a deferred request and returns a typed pending result to the notification action. The launcher remains responsive, and the application receives completion later. We must not use a blanket boost as fallback. That would hide readiness failures, reward synchronous API misuse, and increase energy on repeated notifications. The fallback should change dependency shape, not scheduler entitlement. Death, refreeze, state downgrade, cookie mismatch, or generation mismatch closes the ticket immediately.",
+      "practice": "A blanket boost would hide the admission bug."
+    },
+    {
+      "phrase": "surface degraded behavior",
+      "meaning_ko": "저하 동작을 드러내다",
+      "usage_ko": "fallback을 명시할 때",
+      "example": "I support the bounded fallback, but we must surface degraded behavior. A pending result cannot look like a completed package query. The API distinguishes ready, deferred, canceled-by-lifecycle, and failed. Reliability logging records ticket age, terminal outcome, dependency class, and coarse latency band while excluding notification content, package names, user identifiers, and raw scheduling traces. Three consecutive deadlines for one system component within fifteen minutes open a local circuit breaker that forces deferrable mode for thirty minutes. The breaker is a reliability event, never a normal pass, and it is tied to the component digest so an unrecognized upgrade cannot inherit old policy state.",
+      "practice": "The UI must surface degraded behavior when data is stale."
+    },
+    {
+      "phrase": "separate ledgers",
+      "meaning_ko": "분리된 원장",
+      "usage_ko": "다른 시험 결과를 섞지 않을 때",
+      "example": "My report will keep normal-ticket cycles and breaker-forced cycles in separate ledgers. Acceptance requires zero input stalls above 120 milliseconds in 3,600 normal cycles, readiness p99 below 32 milliseconds, no wrong-incarnation release, and no more than 0.4 percent deferred outcomes under standard load. Breaker validation adds 180 sequences covering restart, refreeze, expiry, and component upgrade. We also need an energy guardrail: no more than 0.18 milliamp-hours per hundred thaws and two scheduler wakeups per critical ticket over baseline. A design that passes by keeping cores awake fails. All gates run on one immutable artifact, and a changed digest starts a new ledger.",
+      "practice": "Keep pilot and production results in separate ledgers."
+    },
+    {
+      "phrase": "energy guardrail",
+      "meaning_ko": "에너지 안전 기준",
+      "usage_ko": "전력 비용을 제한할 때",
+      "example": "My report will keep normal-ticket cycles and breaker-forced cycles in separate ledgers. Acceptance requires zero input stalls above 120 milliseconds in 3,600 normal cycles, readiness p99 below 32 milliseconds, no wrong-incarnation release, and no more than 0.4 percent deferred outcomes under standard load. Breaker validation adds 180 sequences covering restart, refreeze, expiry, and component upgrade. We also need an energy guardrail: no more than 0.18 milliamp-hours per hundred thaws and two scheduler wakeups per critical ticket over baseline. A design that passes by keeping cores awake fails. All gates run on one immutable artifact, and a changed digest starts a new ledger.",
+      "practice": "Set an energy guardrail before increasing polling."
+    },
+    {
+      "phrase": "hard stop",
+      "meaning_ko": "즉시 중단 조건",
+      "usage_ko": "타협 불가능한 실패를 말할 때",
+      "example": "Kernel Scheduling accepts. I own the event record, convergence check, enqueue-time generation validation, and tracepoints. The interface draft is due Wednesday, November 25 at 13:00 KST. A reviewable kernel build is due Thursday, November 26 at 18:00 KST. By Friday at noon, I will provide negative tests for delayed cgroup propagation, task creation during convergence, CPU migration, duplicate acknowledgment, and stale cookie. Any acknowledgment before every current runnable task observes the requested clamp is a hard stop, even when visible latency looks good. The trace will preserve requested, applied, acknowledged, admitted, and completed as distinct timestamps.",
+      "practice": "An unsigned component is a hard stop."
+    },
+    {
+      "phrase": "fail closed",
+      "meaning_ko": "안전한 쪽으로 실패하다",
+      "usage_ko": "미지 상태에서 보수적으로 동작할 때",
+      "example": "Lifecycle accepts. I own the dependency-class API, critical admission, typed deferred result, ticket identity, and lifecycle closure. The API specification and audited call-site inventory are due November 25 at 17:00 KST. The framework candidate is due November 27 at 15:00 KST. The cookie is created before application threads run, stored outside app-controlled memory, and destroyed at death. Unknown dependency labels fail closed to deferrable behavior rather than bypassing the ticket. Unit tests will force pid reuse, uid reuse, death during acknowledgment, refreeze before readiness, and two rapid thaw generations. No result may cross an incarnation boundary.",
+      "practice": "Unknown schema versions should fail closed."
+    },
+    {
+      "phrase": "immutable artifact",
+      "meaning_ko": "변경 불가능한 산출물",
+      "usage_ko": "동일 binary 검증을 강조할 때",
+      "example": "My report will keep normal-ticket cycles and breaker-forced cycles in separate ledgers. Acceptance requires zero input stalls above 120 milliseconds in 3,600 normal cycles, readiness p99 below 32 milliseconds, no wrong-incarnation release, and no more than 0.4 percent deferred outcomes under standard load. Breaker validation adds 180 sequences covering restart, refreeze, expiry, and component upgrade. We also need an energy guardrail: no more than 0.18 milliamp-hours per hundred thaws and two scheduler wakeups per critical ticket over baseline. A design that passes by keeping cores awake fails. All gates run on one immutable artifact, and a changed digest starts a new ledger.",
+      "practice": "Run the full matrix on one immutable artifact."
+    },
+    {
+      "phrase": "silence does not transfer ownership",
+      "meaning_ko": "침묵이 담당을 이전하지 않는다",
+      "usage_ko": "명시적 담당 확인을 요구할 때",
+      "example": "There are no further objections. Owners must acknowledge dates in the tracker by 12:00 KST today; silence does not transfer ownership. Any request to lengthen the budget, apply a blanket boost, weaken cookie matching, or reuse evidence across digests requires a new decision meeting. The first evidence review is Sunday, November 29, 2026, from 19:00 to 19:45 Korea Standard Time. Bring the interface review, combined artifact, static results, and first 900-cycle ledger. We will inspect one passing trace and every distinct failure signature, not only aggregate charts. Open risks must name an owner, affected artifact, next experiment, and decision date. The final integration review is Wednesday, December 2, 2026, at 10:30 Korea Standard Time. We will choose integrate, revise, or defer for R83.5 and record the evidence behind that choice. If the complete report is late, the default is defer; schedule pressure does not convert missing evidence into approval.",
+      "practice": "Silence does not transfer ownership; the named lead remains accountable."
+    }
+  ]
+}
