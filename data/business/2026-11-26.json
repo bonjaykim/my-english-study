@@ -1,0 +1,270 @@
+{
+  "date": "2026-11-26",
+  "category": "business",
+  "topic": "sw-tech",
+  "subject": "Designing Epoch Safe Recovery for Android Neural Accelerator Contexts",
+  "title_ko": "Android Neural Accelerator Context의 Epoch 안전 복구 설계",
+  "summary_ko": "가상의 Android 시스템 SW 설계 회의에서 취소된 on-device AI 요청의 stale completion과 cached translation이 accelerator context 재사용을 오염시키는 문제를 분석합니다. 팀들은 epoch 포함 identity, two-phase quiesce·IOMMU fence, context 격리, CPU fallback, 정량 latency·isolation gate를 결정합니다. 모든 인물·조직·단말·가속기·firmware·모델·빌드·로그·결함·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않습니다.",
+  "participants": [
+    {
+      "name": "Sora Han",
+      "team": "Android AI Runtime"
+    },
+    {
+      "name": "Daniel Ortiz",
+      "team": "Kernel and IOMMU"
+    },
+    {
+      "name": "Priya Nair",
+      "team": "Accelerator Firmware"
+    },
+    {
+      "name": "Noah Williams",
+      "team": "Performance Validation"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Design Objective",
+      "title_ko": "참석 확인 및 설계 목표",
+      "turns": [
+        {
+          "speaker": "Sora Han",
+          "en": "Good morning. Android AI Runtime, Kernel and IOMMU, Accelerator Firmware, and Performance Validation are all represented. We are here because a cancelled on-device translation request can leave one neural-accelerator context unable to submit more work. The current recovery resets the whole accelerator, so an unrelated camera enhancement session loses three frames. Our objective is not merely to stop the stall. We need a recovery contract that isolates the failed context, proves that old mappings cannot be reused, and preserves work owned by other clients. Every proposal today must define identity, ordering, timeout behavior, observability, and a measurable acceptance gate.",
+          "ko": "좋은 아침입니다. Android AI Runtime, Kernel and IOMMU, Accelerator Firmware, Performance Validation 팀이 모두 참석했습니다. 단말 내 번역 요청이 취소되면 한 neural-accelerator context가 후속 작업을 제출하지 못하는 문제가 있어 모였습니다. 현재 복구는 전체 accelerator를 reset하므로 관련 없는 camera enhancement session이 세 frame을 잃습니다. 목표는 stall만 없애는 것이 아닙니다. 실패 context를 격리하고 이전 mapping이 재사용될 수 없음을 증명하며 다른 client 소유 작업을 보존하는 복구 계약이 필요합니다. 오늘 모든 제안은 identity, ordering, timeout 동작, observability, 측정 가능한 acceptance gate를 정의해야 합니다."
+        },
+        {
+          "speaker": "Noah Williams",
+          "en": "Performance Validation is present. In build N17.4, 37 of 8,000 cancellation cycles left the translation context silent for more than two seconds. All 37 recovered after a global reset, but 29 overlapped a camera workload and dropped between two and five frames. The median accelerator latency is unchanged, which makes the release dashboard look normal. The failures cluster when cancellation arrives within 180 microseconds of an IOMMU unmap request, yet we also have six clean runs inside that window. That means timing is necessary but not sufficient. We need evidence from the command ring, the translation tables, and firmware completion queue on the same clock.",
+          "ko": "Performance Validation 팀이 참석했습니다. N17.4 build에서 취소 cycle 8,000회 중 37회가 translation context를 2초 넘게 silent 상태로 남겼습니다. 37회 모두 global reset 뒤 복구됐지만 29회는 camera workload와 겹쳐 2~5개 frame을 잃었습니다. accelerator latency 중앙값은 변하지 않아 release dashboard가 정상처럼 보입니다. 실패는 cancellation이 IOMMU unmap 요청 후 180 microsecond 이내에 도착할 때 몰리지만 그 window 안에서도 clean run 6회가 있습니다. 따라서 timing은 필요조건이지만 충분조건이 아닙니다. 같은 clock 기준 command ring, translation table, firmware completion queue 증거가 필요합니다."
+        },
+        {
+          "speaker": "Daniel Ortiz",
+          "en": "Kernel and IOMMU is here. My trace shows the runtime closes the file descriptor, the driver schedules unmap, and firmware later posts a completion carrying the old context number. The driver currently looks up that number in a newly allocated context slot and treats the completion as current. I believe the primary defect is context identity reuse, not a slow unmap. A numeric slot alone is not a lifetime boundary. We need an epoch-bearing identity that changes before the slot returns to the allocator. Until the IOMMU invalidation fence completes, no new context may inherit that slot or its process address-space identifier.",
+          "ko": "Kernel and IOMMU 팀이 참석했습니다. trace를 보면 runtime이 file descriptor를 닫고 driver가 unmap을 예약한 뒤 firmware가 이전 context number를 가진 completion을 나중에 게시합니다. 현재 driver는 새로 할당된 context slot에서 그 번호를 조회해 completion을 현재 것으로 취급합니다. 주된 결함은 느린 unmap이 아니라 context identity 재사용이라고 봅니다. 숫자 slot만으로는 lifetime boundary가 아닙니다. slot이 allocator로 돌아가기 전에 바뀌는 epoch 포함 identity가 필요합니다. IOMMU invalidation fence가 완료될 때까지 새 context는 그 slot이나 process address-space identifier를 상속하면 안 됩니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "Accelerator Firmware is present, and I agree that the completion is stale, but I disagree that host identity alone closes the fault. Firmware caches four page descriptors per context. In two failure traces, the host invalidation completed, but a speculative prefetch used a descriptor already copied into local SRAM. A new epoch in the submission header lets firmware reject late commands, yet it does not drain cached descriptors that are already in flight. We need a context-scoped quiesce command with an acknowledgment after the prefetch queue, execution lane, and completion writer are empty. If acknowledgment misses its deadline, the context must be quarantined before any broader reset is considered.",
+          "ko": "Accelerator Firmware 팀이 참석했습니다. completion이 stale이라는 점에는 동의하지만 host identity만으로 fault가 닫힌다는 의견에는 반대합니다. firmware는 context당 page descriptor 4개를 cache합니다. 실패 trace 2개에서는 host invalidation이 완료됐지만 speculative prefetch가 local SRAM에 이미 복사된 descriptor를 사용했습니다. submission header의 새 epoch는 늦은 command를 거부하게 하지만 이미 in-flight인 cached descriptor를 비우지는 못합니다. prefetch queue, execution lane, completion writer가 빈 뒤 acknowledgment를 주는 context-scoped quiesce command가 필요합니다. acknowledgment가 deadline을 놓치면 더 넓은 reset을 고려하기 전에 context를 quarantine해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence and Competing Explanations",
+      "title_ko": "증거와 상충하는 원인 설명",
+      "turns": [
+        {
+          "speaker": "Sora Han",
+          "en": "Let us align the evidence chain. At 14:03:11.204, application cancellation reaches the runtime. At 11.232, the runtime sends cancel for context 12, epoch 44. At 11.241, the driver begins unmap. Firmware reports command 903 complete at 11.266, then posts a second completion at 11.301. The slot is reassigned as context 12, epoch 45 at 11.287. The second completion therefore lands after reassignment. Runtime accepts it and advances the new context tail beyond its head, which makes the queue appear permanently full. Is that sequence sufficient to explain every silent context, or only the corrupted accounting we can see?",
+          "ko": "증거 chain을 맞춰 봅시다. 14:03:11.204에 application cancellation이 runtime에 도착합니다. 11.232에 runtime이 context 12, epoch 44의 cancel을 보냅니다. 11.241에 driver가 unmap을 시작합니다. firmware는 11.266에 command 903 완료를 보고하고 11.301에 두 번째 completion을 게시합니다. slot은 11.287에 context 12, epoch 45로 재할당됩니다. 따라서 두 번째 completion은 재할당 뒤 도착합니다. runtime은 이를 받아 새 context tail을 head보다 앞으로 진행시키고 queue가 영구적으로 가득 찬 것처럼 보이게 합니다. 이 sequence가 모든 silent context를 설명합니까, 아니면 우리가 볼 수 있는 corrupted accounting만 설명합니까?"
+        },
+        {
+          "speaker": "Daniel Ortiz",
+          "en": "It explains 31 of 37 failures because those traces contain an epoch mismatch reconstructed from allocation history. The remaining six lack firmware timestamps, so they are not counterexamples. I propose we make the epoch explicit in every submission and completion, reject any mismatch before queue accounting, and hold the slot on a retirement list until the IOMMU fence and firmware quiesce acknowledgment both arrive. The order matters: block new submissions, request quiesce, wait for acknowledgment, invalidate mappings, wait for the fence, then publish retirement. If firmware cannot quiesce, the slot never returns to general allocation. This gives us a monotonic retirement point instead of an assumed delay.",
+          "ko": "37건 중 31건은 allocation history로 재구성한 epoch mismatch가 trace에 있어 이 설명이 맞습니다. 나머지 6건은 firmware timestamp가 없어 반례가 아닙니다. 모든 submission과 completion에 epoch를 명시하고 queue accounting 전에 mismatch를 거부하며 IOMMU fence와 firmware quiesce acknowledgment가 모두 올 때까지 slot을 retirement list에 두자고 제안합니다. 순서가 중요합니다. 새 submission 차단, quiesce 요청, acknowledgment 대기, mapping 무효화, fence 대기, retirement 게시 순입니다. firmware가 quiesce하지 못하면 slot은 general allocation으로 돌아가지 않습니다. 추정 delay 대신 단조로운 retirement point를 제공합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "I challenge one part of that order. If mappings are invalidated only after quiesce, a wedged execution lane can continue reading them while the host waits. If mappings are invalidated first, firmware may raise a fault before it reaches quiesce. The safe sequence needs two phases. First revoke command admission and mark the epoch closing, while existing translations remain readable. Firmware drains admitted work and acknowledges a local barrier. Second, the host invalidates mappings and returns the fence token. Firmware then discards cached descriptors and acknowledges final retirement. A five-millisecond local barrier and a twenty-millisecond final retirement deadline are realistic. Crossing either deadline moves the context to isolated recovery, not immediate global reset.",
+          "ko": "그 순서 중 한 부분에는 이의를 제기합니다. mapping을 quiesce 뒤에만 무효화하면 wedged execution lane이 host 대기 중 계속 읽을 수 있습니다. mapping을 먼저 무효화하면 firmware가 quiesce에 도달하기 전에 fault를 낼 수 있습니다. 안전한 sequence는 두 phase가 필요합니다. 먼저 기존 translation은 읽을 수 있게 둔 채 command admission을 철회하고 epoch를 closing으로 표시합니다. firmware가 admitted work를 drain하고 local barrier를 acknowledge합니다. 둘째 host가 mapping을 무효화하고 fence token을 반환합니다. firmware가 cached descriptor를 폐기하고 final retirement를 acknowledge합니다. local barrier 5ms, final retirement 20ms deadline이 현실적입니다. 어느 deadline이든 넘으면 즉시 global reset이 아니라 context를 isolated recovery로 이동합니다."
+        },
+        {
+          "speaker": "Noah Williams",
+          "en": "The validation data favors a two-phase protocol. A prototype with host-only epoch rejection removed all queue-accounting corruption in 2,000 cycles, but seven cycles still generated IOMMU faults after cancellation. Priya's firmware barrier prototype reduced that to zero in 2,000 cycles, although p99 cancellation time rose from 3.2 to 6.8 milliseconds. That cost is acceptable for an explicit cancel, but not if the barrier blocks other clients. I measured camera inference concurrently: global reset caused a 96-millisecond gap, whereas the barrier prototype caused no gap above 1.4 milliseconds. We should make cross-client isolation a first-class gate, not a secondary performance note.",
+          "ko": "검증 data는 two-phase protocol을 지지합니다. host-only epoch rejection prototype은 2,000 cycle에서 queue-accounting corruption을 모두 제거했지만 cancellation 뒤 IOMMU fault가 7회 발생했습니다. Priya의 firmware barrier prototype은 2,000 cycle에서 이를 0으로 줄였지만 p99 cancellation time이 3.2ms에서 6.8ms로 늘었습니다. 명시적 cancel에는 허용 가능하지만 barrier가 다른 client를 막는다면 안 됩니다. camera inference를 동시에 측정했습니다. global reset은 96ms gap을 만들었지만 barrier prototype은 1.4ms 초과 gap이 없었습니다. cross-client isolation을 부차적 performance note가 아니라 first-class gate로 만들어야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Recovery Contract and Failure Boundaries",
+      "title_ko": "복구 계약과 실패 경계",
+      "turns": [
+        {
+          "speaker": "Sora Han",
+          "en": "I see four contract states: active, closing, retired, and quarantined. Runtime may submit only in active. Cancellation atomically changes active to closing and returns a cancellation ticket containing context slot, epoch, and request sequence. Closing ends only after the local barrier, IOMMU fence, descriptor discard, and final acknowledgment are reconciled. Retired means the slot is reusable under a higher epoch. Quarantined means the slot is unavailable and its client receives CPU fallback. No timeout may pretend retirement succeeded. The runtime needs a reason-coded terminal result so it can distinguish normal cancellation, stale completion, barrier timeout, fence timeout, firmware fault, and forced isolation.",
+          "ko": "네 가지 contract state가 보입니다. active, closing, retired, quarantined입니다. runtime은 active에서만 submit할 수 있습니다. cancellation은 active를 closing으로 atomic 변경하고 context slot, epoch, request sequence를 담은 cancellation ticket을 반환합니다. closing은 local barrier, IOMMU fence, descriptor discard, final acknowledgment가 reconciliation된 뒤에만 끝납니다. retired는 더 높은 epoch로 slot을 재사용할 수 있다는 뜻입니다. quarantined는 slot을 사용할 수 없고 client가 CPU fallback을 받는다는 뜻입니다. 어떤 timeout도 retirement 성공으로 가장해서는 안 됩니다. runtime은 normal cancellation, stale completion, barrier timeout, fence timeout, firmware fault, forced isolation을 구분하는 reason-coded terminal result가 필요합니다."
+        },
+        {
+          "speaker": "Daniel Ortiz",
+          "en": "Kernel will implement a generation-safe handle composed of process address-space identifier, slot, and 64-bit epoch. The epoch increments before allocation becomes visible and never rolls back during a boot. Completion lookup compares all three fields under the queue lock. A mismatch is counted and discarded without touching head, tail, credits, or client memory. For closing contexts, the driver records barrier sequence, invalidation fence sequence, and final acknowledgment sequence in one bounded ledger. The ledger stores durations and reason codes, not virtual addresses or model data. If the ledger is full, new accelerator contexts fail closed to CPU execution rather than overwriting unresolved retirement evidence.",
+          "ko": "Kernel은 process address-space identifier, slot, 64-bit epoch로 구성된 generation-safe handle을 구현합니다. epoch는 allocation이 보이기 전에 증가하며 한 boot 동안 절대 rollback하지 않습니다. completion lookup은 queue lock 아래 세 field를 모두 비교합니다. mismatch는 count한 뒤 head, tail, credit, client memory를 건드리지 않고 폐기합니다. closing context에 대해 driver는 barrier sequence, invalidation fence sequence, final acknowledgment sequence를 하나의 bounded ledger에 기록합니다. ledger는 duration과 reason code만 저장하며 virtual address나 model data는 저장하지 않습니다. ledger가 가득 차면 unresolved retirement 증거를 덮어쓰지 않고 새 accelerator context가 CPU execution으로 fail closed합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "Firmware will echo the full handle in every completion and expose two acknowledgments. Barrier-accepted means no new command for the closing epoch can enter prefetch. Barrier-drained means execution lanes and the completion writer contain no work for that epoch. After the host returns the IOMMU fence token, descriptor-discarded confirms that local SRAM holds no translation derived from the retired context. Only then does firmware send final-retired. A stale command or completion increments a per-reason counter and is dropped. Counters saturate instead of wrapping. If one context exceeds its deadline, firmware masks that context's doorbell and attempts a context-engine reset; other engines continue unless hardware reports a shared fabric fault.",
+          "ko": "Firmware는 모든 completion에 full handle을 echo하고 두 acknowledgment를 노출합니다. Barrier-accepted는 closing epoch의 새 command가 prefetch에 들어갈 수 없다는 뜻입니다. Barrier-drained는 execution lane과 completion writer에 해당 epoch 작업이 없다는 뜻입니다. host가 IOMMU fence token을 반환한 뒤 descriptor-discarded는 local SRAM에 retired context에서 파생된 translation이 없음을 확인합니다. 그 뒤에만 firmware가 final-retired를 보냅니다. stale command나 completion은 reason별 counter를 증가시키고 drop합니다. counter는 wrap하지 않고 saturate합니다. 한 context가 deadline을 넘으면 firmware는 해당 context doorbell을 mask하고 context-engine reset을 시도합니다. hardware가 shared fabric fault를 보고하지 않는 한 다른 engine은 계속 동작합니다."
+        },
+        {
+          "speaker": "Noah Williams",
+          "en": "The gate must exercise normal retirement and every branch that claims isolation. I will run 12,000 cancellation cycles across three models, two firmware branches, four concurrent workload mixes, and warm and thermally constrained states. We require zero accepted stale completions, zero post-retirement IOMMU accesses, zero reuse before final-retired, and zero camera gaps above eight milliseconds. Cancellation p99 must stay below twelve milliseconds and p99.9 below twenty milliseconds. We will inject missing barrier acknowledgment, late fence, duplicate completion, epoch rollback, firmware restart, process death, ledger exhaustion, and a shared fabric fault. Each injected fault must produce exactly one terminal result and the declared fallback.",
+          "ko": "gate는 normal retirement와 isolation을 주장하는 모든 branch를 시험해야 합니다. 세 model, 두 firmware branch, concurrent workload mix 네 가지, warm 및 thermal constrained state에서 cancellation cycle 12,000회를 실행합니다. accepted stale completion 0건, retirement 후 IOMMU access 0건, final-retired 전 재사용 0건, camera gap 8ms 초과 0건을 요구합니다. cancellation p99는 12ms 미만, p99.9는 20ms 미만이어야 합니다. barrier acknowledgment 누락, 늦은 fence, duplicate completion, epoch rollback, firmware restart, process death, ledger exhaustion, shared fabric fault를 주입합니다. 각 injected fault는 정확히 하나의 terminal result와 선언된 fallback을 만들어야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision Owners and Delivery Dates",
+      "title_ko": "결정·담당자 및 전달 일정",
+      "turns": [
+        {
+          "speaker": "Sora Han",
+          "en": "We will adopt the two-phase epoch-safe retirement contract. We will not ship the global-reset-only recovery as the default. Runtime owns the active-to-closing transition, cancellation ticket, CPU fallback, and user-visible completion. Kernel owns full-handle validation, the retirement ledger, IOMMU fencing, and slot reuse. Firmware owns admission revocation, drain and discard acknowledgments, context-engine isolation, and shared-fault escalation. A context can return to allocation only after final-retired is reconciled with the matching fence token. Unknown states remain quarantined. I own the interface specification and will prevent unrelated scheduler tuning from entering this change set.",
+          "ko": "two-phase epoch-safe retirement contract를 채택합니다. global-reset-only recovery를 default로 ship하지 않습니다. Runtime은 active-to-closing transition, cancellation ticket, CPU fallback, user-visible completion을 담당합니다. Kernel은 full-handle validation, retirement ledger, IOMMU fencing, slot reuse를 담당합니다. Firmware는 admission revocation, drain·discard acknowledgment, context-engine isolation, shared-fault escalation을 담당합니다. context는 final-retired가 matching fence token과 reconciliation된 뒤에만 allocation으로 돌아갈 수 있습니다. unknown state는 quarantined로 남습니다. 저는 interface specification을 담당하며 관련 없는 scheduler tuning이 이 change set에 들어오지 않게 하겠습니다."
+        },
+        {
+          "speaker": "Daniel Ortiz",
+          "en": "I will publish the kernel interface draft by Thursday, November 26 at 15:00 Korea Standard Time. The driver prototype with 64-bit epoch validation, retirement ledger, and IOMMU fence token is due Friday, November 27 at 18:00. By Monday at noon, I will provide unit tests for stale completion, duplicate completion, slot pressure, epoch saturation handling, process death, and ledger exhaustion. The driver will expose engineering tracepoints for sequence reconciliation, but production telemetry will contain only model class, duration band, terminal reason, and whether fallback occurred. Any patch that reuses a slot on timeout will fail review.",
+          "ko": "kernel interface draft는 11월 26일 목요일 한국 표준시 15:00까지 게시합니다. 64-bit epoch validation, retirement ledger, IOMMU fence token을 포함한 driver prototype은 11월 27일 금요일 18:00까지입니다. 월요일 정오까지 stale completion, duplicate completion, slot pressure, epoch saturation 처리, process death, ledger exhaustion unit test를 제공합니다. driver는 sequence reconciliation용 engineering tracepoint를 노출하지만 production telemetry는 model class, duration band, terminal reason, fallback 여부만 담습니다. timeout 때 slot을 재사용하는 patch는 review에서 탈락합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "I own the firmware command changes and context-engine reset path. A command-table review is scheduled for November 26 at 17:30 KST. The first instrumented firmware for branch F42 is due November 28 at 11:00, and the older F39 feasibility result is due the same day at 16:00. If F39 cannot isolate the context engine, that branch will use quarantine plus CPU fallback; it will not silently call global reset. I will also provide a shared-fabric fault classifier with evidence fields for engine status, fabric syndrome class, and affected-context bitmap. Raw model buffers and addresses remain excluded.",
+          "ko": "firmware command 변경과 context-engine reset path를 담당합니다. command-table review는 11월 26일 KST 17:30으로 예정합니다. F42 branch의 첫 instrumented firmware는 11월 28일 11:00까지이며 이전 F39 feasibility 결과는 같은 날 16:00까지입니다. F39가 context engine을 격리할 수 없으면 해당 branch는 quarantine과 CPU fallback을 사용하며 조용히 global reset을 호출하지 않습니다. engine status, fabric syndrome class, affected-context bitmap을 evidence field로 갖는 shared-fabric fault classifier도 제공합니다. raw model buffer와 address는 제외합니다."
+        },
+        {
+          "speaker": "Noah Williams",
+          "en": "I will freeze the test manifest after both interface reviews. Static compatibility checks begin November 28 at 18:00 KST. Hardware execution starts November 29 at 09:00. A 3,000-cycle coverage report is due November 30 at 20:00, and the complete 12,000-cycle ledger is due December 3 at 14:00. Fault injection has a separate denominator of 960 sequences. Changed runtime, kernel, or firmware digests start a new ledger; partial results never migrate across digests. A hard stop occurs on stale acceptance, post-retirement DMA, wrong-epoch reuse, production data leakage, or an unrelated client gap above fifty milliseconds.",
+          "ko": "두 interface review 뒤 test manifest를 고정합니다. static compatibility check는 11월 28일 KST 18:00에 시작합니다. hardware 실행은 11월 29일 09:00에 시작합니다. 3,000-cycle coverage report는 11월 30일 20:00까지, 전체 12,000-cycle ledger는 12월 3일 14:00까지입니다. fault injection은 960 sequence의 별도 분모를 가집니다. runtime, kernel, firmware digest가 바뀌면 새 ledger를 시작하며 partial result는 digest 사이를 이동하지 않습니다. stale acceptance, retirement 후 DMA, wrong-epoch reuse, production data leakage, 관련 없는 client gap 50ms 초과가 나오면 hard stop합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Closing and Follow Up",
+      "title_ko": "마무리 및 후속 회의",
+      "turns": [
+        {
+          "speaker": "Sora Han",
+          "en": "The scope is now frozen around cancellation and context retirement. We are not changing model compilation, accelerator scheduling priority, camera quality policy, or general IOMMU allocation. Evidence pointing there becomes a separately tracked issue. The first evidence checkpoint will be Monday, November 30, 2026, from 19:00 to 19:45 Korea Standard Time. Bring both approved interfaces, immutable artifact digests, the 3,000-cycle coverage report, every hard-stop event, and the open-risk list. Missing evidence is not a provisional pass. We will evaluate whether F42 enters the candidate and whether F39 remains on CPU fallback.",
+          "ko": "범위는 cancellation과 context retirement로 고정합니다. model compilation, accelerator scheduling priority, camera quality policy, 일반 IOMMU allocation은 변경하지 않습니다. 증거가 그쪽을 가리키면 별도 추적 issue로 만듭니다. 첫 evidence checkpoint는 2026년 11월 30일 월요일 한국 표준시 19:00~19:45입니다. 승인된 interface 두 개, immutable artifact digest, 3,000-cycle coverage report, 모든 hard-stop event, open-risk list를 가져오십시오. 누락된 증거는 provisional pass가 아닙니다. F42를 candidate에 넣을지와 F39를 CPU fallback에 둘지를 평가합니다."
+        },
+        {
+          "speaker": "Daniel Ortiz",
+          "en": "At that checkpoint I will demonstrate one successful retirement and each driver-side failure path on the same trace clock. Reviewers will see that a mismatched completion changes only the stale counter, never queue accounting. I will also show allocator pressure with every slot closing or quarantined. The expected result is controlled CPU fallback, not premature reuse. Reboot clears boot-scoped epochs, but firmware and driver perform a startup handshake before any context becomes active. A retained completion from a previous boot must fail the handshake generation and be discarded. We will not infer safety from an empty fault log.",
+          "ko": "checkpoint에서 같은 trace clock으로 성공 retirement 하나와 각 driver-side failure path를 시연합니다. reviewer는 mismatched completion이 stale counter만 바꾸고 queue accounting은 절대 바꾸지 않는 것을 볼 수 있습니다. 모든 slot이 closing 또는 quarantined인 allocator pressure도 보여드립니다. 기대 결과는 premature reuse가 아니라 controlled CPU fallback입니다. reboot는 boot-scoped epoch를 지우지만 context가 active가 되기 전에 firmware와 driver가 startup handshake를 수행합니다. 이전 boot에서 남은 completion은 handshake generation에서 실패해 폐기돼야 합니다. 빈 fault log만으로 안전을 추론하지 않습니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "I will demonstrate that barrier-drained and descriptor-discarded are distinct facts. Delaying the fence token must hold firmware between them without blocking another context. I will then inject a context-engine reset failure and show that escalation occurs only when the fabric classifier reports shared impact. If the classifier is unavailable, the affected context remains quarantined and runtime falls back to CPU; firmware does not guess that a global reset is safe. All acknowledgment counters are monotonic within the boot, and duplicate host commands return the recorded result rather than repeating a destructive transition.",
+          "ko": "barrier-drained와 descriptor-discarded가 서로 다른 사실임을 시연합니다. fence token을 지연하면 다른 context를 막지 않은 채 firmware가 두 상태 사이에 머물러야 합니다. 이어 context-engine reset failure를 주입하고 fabric classifier가 shared impact를 보고할 때만 escalation하는 것을 보여줍니다. classifier를 사용할 수 없으면 affected context는 quarantined로 남고 runtime은 CPU로 fallback하며 firmware는 global reset이 안전하다고 추측하지 않습니다. 모든 acknowledgment counter는 boot 안에서 단조 증가하며 duplicate host command는 destructive transition을 반복하지 않고 기록된 결과를 반환합니다."
+        },
+        {
+          "speaker": "Noah Williams",
+          "en": "My interim report will show completed cells, missing cells, latency distributions, isolation gaps, and every terminal reason. It will not convert missing coverage into zero failures. The predeclared stop rule remains unchanged after execution starts. If a stop occurs, the failed cycle stays in the denominator and the corrected artifact begins under a new digest. For nonfatal latency excursions, testing continues to the planned sample count so we estimate the tail rather than tune around the first outlier. I will attach synchronized trace references for every failure without copying addresses, model content, or application text into the release report.",
+          "ko": "interim report는 완료 cell, missing cell, latency distribution, isolation gap, 모든 terminal reason을 보여줍니다. missing coverage를 failure 0건으로 바꾸지 않습니다. 사전 선언 stop rule은 실행 시작 뒤 바뀌지 않습니다. stop이 발생하면 실패 cycle은 분모에 남고 수정 artifact는 새 digest 아래 시작합니다. 치명적이지 않은 latency excursion은 첫 outlier에 맞춰 tuning하지 않고 tail을 추정하도록 계획한 sample count까지 계속합니다. address, model content, application text를 release report에 복사하지 않고 모든 failure의 synchronized trace reference를 첨부합니다."
+        },
+        {
+          "speaker": "Sora Han",
+          "en": "The final go or defer review is Friday, December 4, 2026, at 10:30 Korea Standard Time. We will decide separately for F42 and F39. Approval requires the complete normal ledger, the fault-injection ledger, privacy review, interface sign-off, and no unresolved hard stop. The decision table will show each model, firmware branch, supported recovery level, measured cancellation tail, isolation result, fallback behavior, and remaining risk. A passing average cannot compensate for an untested failure branch. If one branch lacks context isolation, we may approve the safer branch while holding the other on CPU fallback; we will not combine their evidence or describe partial coverage as device-wide approval. Requests to remove the epoch, reuse a slot on timeout, merge results across digests, or restore automatic global reset require a new decision meeting. Until approval, rollout remains limited to internal engineering devices with CPU fallback enabled. Please acknowledge ownership and dates in the tracker by 11:00 KST today. Thank you; the meeting record is complete.",
+          "ko": "최종 go 또는 defer review는 2026년 12월 4일 금요일 한국 표준시 10:30입니다. F42와 F39를 따로 결정합니다. 승인은 전체 normal ledger, fault-injection ledger, privacy review, interface sign-off, unresolved hard stop 0건을 요구합니다. decision table에는 각 model, firmware branch, 지원 recovery level, 측정한 cancellation tail, isolation 결과, fallback 동작, 남은 risk를 표시합니다. 통과한 평균이 시험하지 않은 failure branch를 보상할 수 없습니다. 한 branch에 context isolation이 없으면 더 안전한 branch는 승인하고 다른 branch는 CPU fallback에 유지할 수 있습니다. 두 branch의 증거를 합치거나 partial coverage를 device 전체 승인으로 표현하지 않습니다. epoch 제거, timeout 시 slot 재사용, digest 간 결과 병합, automatic global reset 복원 요청은 새 decision meeting이 필요합니다. 승인 전 rollout은 CPU fallback을 활성화한 internal engineering device로 제한합니다. 오늘 KST 11:00까지 tracker에서 담당과 일정을 확인하십시오. 감사합니다. 회의 기록을 마칩니다."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "lifetime boundary",
+      "meaning_ko": "수명 주기 경계",
+      "usage_ko": "객체 재사용 전 세대를 구분할 때",
+      "example": "Kernel and IOMMU is here. My trace shows the runtime closes the file descriptor, the driver schedules unmap, and firmware later posts a completion carrying the old context number. The driver currently looks up that number in a newly allocated context slot and treats the completion as current. I believe the primary defect is context identity reuse, not a slow unmap. A numeric slot alone is not a lifetime boundary. We need an epoch-bearing identity that changes before the slot returns to the allocator. Until the IOMMU invalidation fence completes, no new context may inherit that slot or its process address-space identifier.",
+      "practice": "A reused identifier needs a clear lifetime boundary."
+    },
+    {
+      "phrase": "quarantined before any broader reset",
+      "meaning_ko": "더 넓은 reset 전에 격리된",
+      "usage_ko": "복구 범위를 제한할 때",
+      "example": "Accelerator Firmware is present, and I agree that the completion is stale, but I disagree that host identity alone closes the fault. Firmware caches four page descriptors per context. In two failure traces, the host invalidation completed, but a speculative prefetch used a descriptor already copied into local SRAM. A new epoch in the submission header lets firmware reject late commands, yet it does not drain cached descriptors that are already in flight. We need a context-scoped quiesce command with an acknowledgment after the prefetch queue, execution lane, and completion writer are empty. If acknowledgment misses its deadline, the context must be quarantined before any broader reset is considered.",
+      "practice": "Keep the failed queue quarantined before any broader reset."
+    },
+    {
+      "phrase": "same clock",
+      "meaning_ko": "동일한 시계 기준",
+      "usage_ko": "여러 trace를 시간 정렬할 때",
+      "example": "Performance Validation is present. In build N17.4, 37 of 8,000 cancellation cycles left the translation context silent for more than two seconds. All 37 recovered after a global reset, but 29 overlapped a camera workload and dropped between two and five frames. The median accelerator latency is unchanged, which makes the release dashboard look normal. The failures cluster when cancellation arrives within 180 microseconds of an IOMMU unmap request, yet we also have six clean runs inside that window. That means timing is necessary but not sufficient. We need evidence from the command ring, the translation tables, and firmware completion queue on the same clock.",
+      "practice": "Correlate the driver and firmware events on the same clock."
+    },
+    {
+      "phrase": "monotonic retirement point",
+      "meaning_ko": "단조로운 retirement 지점",
+      "usage_ko": "재사용 가능 시점을 명확히 할 때",
+      "example": "It explains 31 of 37 failures because those traces contain an epoch mismatch reconstructed from allocation history. The remaining six lack firmware timestamps, so they are not counterexamples. I propose we make the epoch explicit in every submission and completion, reject any mismatch before queue accounting, and hold the slot on a retirement list until the IOMMU fence and firmware quiesce acknowledgment both arrive. The order matters: block new submissions, request quiesce, wait for acknowledgment, invalidate mappings, wait for the fence, then publish retirement. If firmware cannot quiesce, the slot never returns to general allocation. This gives us a monotonic retirement point instead of an assumed delay.",
+      "practice": "The fence creates a monotonic retirement point for reuse."
+    },
+    {
+      "phrase": "two-phase protocol",
+      "meaning_ko": "2단계 프로토콜",
+      "usage_ko": "두 개의 확인 단계를 설명할 때",
+      "example": "The validation data favors a two-phase protocol. A prototype with host-only epoch rejection removed all queue-accounting corruption in 2,000 cycles, but seven cycles still generated IOMMU faults after cancellation. Priya's firmware barrier prototype reduced that to zero in 2,000 cycles, although p99 cancellation time rose from 3.2 to 6.8 milliseconds. That cost is acceptable for an explicit cancel, but not if the barrier blocks other clients. I measured camera inference concurrently: global reset caused a 96-millisecond gap, whereas the barrier prototype caused no gap above 1.4 milliseconds. We should make cross-client isolation a first-class gate, not a secondary performance note.",
+      "practice": "Use a two-phase protocol when draining and invalidating cannot be atomic."
+    },
+    {
+      "phrase": "first-class gate",
+      "meaning_ko": "핵심 gate",
+      "usage_ko": "부차적 조건이 아닌 필수 기준을 말할 때",
+      "example": "The validation data favors a two-phase protocol. A prototype with host-only epoch rejection removed all queue-accounting corruption in 2,000 cycles, but seven cycles still generated IOMMU faults after cancellation. Priya's firmware barrier prototype reduced that to zero in 2,000 cycles, although p99 cancellation time rose from 3.2 to 6.8 milliseconds. That cost is acceptable for an explicit cancel, but not if the barrier blocks other clients. I measured camera inference concurrently: global reset caused a 96-millisecond gap, whereas the barrier prototype caused no gap above 1.4 milliseconds. We should make cross-client isolation a first-class gate, not a secondary performance note.",
+      "practice": "Data privacy is a first-class gate for this rollout."
+    },
+    {
+      "phrase": "reason-coded terminal result",
+      "meaning_ko": "사유 코드가 있는 최종 결과",
+      "usage_ko": "종료 원인을 명시할 때",
+      "example": "I see four contract states: active, closing, retired, and quarantined. Runtime may submit only in active. Cancellation atomically changes active to closing and returns a cancellation ticket containing context slot, epoch, and request sequence. Closing ends only after the local barrier, IOMMU fence, descriptor discard, and final acknowledgment are reconciled. Retired means the slot is reusable under a higher epoch. Quarantined means the slot is unavailable and its client receives CPU fallback. No timeout may pretend retirement succeeded. The runtime needs a reason-coded terminal result so it can distinguish normal cancellation, stale completion, barrier timeout, fence timeout, firmware fault, and forced isolation.",
+      "practice": "Every cancellation needs a reason-coded terminal result."
+    },
+    {
+      "phrase": "fail closed to CPU execution",
+      "meaning_ko": "CPU 실행으로 안전하게 실패하다",
+      "usage_ko": "불확실 상태에서 보수적 fallback을 말할 때",
+      "example": "Kernel will implement a generation-safe handle composed of process address-space identifier, slot, and 64-bit epoch. The epoch increments before allocation becomes visible and never rolls back during a boot. Completion lookup compares all three fields under the queue lock. A mismatch is counted and discarded without touching head, tail, credits, or client memory. For closing contexts, the driver records barrier sequence, invalidation fence sequence, and final acknowledgment sequence in one bounded ledger. The ledger stores durations and reason codes, not virtual addresses or model data. If the ledger is full, new accelerator contexts fail closed to CPU execution rather than overwriting unresolved retirement evidence.",
+      "practice": "Unknown hardware state should fail closed to CPU execution."
+    },
+    {
+      "phrase": "cross-client isolation",
+      "meaning_ko": "client 간 격리",
+      "usage_ko": "한 client의 복구 영향 제한을 말할 때",
+      "example": "The validation data favors a two-phase protocol. A prototype with host-only epoch rejection removed all queue-accounting corruption in 2,000 cycles, but seven cycles still generated IOMMU faults after cancellation. Priya's firmware barrier prototype reduced that to zero in 2,000 cycles, although p99 cancellation time rose from 3.2 to 6.8 milliseconds. That cost is acceptable for an explicit cancel, but not if the barrier blocks other clients. I measured camera inference concurrently: global reset caused a 96-millisecond gap, whereas the barrier prototype caused no gap above 1.4 milliseconds. We should make cross-client isolation a first-class gate, not a secondary performance note.",
+      "practice": "The stress matrix must prove cross-client isolation."
+    },
+    {
+      "phrase": "scope is now frozen",
+      "meaning_ko": "범위가 이제 고정되었다",
+      "usage_ko": "변경 범위를 확정할 때",
+      "example": "The scope is now frozen around cancellation and context retirement. We are not changing model compilation, accelerator scheduling priority, camera quality policy, or general IOMMU allocation. Evidence pointing there becomes a separately tracked issue. The first evidence checkpoint will be Monday, November 30, 2026, from 19:00 to 19:45 Korea Standard Time. Bring both approved interfaces, immutable artifact digests, the 3,000-cycle coverage report, every hard-stop event, and the open-risk list. Missing evidence is not a provisional pass. We will evaluate whether F42 enters the candidate and whether F39 remains on CPU fallback.",
+      "practice": "The scope is now frozen after interface approval."
+    },
+    {
+      "phrase": "not a provisional pass",
+      "meaning_ko": "잠정 통과가 아니다",
+      "usage_ko": "증거 누락을 통과로 보지 않을 때",
+      "example": "The scope is now frozen around cancellation and context retirement. We are not changing model compilation, accelerator scheduling priority, camera quality policy, or general IOMMU allocation. Evidence pointing there becomes a separately tracked issue. The first evidence checkpoint will be Monday, November 30, 2026, from 19:00 to 19:45 Korea Standard Time. Bring both approved interfaces, immutable artifact digests, the 3,000-cycle coverage report, every hard-stop event, and the open-risk list. Missing evidence is not a provisional pass. We will evaluate whether F42 enters the candidate and whether F39 remains on CPU fallback.",
+      "practice": "An incomplete fault ledger is not a provisional pass."
+    },
+    {
+      "phrase": "controlled CPU fallback",
+      "meaning_ko": "통제된 CPU 대체 실행",
+      "usage_ko": "가속기 대신 안전한 경로를 쓸 때",
+      "example": "At that checkpoint I will demonstrate one successful retirement and each driver-side failure path on the same trace clock. Reviewers will see that a mismatched completion changes only the stale counter, never queue accounting. I will also show allocator pressure with every slot closing or quarantined. The expected result is controlled CPU fallback, not premature reuse. Reboot clears boot-scoped epochs, but firmware and driver perform a startup handshake before any context becomes active. A retained completion from a previous boot must fail the handshake generation and be discarded. We will not infer safety from an empty fault log.",
+      "practice": "Capacity pressure should trigger controlled CPU fallback."
+    },
+    {
+      "phrase": "distinct facts",
+      "meaning_ko": "서로 다른 사실",
+      "usage_ko": "비슷한 상태를 분리해 검증할 때",
+      "example": "I will demonstrate that barrier-drained and descriptor-discarded are distinct facts. Delaying the fence token must hold firmware between them without blocking another context. I will then inject a context-engine reset failure and show that escalation occurs only when the fabric classifier reports shared impact. If the classifier is unavailable, the affected context remains quarantined and runtime falls back to CPU; firmware does not guess that a global reset is safe. All acknowledgment counters are monotonic within the boot, and duplicate host commands return the recorded result rather than repeating a destructive transition.",
+      "practice": "Queue drain and descriptor discard are distinct facts."
+    },
+    {
+      "phrase": "predeclared stop rule",
+      "meaning_ko": "사전 선언 중단 규칙",
+      "usage_ko": "시험 전 중단 조건을 고정할 때",
+      "example": "My interim report will show completed cells, missing cells, latency distributions, isolation gaps, and every terminal reason. It will not convert missing coverage into zero failures. The predeclared stop rule remains unchanged after execution starts. If a stop occurs, the failed cycle stays in the denominator and the corrected artifact begins under a new digest. For nonfatal latency excursions, testing continues to the planned sample count so we estimate the tail rather than tune around the first outlier. I will attach synchronized trace references for every failure without copying addresses, model content, or application text into the release report.",
+      "practice": "A predeclared stop rule prevents moving the target."
+    },
+    {
+      "phrase": "go or defer review",
+      "meaning_ko": "진행 또는 연기 검토",
+      "usage_ko": "출시 결정을 내리는 회의를 말할 때",
+      "example": "The final go or defer review is Friday, December 4, 2026, at 10:30 Korea Standard Time. We will decide separately for F42 and F39. Approval requires the complete normal ledger, the fault-injection ledger, privacy review, interface sign-off, and no unresolved hard stop. The decision table will show each model, firmware branch, supported recovery level, measured cancellation tail, isolation result, fallback behavior, and remaining risk. A passing average cannot compensate for an untested failure branch. If one branch lacks context isolation, we may approve the safer branch while holding the other on CPU fallback; we will not combine their evidence or describe partial coverage as device-wide approval. Requests to remove the epoch, reuse a slot on timeout, merge results across digests, or restore automatic global reset require a new decision meeting. Until approval, rollout remains limited to internal engineering devices with CPU fallback enabled. Please acknowledge ownership and dates in the tracker by 11:00 KST today. Thank you; the meeting record is complete.",
+      "practice": "The go or defer review will use immutable evidence."
+    }
+  ]
+}
