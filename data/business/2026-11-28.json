@@ -1,0 +1,270 @@
+{
+  "date": "2026-11-28",
+  "category": "business",
+  "topic": "sw-launch",
+  "subject": "Blocking Launch after UWB Digital Key Session Reuse across Controller Brownouts",
+  "title_ko": "UWB 디지털 키 세션 재사용 차단을 위한 출시 Gate 회의",
+  "summary_ko": "가상의 Android 출시 보안 회의에서 UWB controller brownout 뒤 오래된 ranging session이 재사용되어 디지털 키 UI와 차량 authorization 상태가 어긋나는 문제를 분석합니다. 팀들은 epoch-bound session identity, one-use authorization receipt, fail-closed state machine, branch별 fallback과 정량 출시 gate를 결정합니다. 모든 인물·조직·단말·차량·controller·secure element·firmware·빌드·로그·challenge·counter·수치·일정은 Business English 교육을 위한 가상 설정이며 실제 기업이나 제품의 실제 결함을 주장하지 않습니다.",
+  "participants": [
+    {
+      "name": "Sora Kim",
+      "team": "Launch Program"
+    },
+    {
+      "name": "Daniel Wu",
+      "team": "Android Connectivity"
+    },
+    {
+      "name": "Priya Nair",
+      "team": "UWB BSP and Secure Element"
+    },
+    {
+      "name": "Marco Silva",
+      "team": "Automotive Validation"
+    }
+  ],
+  "sections": [
+    {
+      "title_en": "Attendance and Launch Risk",
+      "title_ko": "참석 확인 및 출시 위험",
+      "turns": [
+        {
+          "speaker": "Sora Kim",
+          "en": "Good morning. Launch Program, Android Connectivity, UWB BSP and Secure Element, and Automotive Validation are represented. We have six days before the Aurora Key launch candidate is frozen. Overnight testing found that a controller brownout can let a recovered phone reuse a completed UWB ranging session while the paired vehicle believes it is evaluating a new approach. The door did not unlock in our observed failures, but the evidence path is ambiguous and our security requirement is fail closed. Today we need one causal account, a containment decision, named owners, quantitative release gates, and a follow-up meeting with immutable artifacts.",
+          "ko": "좋은 아침입니다. Launch Program, Android Connectivity, UWB BSP and Secure Element, Automotive Validation 팀이 참석했습니다. Aurora Key 출시 후보를 동결하기까지 6일 남았습니다. 야간 시험에서 controller brownout 뒤 복구된 휴대전화가 완료된 UWB ranging session을 재사용할 수 있고, 짝지어진 차량은 새로운 접근을 평가한다고 믿는 현상이 발견됐습니다. 관찰한 실패에서 문은 열리지 않았지만 증거 경로가 모호하며 보안 요구사항은 fail closed입니다. 오늘 하나의 인과 설명, 억제 결정, 지정 담당자, 정량 release gate, 변경 불가능한 artifact를 검토할 후속 회의를 정해야 합니다."
+        },
+        {
+          "speaker": "Marco Silva",
+          "en": "Automotive Validation is present. We ran 3,840 approach cycles against four vehicle simulators and two physical test vehicles. Twenty-seven cycles included an injected 18-to-42 millisecond rail dip during the final distance-bound exchange. In nine of those, Android reported session 614 as complete, the UWB controller rebooted, and the next approach reused controller slot 7 before the secure element had closed the old authorization. The vehicle rejected all nine because its transcript counter had advanced. However, the phone UI displayed ready for entry for between 1.6 and 4.8 seconds, which is an unacceptable false assurance even without an unlock.",
+          "ko": "Automotive Validation 팀이 참석했습니다. 차량 simulator 4대와 실제 시험 차량 2대를 대상으로 접근 cycle 3,840회를 수행했습니다. 그중 27회에는 최종 거리 결합 교환 중 18~42ms 전원 rail 저하를 주입했습니다. 9회에서 Android가 session 614를 완료로 보고한 뒤 UWB controller가 재부팅됐고, secure element가 이전 authorization을 닫기 전에 다음 접근이 controller slot 7을 재사용했습니다. 차량은 transcript counter가 증가해 9회를 모두 거부했습니다. 하지만 휴대전화 UI는 1.6~4.8초 동안 입장 준비 상태를 표시했으며, unlock이 없었더라도 허용할 수 없는 잘못된 확신입니다."
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "Android Connectivity is here. Framework currently treats a controller reconnect as transport recovery, not a security epoch change. It restores the logical peer, reads the active slot list, and resumes any operation whose framework deadline has not expired. That behavior was designed to hide harmless radio resets during discovery. It is wrong for distance-bound authorization because slot identity is only meaningful inside one controller boot. The framework record has a session UUID, peer handle, deadline, and UI state, but it does not store controller boot identity or the secure element transaction counter. We therefore cannot prove that a resumed slot belongs to the same cryptographic conversation.",
+          "ko": "Android Connectivity 팀이 참석했습니다. 현재 framework는 controller 재연결을 security epoch 변경이 아니라 transport recovery로 취급합니다. logical peer를 복원하고 active slot list를 읽은 뒤 framework deadline이 만료되지 않은 operation을 재개합니다. 이는 discovery 중 무해한 radio reset을 감추기 위한 동작이었습니다. 하지만 slot identity는 한 controller boot 안에서만 의미가 있으므로 거리 결합 authorization에는 잘못된 설계입니다. framework record에는 session UUID, peer handle, deadline, UI state가 있지만 controller boot identity나 secure element transaction counter는 없습니다. 따라서 재개된 slot이 같은 cryptographic conversation에 속한다는 것을 증명할 수 없습니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "UWB BSP and Secure Element is present. The controller exposes a volatile boot nonce, but the current vendor command returns it only in engineering mode. The secure element creates an authorization counter when the vehicle challenge is accepted and seals the result after the final ranging proof. During the brownout, the controller loses slot state while the secure element remains powered. The BSP reconstructs slot 7 from a cached command queue, yet it does not ask whether authorization counter 9021 is still open. The secure element eventually rejects the stale close request, but framework has already consumed a generic radio-ready event. We need an end-to-end recovery contract, not another delay.",
+          "ko": "UWB BSP and Secure Element 팀이 참석했습니다. controller는 volatile boot nonce를 제공하지만 현재 vendor command는 engineering mode에서만 이를 반환합니다. secure element는 차량 challenge를 수락할 때 authorization counter를 만들고 최종 ranging proof 뒤 결과를 봉인합니다. brownout 동안 controller는 slot state를 잃지만 secure element 전원은 유지됩니다. BSP는 cached command queue로 slot 7을 재구성하지만 authorization counter 9021이 아직 열려 있는지 묻지 않습니다. secure element는 결국 stale close request를 거부하지만 framework는 이미 일반 radio-ready event를 소비했습니다. 또 다른 delay가 아니라 end-to-end recovery contract가 필요합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Evidence Timeline and Competing Explanations",
+      "title_ko": "증거 시간선 및 상반된 해석",
+      "turns": [
+        {
+          "speaker": "Sora Kim",
+          "en": "Let us pin the representative trace. At 21:07:14.220, the vehicle issues challenge C81 and the secure element opens counter 9021. At 21:07:14.318, controller boot nonce B44 assigns slot 7. At 21:07:14.604, the range falls below 1.4 meters and the vehicle advances its transcript counter to 311. A rail dip begins at 21:07:14.611. Framework receives success at 21:07:14.616, but the controller restarts with nonce B45 at 21:07:14.641. At 21:07:14.778, cached recovery recreates slot 7. Which event made the UI claim ready, and which component had enough evidence to stop it?",
+          "ko": "대표 trace를 고정합시다. 21:07:14.220에 차량이 challenge C81을 발행하고 secure element가 counter 9021을 엽니다. 21:07:14.318에 controller boot nonce B44가 slot 7을 할당합니다. 21:07:14.604에 거리가 1.4m 아래로 내려가 차량이 transcript counter를 311로 증가시킵니다. 21:07:14.611에 rail dip이 시작됩니다. framework는 21:07:14.616에 success를 받지만 controller는 21:07:14.641에 nonce B45로 재시작합니다. 21:07:14.778에 cached recovery가 slot 7을 다시 만듭니다. 어느 event가 UI에 ready를 표시하게 했고 어느 component가 이를 막을 충분한 evidence를 가졌습니까?"
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "The UI transition came from framework consuming RANGE_COMPLETE before it received CONTROLLER_RESTARTED. I initially thought ordering the callbacks would solve the issue: if restart is processed first, we cancel the session. That is necessary but not sufficient. On another CPU, completion may already be queued, and a delayed completion from B44 can arrive after B45 is active. We need an epoch-bound session identity composed of framework UUID, controller boot nonce, secure element counter, peer transcript generation, and policy digest. Every event must carry or resolve that identity. An event with a mismatched component becomes evidence of cancellation, never evidence of success.",
+          "ko": "UI 전환은 framework가 CONTROLLER_RESTARTED를 받기 전에 RANGE_COMPLETE를 소비해서 발생했습니다. 처음에는 callback 순서를 정하면 해결된다고 생각했습니다. restart를 먼저 처리하면 session을 취소할 수 있습니다. 필요하지만 충분하지 않습니다. 다른 CPU에서는 completion이 이미 queue에 있을 수 있고 B44의 지연 completion이 B45 활성화 뒤 도착할 수 있습니다. framework UUID, controller boot nonce, secure element counter, peer transcript generation, policy digest로 구성된 epoch-bound session identity가 필요합니다. 모든 event는 그 identity를 포함하거나 해석해야 합니다. 구성 요소가 불일치하는 event는 성공 근거가 아니라 cancellation 근거가 됩니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "I agree on identity, but I disagree that framework should reconstruct it by querying components after a reset. Post-reset queries can produce a plausible mixture of new and old values. The BSP must mint a recovery generation when it observes B45, invalidate every slot from B44, and require a fresh secure element authorization before creating any distance-bound slot. The controller command should include the framework UUID and an authorization receipt digest. The secure element must sign the receipt over vehicle challenge, peer generation, policy digest, controller boot nonce, and a one-use counter. Missing fields mean no authorization. Recovery can restore discovery advertisements, but it cannot restore a completed or pending unlock transaction.",
+          "ko": "identity에는 동의하지만 reset 후 component를 조회해 framework가 이를 재구성해야 한다는 의견에는 반대합니다. reset 이후 query는 새 값과 오래된 값의 그럴듯한 혼합을 만들 수 있습니다. BSP는 B45를 관찰할 때 recovery generation을 발행하고 B44의 모든 slot을 무효화하며, distance-bound slot을 만들기 전에 새로운 secure element authorization을 요구해야 합니다. controller command에는 framework UUID와 authorization receipt digest가 포함되어야 합니다. secure element는 vehicle challenge, peer generation, policy digest, controller boot nonce, one-use counter에 대해 receipt를 서명해야 합니다. field가 없으면 authorization도 없습니다. recovery는 discovery advertisement를 복원할 수 있지만 완료되었거나 pending인 unlock transaction은 복원할 수 없습니다."
+        },
+        {
+          "speaker": "Marco Silva",
+          "en": "That design closes the known path, but validation needs a behavioral statement for the customer boundary. After any controller epoch change, the phone must withdraw ready for entry within 150 milliseconds, suppress passive unlock, and require a completely new approach transcript. It may keep the paired vehicle visible, because pairing is not authorization. I also want a distinct outcome for vehicle rejection, secure element rejection, controller reset, policy mismatch, and range-quality failure. If all failures become retry, we cannot tell whether the safeguard worked. A safe rejection must be observable without logging vehicle identifiers, precise location, raw challenge material, or the user's movement history.",
+          "ko": "그 설계는 알려진 경로를 닫지만 validation에는 고객 경계의 동작 정의가 필요합니다. controller epoch가 바뀌면 휴대전화는 150ms 안에 ready for entry를 철회하고 passive unlock을 억제하며 완전히 새로운 approach transcript를 요구해야 합니다. pairing은 authorization이 아니므로 짝지어진 차량 표시 자체는 유지할 수 있습니다. 또한 vehicle rejection, secure element rejection, controller reset, policy mismatch, range-quality failure를 서로 다른 outcome으로 원합니다. 모든 실패가 retry가 되면 safeguard가 작동했는지 알 수 없습니다. 안전한 거부는 vehicle identifier, 정확한 location, raw challenge material, 사용자 이동 이력을 기록하지 않고도 관찰 가능해야 합니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Containment Debate and Release Gates",
+      "title_ko": "억제책 논쟁 및 출시 Gate",
+      "turns": [
+        {
+          "speaker": "Sora Kim",
+          "en": "We have three release choices. Option one disables passive digital key for every launch device and keeps tap-to-unlock through the secure element. It is safe but removes the headline feature. Option two adds a 500-millisecond delay after any controller reconnect and retries the old transaction. That is easy, but a timer does not establish cryptographic continuity. Option three disables passive unlock only after an epoch discontinuity, requires a fresh signed authorization receipt, and ships the full identity contract in the launch candidate. My recommendation is option three if the gate is completed by Tuesday. Otherwise we fall back to option one rather than reinterpret missing evidence.",
+          "ko": "세 가지 출시 선택지가 있습니다. 1안은 모든 출시 단말에서 passive digital key를 끄고 secure element를 통한 tap-to-unlock만 유지합니다. 안전하지만 핵심 기능을 제거합니다. 2안은 controller 재연결 뒤 500ms delay를 넣고 이전 transaction을 retry합니다. 쉽지만 timer는 cryptographic continuity를 증명하지 않습니다. 3안은 epoch discontinuity 뒤에만 passive unlock을 비활성화하고 새로운 signed authorization receipt를 요구하며 전체 identity contract를 launch candidate에 포함합니다. 화요일까지 gate가 완료된다면 3안을 권고합니다. 그렇지 않으면 missing evidence를 재해석하지 않고 1안으로 fallback합니다."
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "Framework can deliver option three with a fail-closed state machine. The states are discovered, authorizing, ranging, awaiting-peer-commit, authorized, cancelled, and quarantined. A controller epoch change moves every nonterminal distance-bound session to cancelled and clears customer-ready state before discovery resumes. Only a receipt matching all five identity components can open a new ranging state. Process death reloads terminal outcomes but never pending authorization. Duplicate callbacks are idempotent. A late success after cancellation is recorded as stale-success-rejected. The UI consumes only the authoritative state, not raw radio callbacks. I will also separate paired, nearby, ranging, and authorized so visibility cannot imply permission.",
+          "ko": "Framework는 fail-closed state machine으로 3안을 제공할 수 있습니다. 상태는 discovered, authorizing, ranging, awaiting-peer-commit, authorized, cancelled, quarantined입니다. controller epoch 변경은 terminal이 아닌 모든 distance-bound session을 cancelled로 옮기고 discovery 재개 전에 customer-ready state를 지웁니다. 다섯 identity component가 모두 일치하는 receipt만 새 ranging state를 열 수 있습니다. process death는 terminal outcome을 다시 불러오지만 pending authorization은 복원하지 않습니다. duplicate callback은 idempotent합니다. cancellation 뒤 늦은 success는 stale-success-rejected로 기록합니다. UI는 raw radio callback이 아니라 authoritative state만 소비합니다. 또한 paired, nearby, ranging, authorized를 분리해 visibility가 permission을 뜻하지 않게 합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "BSP will expose boot nonce in production through an attested read-only command and attach recovery generation to every event. Secure element firmware will issue a one-use authorization receipt and reject a second close, a changed controller nonce, or a peer generation mismatch. The receipt expires after eight seconds and cannot be renewed; a new approach requires a new vehicle challenge. We will remove cached reconstruction for authorization slots while retaining it for discovery-only slots. If the regulatory ranging engine, secure element, or controller cannot attest its generation, the session enters quarantined and passive unlock remains unavailable. Tap-to-unlock follows a separate transaction and must not borrow the passive session receipt.",
+          "ko": "BSP는 attested read-only command로 production에서 boot nonce를 제공하고 모든 event에 recovery generation을 붙입니다. secure element firmware는 one-use authorization receipt를 발행하고 두 번째 close, 변경된 controller nonce, peer generation mismatch를 거부합니다. receipt는 8초 뒤 만료되며 갱신할 수 없습니다. 새로운 approach에는 새 vehicle challenge가 필요합니다. authorization slot의 cached reconstruction은 제거하되 discovery-only slot에는 유지합니다. regulatory ranging engine, secure element, controller 중 하나라도 generation을 attest할 수 없으면 session은 quarantined로 들어가고 passive unlock은 unavailable 상태를 유지합니다. tap-to-unlock은 별도 transaction을 따르며 passive session receipt를 빌려 쓰면 안 됩니다."
+        },
+        {
+          "speaker": "Marco Silva",
+          "en": "The release matrix will contain 12,000 approach cycles across three controller firmware branches, two secure element versions, four simulated vehicle stacks, two physical vehicles, warm and cold temperatures, low battery, process death, airplane mode, Bluetooth coexistence, and rail dips from 5 to 80 milliseconds. Security gates are zero unlocks without a fresh receipt, zero accepted cross-epoch events, zero duplicate receipt closes, and zero ready indications after cancellation. Reliability gates are 99.9 percent successful passive entry in clean conditions, p99 authorization under 900 milliseconds, and UI withdrawal within 150 milliseconds after reset. Every changed digest restarts the relevant matrix; failed runs stay in the denominator.",
+          "ko": "release matrix는 controller firmware branch 3개, secure element version 2개, simulated vehicle stack 4개, 실제 차량 2대, 고온·저온, low battery, process death, airplane mode, Bluetooth coexistence, 5~80ms rail dip을 포함한 approach cycle 12,000회로 구성됩니다. Security gate는 fresh receipt 없는 unlock 0건, cross-epoch event 수락 0건, duplicate receipt close 0건, cancellation 뒤 ready indication 0건입니다. Reliability gate는 정상 조건 passive entry 성공률 99.9%, authorization p99 900ms 이하, reset 뒤 UI 철회 150ms 이내입니다. digest가 바뀌면 관련 matrix를 다시 시작하고 failed run은 분모에 남습니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Decision, Owners, and Deadlines",
+      "title_ko": "결정·담당자 및 기한",
+      "turns": [
+        {
+          "speaker": "Sora Kim",
+          "en": "The decision is conditional option three. The launch candidate may retain passive digital key only if the identity contract and full security gate pass on unchanged artifacts. Otherwise the configuration owner will disable passive unlock and retain tap-to-unlock. No server flag may bypass receipt verification, extend receipt lifetime, or convert quarantine into authorization. I own the launch decision record, configuration fallback, executive risk summary, and artifact freeze. The interface is frozen today, Saturday, November 28, at 14:00 Korea Standard Time. Any actual unauthorized unlock, identity collision, or untraceable terminal outcome is a hard stop and immediately selects option one.",
+          "ko": "결정은 조건부 3안입니다. launch candidate는 identity contract와 전체 security gate가 변경되지 않은 artifact에서 통과할 때만 passive digital key를 유지할 수 있습니다. 그렇지 않으면 configuration 담당자가 passive unlock을 끄고 tap-to-unlock을 유지합니다. 어떤 server flag도 receipt verification을 우회하거나 receipt lifetime을 연장하거나 quarantine을 authorization으로 바꿀 수 없습니다. 저는 launch decision record, configuration fallback, executive risk summary, artifact freeze를 담당합니다. interface는 오늘 11월 28일 토요일 한국 표준시 14:00에 동결합니다. 실제 unauthorized unlock, identity collision, 추적 불가능한 terminal outcome은 hard stop이며 즉시 1안을 선택합니다."
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "I own the framework state machine, epoch-bound session identity, persistence rules, stale callback rejection, and UI contract. The design review is today at 16:30 KST. A reviewable build is due Sunday, November 29 at 13:00, followed by unit and fault tests at 18:00. Tests will cover reset before success, reset after success, delayed success, duplicate completion, process death in every state, peer generation change, policy digest change, receipt expiry, missing nonce, and concurrent vehicles. By Monday at 10:00, I will publish a bounded ledger showing state transitions, reason codes, durations, and artifact digests without peer identity or movement data.",
+          "ko": "저는 framework state machine, epoch-bound session identity, persistence rule, stale callback rejection, UI contract를 담당합니다. design review는 오늘 KST 16:30입니다. review 가능한 build는 11월 29일 일요일 13:00까지이며 unit test와 fault test는 18:00까지입니다. 시험은 success 전 reset, success 후 reset, delayed success, duplicate completion, 모든 state의 process death, peer generation 변경, policy digest 변경, receipt expiry, missing nonce, concurrent vehicle을 포함합니다. 월요일 10:00까지 peer identity나 movement data 없이 state transition, reason code, duration, artifact digest를 보여주는 bounded ledger를 게시합니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "I own the production boot-nonce command, recovery generation, slot invalidation, authorization receipt, and secure element rejection codes. Controller firmware C12 and C13 builds are due November 29 at 15:00 KST; secure element test firmware is due at 17:00. Signed production candidates are due Monday, November 30 at 11:00 after independent key verification. I will provide vectors for nonce change, counter replay, altered vehicle challenge, policy mismatch, expired receipt, duplicate close, power loss between open and seal, and discovery restoration. If C12 cannot attest boot identity, that branch will ship with passive unlock disabled rather than infer continuity from slot numbers.",
+          "ko": "저는 production boot-nonce command, recovery generation, slot invalidation, authorization receipt, secure element rejection code를 담당합니다. controller firmware C12·C13 build는 11월 29일 KST 15:00까지이며 secure element test firmware는 17:00까지입니다. signed production candidate는 독립 key verification 뒤 11월 30일 월요일 11:00까지입니다. nonce change, counter replay, 변경된 vehicle challenge, policy mismatch, expired receipt, duplicate close, open과 seal 사이 power loss, discovery restoration vector를 제공합니다. C12가 boot identity를 attest할 수 없다면 slot number에서 continuity를 추론하지 않고 해당 branch는 passive unlock을 끈 채 출시합니다."
+        },
+        {
+          "speaker": "Marco Silva",
+          "en": "I own the 12,000-cycle matrix, physical vehicle custody, independent transcript checker, privacy review, and final evidence package. Smoke testing starts November 30 at 13:00 KST. A 3,000-cycle interim ledger is due December 1 at 20:00, and the complete ledger is due December 3 at 12:00. A separate 1,200-case adversarial set covers event reordering and receipt mutation. We will preserve failed traces and exact artifact digests. Missing cells are not passes, and rerunning only successful conditions is prohibited. The report will show branch, version, temperature band, fault class, result, and latency bucket without recording vehicle serials, locations, account identifiers, or raw cryptographic material.",
+          "ko": "저는 12,000-cycle matrix, 실제 차량 관리, 독립 transcript checker, privacy review, 최종 evidence package를 담당합니다. smoke testing은 11월 30일 KST 13:00에 시작합니다. 3,000-cycle interim ledger는 12월 1일 20:00까지이고 complete ledger는 12월 3일 12:00까지입니다. 별도 adversarial 1,200건은 event reordering과 receipt mutation을 다룹니다. failed trace와 정확한 artifact digest를 보존합니다. missing cell은 pass가 아니며 성공 조건만 재실행하는 것은 금지됩니다. report는 vehicle serial, location, account identifier, raw cryptographic material 없이 branch, version, temperature band, fault class, result, latency bucket을 보여줍니다."
+        }
+      ]
+    },
+    {
+      "title_en": "Follow Up and Final Decision",
+      "title_ko": "후속 회의 및 최종 결정",
+      "turns": [
+        {
+          "speaker": "Sora Kim",
+          "en": "The evidence checkpoint is Tuesday, December 1, 2026, from 21:00 to 21:45 Korea Standard Time. Bring the approved interface, framework build digest, both controller digests, secure element digest, signature verification record, the 3,000-cycle ledger, adversarial results available by then, every hard-stop event, and the fallback configuration proof. We will review evidence against predeclared gates, not against schedule pressure. Scope is limited to passive digital key recovery across controller epoch changes. Pairing, tap-to-unlock, vehicle firmware, general Bluetooth discovery, and unrelated UWB features remain separate unless their evidence directly violates this contract.",
+          "ko": "evidence checkpoint는 2026년 12월 1일 화요일 한국 표준시 21:00~21:45입니다. 승인된 interface, framework build digest, 두 controller digest, secure element digest, signature verification record, 3,000-cycle ledger, 그때까지 가능한 adversarial result, 모든 hard-stop event, fallback configuration proof를 가져오십시오. 일정 압력이 아니라 사전 선언 gate에 맞춰 evidence를 검토합니다. 범위는 controller epoch 변경을 가로지르는 passive digital key recovery로 제한합니다. pairing, tap-to-unlock, vehicle firmware, 일반 Bluetooth discovery, 관련 없는 UWB feature는 그 evidence가 이 contract를 직접 위반하지 않는 한 별도입니다."
+        },
+        {
+          "speaker": "Daniel Wu",
+          "en": "At the checkpoint I will replay a clean approach, a reset before authorization, a reset after range completion, a late B44 success under B45, process death while awaiting peer commit, and two vehicles approaching concurrently. The reviewer will see that each session reaches exactly one terminal outcome and that customer-ready state cannot survive cancellation. I will also demonstrate that restoring paired visibility does not restore permission. If telemetry upload fails, local security behavior remains unchanged. A retry begins with a new challenge and receipt; it never revives a previous transaction. State reconstruction will be reproducible from bounded ledger fields and signed artifact digests.",
+          "ko": "checkpoint에서 clean approach, authorization 전 reset, range completion 뒤 reset, B45 아래 도착한 늦은 B44 success, peer commit 대기 중 process death, 두 차량의 동시 접근을 replay합니다. reviewer는 각 session이 정확히 하나의 terminal outcome에 도달하고 customer-ready state가 cancellation을 넘어 유지될 수 없음을 볼 것입니다. paired visibility 복원이 permission 복원을 뜻하지 않는다는 점도 시연합니다. telemetry upload가 실패해도 local security behavior는 바뀌지 않습니다. retry는 새 challenge와 receipt로 시작하며 이전 transaction을 되살리지 않습니다. state reconstruction은 bounded ledger field와 signed artifact digest로 재현 가능할 것입니다."
+        },
+        {
+          "speaker": "Priya Nair",
+          "en": "I will demonstrate boot-nonce attestation, receipt creation, one-use close, expiry, altered challenge rejection, counter replay rejection, and power loss at each write boundary. The controller event will carry boot nonce and recovery generation from its origin; framework will not fill them later. The secure element audit will expose only counter class, result code, and receipt digest. If the controller restarts after the vehicle commits but before the phone seals, the transaction ends cancelled and the next approach starts fresh. We will not claim continuity merely because the same phone, vehicle, or slot appears again. Identity is proven by the full transcript contract.",
+          "ko": "boot-nonce attestation, receipt creation, one-use close, expiry, 변경된 challenge 거부, counter replay 거부, 각 write boundary의 power loss를 시연합니다. controller event는 발생 지점부터 boot nonce와 recovery generation을 포함하며 framework가 나중에 채우지 않습니다. secure element audit은 counter class, result code, receipt digest만 노출합니다. 차량 commit 뒤 휴대전화 seal 전에 controller가 재시작하면 transaction은 cancelled로 끝나고 다음 approach는 새로 시작합니다. 같은 phone, vehicle, slot이 다시 보인다는 이유만으로 continuity를 주장하지 않습니다. identity는 전체 transcript contract로 증명됩니다."
+        },
+        {
+          "speaker": "Marco Silva",
+          "en": "The final go or fallback review is Thursday, December 3, 2026, at 16:00 Korea Standard Time. Approval requires complete normal and adversarial ledgers, independent transcript verification, privacy sign-off, reproducible artifact signatures, all reliability gates, and no unresolved hard stop. We will decide separately for C12 and C13 and for each secure element version. Any request to waive a missing cell, extend a receipt, accept a cross-epoch completion, or merge results across changed digests requires a new decision meeting. Until approval, passive unlock remains disabled in external candidate builds. Please acknowledge owners, deadlines, and fallback authority by 11:00 KST today.",
+          "ko": "최종 go 또는 fallback review는 2026년 12월 3일 목요일 한국 표준시 16:00입니다. 승인은 complete normal·adversarial ledger, 독립 transcript verification, privacy sign-off, 재현 가능한 artifact signature, 모든 reliability gate, unresolved hard stop 0건을 요구합니다. C12·C13과 각 secure element version을 별도로 결정합니다. missing cell 면제, receipt 연장, cross-epoch completion 수락, 변경된 digest 간 결과 병합 요청은 새 decision meeting이 필요합니다. 승인 전까지 external candidate build에서는 passive unlock을 비활성화합니다. 오늘 KST 11:00까지 담당, deadline, fallback authority를 확인하십시오."
+        },
+        {
+          "speaker": "Sora Kim",
+          "en": "One closing clarification concerns fallback authority. Disabling passive unlock is a signed build configuration, not a remote experiment and not a customer-selectable preference. The configuration digest must appear in the same evidence package as framework, controller, and secure element digests. Re-enabling the feature requires the final review decision and a newly signed configuration; passing one additional test is not enough. Support teams may explain that tap-to-unlock remains available, but they may not instruct users to clear data, repeat pairing, or cycle vehicle power as a security workaround. Those actions can help diagnosis only on controlled test accounts. This boundary prevents schedule pressure, support scripts, or telemetry gaps from silently weakening the contract after release. If any team sees a path around it, raise that path before the interface freeze rather than documenting an exception later.",
+          "ko": "마지막으로 fallback authority를 명확히 하겠습니다. passive unlock 비활성화는 signed build configuration이며 remote experiment나 고객이 선택할 수 있는 preference가 아닙니다. configuration digest는 framework, controller, secure element digest와 같은 evidence package에 포함되어야 합니다. 기능 재활성화에는 최종 review 결정과 새로 서명된 configuration이 필요하며 추가 시험 하나의 통과만으로는 충분하지 않습니다. support team은 tap-to-unlock을 계속 사용할 수 있다고 안내할 수 있지만 보안 workaround로 data 삭제, pairing 반복, vehicle power cycle을 지시해서는 안 됩니다. 그런 동작은 통제된 test account의 진단에만 사용할 수 있습니다. 이 경계는 출시 후 일정 압력, support script, telemetry gap이 contract를 조용히 약화하는 것을 막습니다. 우회 경로를 발견한 팀은 나중에 예외를 문서화하지 말고 interface freeze 전에 제기하십시오."
+        }
+      ]
+    }
+  ],
+  "expressions": [
+    {
+      "phrase": "fail closed",
+      "meaning_ko": "안전하게 거부하다",
+      "usage_ko": "보안 근거가 부족할 때 동작을 차단하는 원칙",
+      "example": "Good morning. Launch Program, Android Connectivity, UWB BSP and Secure Element, and Automotive Validation are represented. We have six days before the Aurora Key launch candidate is frozen. Overnight testing found that a controller brownout can let a recovered phone reuse a completed UWB ranging session while the paired vehicle believes it is evaluating a new approach. The door did not unlock in our observed failures, but the evidence path is ambiguous and our security requirement is fail closed. Today we need one causal account, a containment decision, named owners, quantitative release gates, and a follow-up meeting with immutable artifacts.",
+      "practice": "The payment flow must fail closed when attestation is missing."
+    },
+    {
+      "phrase": "causal account",
+      "meaning_ko": "인과 설명",
+      "usage_ko": "사건의 원인 사슬을 명확히 요구할 때",
+      "example": "Good morning. Launch Program, Android Connectivity, UWB BSP and Secure Element, and Automotive Validation are represented. We have six days before the Aurora Key launch candidate is frozen. Overnight testing found that a controller brownout can let a recovered phone reuse a completed UWB ranging session while the paired vehicle believes it is evaluating a new approach. The door did not unlock in our observed failures, but the evidence path is ambiguous and our security requirement is fail closed. Today we need one causal account, a containment decision, named owners, quantitative release gates, and a follow-up meeting with immutable artifacts.",
+      "practice": "Publish one causal account before choosing the remedy."
+    },
+    {
+      "phrase": "epoch-bound session identity",
+      "meaning_ko": "epoch에 결합된 세션 식별자",
+      "usage_ko": "재시작 경계를 넘는 stale 상태를 구분할 때",
+      "example": "The UI transition came from framework consuming RANGE_COMPLETE before it received CONTROLLER_RESTARTED. I initially thought ordering the callbacks would solve the issue: if restart is processed first, we cancel the session. That is necessary but not sufficient. On another CPU, completion may already be queued, and a delayed completion from B44 can arrive after B45 is active. We need an epoch-bound session identity composed of framework UUID, controller boot nonce, secure element counter, peer transcript generation, and policy digest. Every event must carry or resolve that identity. An event with a mismatched component becomes evidence of cancellation, never evidence of success.",
+      "practice": "Bind every retry to an epoch-bound session identity."
+    },
+    {
+      "phrase": "evidence of cancellation",
+      "meaning_ko": "취소의 증거",
+      "usage_ko": "불일치 event의 의미를 명확히 할 때",
+      "example": "The UI transition came from framework consuming RANGE_COMPLETE before it received CONTROLLER_RESTARTED. I initially thought ordering the callbacks would solve the issue: if restart is processed first, we cancel the session. That is necessary but not sufficient. On another CPU, completion may already be queued, and a delayed completion from B44 can arrive after B45 is active. We need an epoch-bound session identity composed of framework UUID, controller boot nonce, secure element counter, peer transcript generation, and policy digest. Every event must carry or resolve that identity. An event with a mismatched component becomes evidence of cancellation, never evidence of success.",
+      "practice": "Treat the mismatched token as evidence of cancellation."
+    },
+    {
+      "phrase": "end-to-end recovery contract",
+      "meaning_ko": "종단 간 복구 계약",
+      "usage_ko": "여러 component의 복구 책임을 묶을 때",
+      "example": "UWB BSP and Secure Element is present. The controller exposes a volatile boot nonce, but the current vendor command returns it only in engineering mode. The secure element creates an authorization counter when the vehicle challenge is accepted and seals the result after the final ranging proof. During the brownout, the controller loses slot state while the secure element remains powered. The BSP reconstructs slot 7 from a cached command queue, yet it does not ask whether authorization counter 9021 is still open. The secure element eventually rejects the stale close request, but framework has already consumed a generic radio-ready event. We need an end-to-end recovery contract, not another delay.",
+      "practice": "Write an end-to-end recovery contract for the service chain."
+    },
+    {
+      "phrase": "timer does not establish cryptographic continuity",
+      "meaning_ko": "타이머는 암호학적 연속성을 입증하지 않는다",
+      "usage_ko": "단순 대기 해결책을 반박할 때",
+      "example": "We have three release choices. Option one disables passive digital key for every launch device and keeps tap-to-unlock through the secure element. It is safe but removes the headline feature. Option two adds a 500-millisecond delay after any controller reconnect and retries the old transaction. That is easy, but a timer does not establish cryptographic continuity. Option three disables passive unlock only after an epoch discontinuity, requires a fresh signed authorization receipt, and ships the full identity contract in the launch candidate. My recommendation is option three if the gate is completed by Tuesday. Otherwise we fall back to option one rather than reinterpret missing evidence.",
+      "practice": "A timeout is useful, but a timer does not establish cryptographic continuity."
+    },
+    {
+      "phrase": "one-use authorization receipt",
+      "meaning_ko": "일회용 인증 영수증",
+      "usage_ko": "재사용 방지 token을 설명할 때",
+      "example": "BSP will expose boot nonce in production through an attested read-only command and attach recovery generation to every event. Secure element firmware will issue a one-use authorization receipt and reject a second close, a changed controller nonce, or a peer generation mismatch. The receipt expires after eight seconds and cannot be renewed; a new approach requires a new vehicle challenge. We will remove cached reconstruction for authorization slots while retaining it for discovery-only slots. If the regulatory ranging engine, secure element, or controller cannot attest its generation, the session enters quarantined and passive unlock remains unavailable. Tap-to-unlock follows a separate transaction and must not borrow the passive session receipt.",
+      "practice": "Issue a one-use authorization receipt for each approval."
+    },
+    {
+      "phrase": "fail-closed state machine",
+      "meaning_ko": "안전 거부 상태 머신",
+      "usage_ko": "보안 상태 전이를 설계할 때",
+      "example": "Framework can deliver option three with a fail-closed state machine. The states are discovered, authorizing, ranging, awaiting-peer-commit, authorized, cancelled, and quarantined. A controller epoch change moves every nonterminal distance-bound session to cancelled and clears customer-ready state before discovery resumes. Only a receipt matching all five identity components can open a new ranging state. Process death reloads terminal outcomes but never pending authorization. Duplicate callbacks are idempotent. A late success after cancellation is recorded as stale-success-rejected. The UI consumes only the authoritative state, not raw radio callbacks. I will also separate paired, nearby, ranging, and authorized so visibility cannot imply permission.",
+      "practice": "Use a fail-closed state machine for privileged recovery."
+    },
+    {
+      "phrase": "stale-success-rejected",
+      "meaning_ko": "늦은 성공 거부",
+      "usage_ko": "취소 후 도착한 성공 event를 분류할 때",
+      "example": "Framework can deliver option three with a fail-closed state machine. The states are discovered, authorizing, ranging, awaiting-peer-commit, authorized, cancelled, and quarantined. A controller epoch change moves every nonterminal distance-bound session to cancelled and clears customer-ready state before discovery resumes. Only a receipt matching all five identity components can open a new ranging state. Process death reloads terminal outcomes but never pending authorization. Duplicate callbacks are idempotent. A late success after cancellation is recorded as stale-success-rejected. The UI consumes only the authoritative state, not raw radio callbacks. I will also separate paired, nearby, ranging, and authorized so visibility cannot imply permission.",
+      "practice": "Classify the delayed callback as stale-success-rejected."
+    },
+    {
+      "phrase": "hard stop",
+      "meaning_ko": "즉시 중단 조건",
+      "usage_ko": "출시를 멈추는 조건을 선언할 때",
+      "example": "The decision is conditional option three. The launch candidate may retain passive digital key only if the identity contract and full security gate pass on unchanged artifacts. Otherwise the configuration owner will disable passive unlock and retain tap-to-unlock. No server flag may bypass receipt verification, extend receipt lifetime, or convert quarantine into authorization. I own the launch decision record, configuration fallback, executive risk summary, and artifact freeze. The interface is frozen today, Saturday, November 28, at 14:00 Korea Standard Time. Any actual unauthorized unlock, identity collision, or untraceable terminal outcome is a hard stop and immediately selects option one.",
+      "practice": "An unsigned artifact is a hard stop."
+    },
+    {
+      "phrase": "bounded ledger",
+      "meaning_ko": "제한된 원장",
+      "usage_ko": "개인정보를 최소화한 검증 기록을 말할 때",
+      "example": "I own the framework state machine, epoch-bound session identity, persistence rules, stale callback rejection, and UI contract. The design review is today at 16:30 KST. A reviewable build is due Sunday, November 29 at 13:00, followed by unit and fault tests at 18:00. Tests will cover reset before success, reset after success, delayed success, duplicate completion, process death in every state, peer generation change, policy digest change, receipt expiry, missing nonce, and concurrent vehicles. By Monday at 10:00, I will publish a bounded ledger showing state transitions, reason codes, durations, and artifact digests without peer identity or movement data.",
+      "practice": "The bounded ledger must support an independent replay."
+    },
+    {
+      "phrase": "failed runs stay in the denominator",
+      "meaning_ko": "실패 실행을 분모에 유지한다",
+      "usage_ko": "검증 통계 왜곡을 막을 때",
+      "example": "The release matrix will contain 12,000 approach cycles across three controller firmware branches, two secure element versions, four simulated vehicle stacks, two physical vehicles, warm and cold temperatures, low battery, process death, airplane mode, Bluetooth coexistence, and rail dips from 5 to 80 milliseconds. Security gates are zero unlocks without a fresh receipt, zero accepted cross-epoch events, zero duplicate receipt closes, and zero ready indications after cancellation. Reliability gates are 99.9 percent successful passive entry in clean conditions, p99 authorization under 900 milliseconds, and UI withdrawal within 150 milliseconds after reset. Every changed digest restarts the relevant matrix; failed runs stay in the denominator.",
+      "practice": "For the final rate, failed runs stay in the denominator."
+    },
+    {
+      "phrase": "Missing cells are not passes",
+      "meaning_ko": "누락된 시험은 통과가 아니다",
+      "usage_ko": "미검증 항목을 통과로 간주하지 않을 때",
+      "example": "I own the 12,000-cycle matrix, physical vehicle custody, independent transcript checker, privacy review, and final evidence package. Smoke testing starts November 30 at 13:00 KST. A 3,000-cycle interim ledger is due December 1 at 20:00, and the complete ledger is due December 3 at 12:00. A separate 1,200-case adversarial set covers event reordering and receipt mutation. We will preserve failed traces and exact artifact digests. Missing cells are not passes, and rerunning only successful conditions is prohibited. The report will show branch, version, temperature band, fault class, result, and latency bucket without recording vehicle serials, locations, account identifiers, or raw cryptographic material.",
+      "practice": "Missing cells are not passes in the certification matrix."
+    },
+    {
+      "phrase": "predeclared gates",
+      "meaning_ko": "사전 선언된 기준",
+      "usage_ko": "일정 압력과 무관한 판단 기준을 강조할 때",
+      "example": "The evidence checkpoint is Tuesday, December 1, 2026, from 21:00 to 21:45 Korea Standard Time. Bring the approved interface, framework build digest, both controller digests, secure element digest, signature verification record, the 3,000-cycle ledger, adversarial results available by then, every hard-stop event, and the fallback configuration proof. We will review evidence against predeclared gates, not against schedule pressure. Scope is limited to passive digital key recovery across controller epoch changes. Pairing, tap-to-unlock, vehicle firmware, general Bluetooth discovery, and unrelated UWB features remain separate unless their evidence directly violates this contract.",
+      "practice": "Judge the release against predeclared gates."
+    },
+    {
+      "phrase": "exactly one terminal outcome",
+      "meaning_ko": "정확히 하나의 최종 결과",
+      "usage_ko": "transaction 종료 일관성을 요구할 때",
+      "example": "At the checkpoint I will replay a clean approach, a reset before authorization, a reset after range completion, a late B44 success under B45, process death while awaiting peer commit, and two vehicles approaching concurrently. The reviewer will see that each session reaches exactly one terminal outcome and that customer-ready state cannot survive cancellation. I will also demonstrate that restoring paired visibility does not restore permission. If telemetry upload fails, local security behavior remains unchanged. A retry begins with a new challenge and receipt; it never revives a previous transaction. State reconstruction will be reproducible from bounded ledger fields and signed artifact digests.",
+      "practice": "Each command must reach exactly one terminal outcome."
+    }
+  ]
+}
